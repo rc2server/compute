@@ -7,6 +7,7 @@
         <in>RC2Utils.cpp</in>
       </df>
       <df name="src">
+        <in>RSessionCallbacks.cpp</in>
         <in>rserver.cpp</in>
         <in>rsession.cpp</in>
       </df>
@@ -42,13 +43,16 @@
           <ccTool>
             <incDir>
               <pElem>.</pElem>
+              <pElem>/usr/local/lib/R/site-library/RInside/include</pElem>
+              <pElem>/usr/local/lib/R/site-library/Rcpp/include</pElem>
+              <pElem>/usr/share/R/include</pElem>
             </incDir>
           </ccTool>
         </makeTool>
       </makefileType>
-      <item path="common/FormattedException.cpp" ex="false" tool="1" flavor2="0">
+      <item path="common/FormattedException.cpp" ex="false" tool="1" flavor2="4">
       </item>
-      <item path="common/RC2Utils.cpp" ex="false" tool="1" flavor2="0">
+      <item path="common/RC2Utils.cpp" ex="false" tool="1" flavor2="4">
       </item>
       <folder path="0/common">
         <ccTool>
@@ -64,9 +68,11 @@
           </incDir>
         </ccTool>
       </folder>
-      <item path="src/rserver.cpp" ex="false" tool="1" flavor2="0">
+      <item path="src/RSessionCallbacks.cpp" ex="false" tool="1" flavor2="0">
       </item>
-      <item path="src/rsession.cpp" ex="false" tool="1" flavor2="0">
+      <item path="src/rserver.cpp" ex="false" tool="1" flavor2="4">
+      </item>
+      <item path="src/rsession.cpp" ex="false" tool="1" flavor2="4">
       </item>
     </conf>
   </confs>
