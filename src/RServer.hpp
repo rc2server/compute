@@ -18,6 +18,7 @@ public:
 
 	bool parseArgs(int argc, char **argv);
 	void	startRunLoop();
+	void handleEvent(evutil_socket_t listener, short events);
 
 private:
 	struct event_base*	_eventBase;

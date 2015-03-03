@@ -19,5 +19,5 @@ add_subdirectory (common)
 add_executable(rsession src/rsession.cpp src/RSessionCallbacks.cpp)
 add_executable(rserver src/RServer.cpp)
 
-target_link_libraries(rserver event)
+target_link_libraries(rserver event common uuid boost_filesystem boost_system)
 target_link_libraries(rsession common R)
