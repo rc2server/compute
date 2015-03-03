@@ -1,5 +1,18 @@
 cmake_minimum_required (VERSION 2.6)
+
+set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
+set(CMAKE_DISABLE_SOURCE_CHANGES ON)
+
 project (rcompute2)
+
+#get_cmake_property(_variableNames VARIABLES)
+#foreach (_variableName ${_variableNames})
+#    message(STATUS "${_variableName}=${${_variableName}}")
+#endforeach()
+
+#if("${rcompute2_SOURCE_DIR}" STREQUAL "${rcompute2_BINARY_DIR}")
+#   message(SEND_ERROR "In-source builds are not allowed. (${rcompute2_SOURCE_DIR}) (${rcompute2_BINARY_DIR})")
+#endif("${rcompute2_SOURCE_DIR}" STREQUAL "${rcompute2_BINARY_DIR}")
 
 set_property(GLOBAL PROPERTY CXX_STANDARD 11)
 set_property(GLOBAL PROPERTY CXX_STANDARD_REQUIRED ON)
@@ -15,6 +28,7 @@ include_directories (${CMAKE_CURRENT_SOURCE_DIR}
 #link_directories ()
 
 add_subdirectory (common)
+add_subdirectory (tests)
 
 add_executable(rsession src/rsession.cpp src/RSessionCallbacks.cpp)
 add_executable(rserver src/RServer.cpp)
