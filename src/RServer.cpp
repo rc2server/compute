@@ -7,6 +7,7 @@
 
 #include <cstdlib>
 #include <unistd.h>
+#include <signal.h>
 #include "RServer.hpp"
 #include "tclap/CmdLine.h"
 #include "common/RC2Utils.hpp"
@@ -15,14 +16,18 @@ using namespace std;
 
 
 static void event_callback(evutil_socket_t socket, short events, void *objptr);
+static void terminate_app(evutil_socket_t socket, short events, void *objptr);
 
 RServer::RServer()
 {
+	signal(SIGCHLD, SIG_IGN); //auto-reap child processes
 	_port = 7714;
 	struct event_config *config = event_config_new();
 	event_config_require_features(config, EV_FEATURE_FDS);
 	_eventBase = event_base_new_with_config(config);
 	event_config_free(config);
+
+	event_new(_eventBase, SIGINT, EV_SIGNAL|EV_PERSIST, terminate_app, this);
 }
 
 RServer::~RServer()
@@ -60,7 +65,8 @@ RServer::startRunLoop()
 	}
 	event_add(listener_event, NULL);
 	
-	event_base_dispatch(_eventBase);
+	int drc = event_base_dispatch(_eventBase);
+	cerr << "dispatch:" << drc << endl;
 }
 
 void
@@ -121,15 +127,18 @@ RServer::parseArgs(int argc, char** argv)
 	return true;
 }
 
-int 
-main(int argc, char** argv) 
+void
+RServer::terminate()
 {
-	RServer server;
-	server.parseArgs(argc, argv);
-	server.startRunLoop();
-    return 0;
+	event_base_loopexit(_eventBase, NULL);
 }
 
+static void
+terminate_app(evutil_socket_t socket, short events, void *objptr)
+{
+	RServer *server = static_cast<RServer*>(objptr);
+	server->terminate();
+}
 
 static void 
 event_callback(evutil_socket_t socket, short events, void *objptr)

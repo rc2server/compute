@@ -5,6 +5,8 @@ set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 
 project (rcompute2)
 
+set(CMAKE_BUILD_TYPE Debug)
+
 #get_cmake_property(_variableNames VARIABLES)
 #foreach (_variableName ${_variableNames})
 #    message(STATUS "${_variableName}=${${_variableName}}")
@@ -25,13 +27,20 @@ include_directories (${CMAKE_CURRENT_SOURCE_DIR}
 	/usr/local/lib/R/site-library/Rcpp/include
 	/usr/share/R/include)
 
-#link_directories ()
+link_directories (
+	/usr/local/lib/R/site-library/RInside/lib
+)
 
 add_subdirectory (common)
 add_subdirectory (tests)
 
-add_executable(rsession src/rsession.cpp src/RSessionCallbacks.cpp)
-add_executable(rserver src/RServer.cpp)
+add_executable(rsession src/RSession.cpp 
+						src/InputBufferManager.cpp
+						src/RSessionCallbacks.cpp 
+						src/RSession-main.cpp)
+
+add_executable(rserver 	src/RServer.cpp 
+						src/RServer-main.cpp)
 
 target_link_libraries(rserver event common uuid boost_filesystem boost_system)
-target_link_libraries(rsession common R)
+target_link_libraries(rsession common R event boost_filesystem RInside boost_system uuid)
