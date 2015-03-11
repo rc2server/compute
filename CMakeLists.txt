@@ -5,6 +5,8 @@ set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 
 project (rcompute2)
 
+enable_testing()
+
 set(CMAKE_BUILD_TYPE Debug)
 
 #get_cmake_property(_variableNames VARIABLES)
@@ -20,6 +22,7 @@ set_property(GLOBAL PROPERTY CXX_STANDARD 11)
 set_property(GLOBAL PROPERTY CXX_STANDARD_REQUIRED ON)
 
 add_definitions(-std=c++11)
+SET(CMAKE_CXX_FLAGS "-std=c++11")
 
 include_directories (${CMAKE_CURRENT_SOURCE_DIR} 
 	${CMAKE_ROOT}
@@ -32,15 +35,12 @@ link_directories (
 )
 
 add_subdirectory (common)
+add_subdirectory (src)
 add_subdirectory (tests)
 
-add_executable(rsession src/RSession.cpp 
-						src/InputBufferManager.cpp
-						src/RSessionCallbacks.cpp 
-						src/RSession-main.cpp)
+add_executable(rsession src/RSession-main.cpp)
 
-add_executable(rserver 	src/RServer.cpp 
-						src/RServer-main.cpp)
+add_executable(rserver src/RServer-main.cpp)
 
-target_link_libraries(rserver event common uuid boost_filesystem boost_system)
-target_link_libraries(rsession common R event boost_filesystem RInside boost_system uuid)
+target_link_libraries(rserver src common event uuid boost_filesystem boost_system)
+target_link_libraries(rsession src common R event boost_filesystem RInside boost_system uuid)

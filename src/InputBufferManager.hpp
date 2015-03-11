@@ -17,8 +17,11 @@ namespace RC2 {
 			std::string popCurrentMessage();
 			
 		private:
+			void reset();
+		
 			struct evbuffer*	_buffer;
 			int32_t				_expectedSize;
+			std::string			_currentJson;
 	};
 
 };

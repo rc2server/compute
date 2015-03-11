@@ -6,6 +6,13 @@ include_directories (${CMAKE_CURRENT_SOURCE_DIR}
 	${CMAKE_SOURCE_DIR}
 )
 
-add_executable(rserver-test RServerTests.cpp ../src/RServer.cpp)
+SET(TESTS
+	rserver
+	inputbuffer
+)
 
-target_link_libraries(rserver-test event common uuid boost_filesystem boost_system ${GTEST_BOTH_LIBRARIES} pthread)
+FOREACH(test ${TESTS})
+	add_executable(${test}-t ${test}-t.cpp)
+	target_link_libraries(${test}-t src event common uuid boost_filesystem boost_system ${GTEST_BOTH_LIBRARIES} pthread)
+	add_test(${test} ${test}-t)
+ENDFOREACH()
