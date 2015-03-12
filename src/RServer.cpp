@@ -59,11 +59,11 @@ RServer::startRunLoop()
 		exit(-1);
 	}
 	listener_event = event_new(_eventBase, listener, EV_READ|EV_PERSIST, event_callback, this);
-	if (NULL == listener_event) {
+	if (nullptr == listener_event) {
 		cerr << "failed to create event " << errno << endl;
 		exit(-1);
 	}
-	event_add(listener_event, NULL);
+	event_add(listener_event, nullptr);
 	
 	int drc = event_base_dispatch(_eventBase);
 	cerr << "dispatch:" << drc << endl;
@@ -92,8 +92,8 @@ RServer::handleEvent(evutil_socket_t listener, short events)
 	args[0] = "rsession";
 	args[1] = "-s";
 	args[2] = pidstr;
-	args[3] = _verbose ? "-v" : NULL;
-	args[4] = NULL;
+	args[3] = _verbose ? "-v" : nullptr;
+	args[4] = nullptr;
 	int forkResult = fork();
 	if (forkResult == 0) {
 		execve(path.c_str(), (char *const *)args, environ);
@@ -130,7 +130,7 @@ RServer::parseArgs(int argc, char** argv)
 void
 RServer::terminate()
 {
-	event_base_loopexit(_eventBase, NULL);
+	event_base_loopexit(_eventBase, nullptr);
 }
 
 static void

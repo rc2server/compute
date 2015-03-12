@@ -26,8 +26,8 @@ static string formatErrorAsJson(int errorCode, string details);
 RC2::RSession::RSession(RSessionCallbacks *callbacks)
 {
 	std::cerr << "RSession created" << endl;
-//	_dataInProgress = NULL;
-//	_clientSource = NULL;
+//	_dataInProgress = nullptr;
+//	_clientSource = nullptr;
 	_socket = 0;
 	_open = false;
 	_ignoreOutput = false;
@@ -44,13 +44,13 @@ RC2::RSession::~RSession()
 	if (_R) {
 		_R->parseEvalQNT("save.image()");
 		delete _R;
-		_R = NULL;
+		_R = nullptr;
 	}
 	if (_inputBuffer)
 		delete _inputBuffer;
 //	if (_fileWatcher) {
 //		delete _fileWatcher;
-//		_fileWatcher = NULL;
+//		_fileWatcher = nullptr;
 //	}
 //	if (_outFunction)
 //		Block_release(_outFunction);
@@ -93,7 +93,7 @@ RC2::RSession::prepareForRunLoop()
 	_inputBuffer = new InputBufferManager();
 	evutil_make_socket_nonblocking(_socket);
 	_eventBuffer = bufferevent_socket_new(_eventBase, _socket, 0);
-	if (NULL == _eventBuffer) {
+	if (_eventBuffer == nullptr) {
 		cerr << "failed to create bufferevent socket" << endl;
 		return;
 	}
@@ -106,8 +106,8 @@ RC2::RSession::prepareForRunLoop()
 				me->handleJsonCommand(me->_inputBuffer->popCurrentMessage());
 			}
 		},
-		NULL,
-		NULL,
+		nullptr,
+		nullptr,
 		this);
 }
 

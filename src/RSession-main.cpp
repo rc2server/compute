@@ -7,8 +7,8 @@
 
 using namespace std;
 
-static RC2::RSessionCallbacks *callbacks=NULL;
-static RC2::RSession *session=NULL;
+static RC2::RSessionCallbacks *callbacks=nullptr;
+static RC2::RSession *session=nullptr;
 
 void
 exitHandler()

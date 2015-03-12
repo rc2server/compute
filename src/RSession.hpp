@@ -70,7 +70,7 @@ namespace RC2 {
 			void	handleHelpCommand(std::string arg, std::string startTime);
 */		
 			std::string	formatStringAsJson(std::string &input, bool is_error);
-			std::string acknowledgeExecComplete(std::string stime, json::UnknownElement *clientExtras=NULL);
+			std::string acknowledgeExecComplete(std::string stime, json::UnknownElement *clientExtras=nullptr);
 			void	addFileChangesToJson(JsonDictionary& json);
 			void	clearFileChanges();
 			void	handleJsonCommand(std::string json);
