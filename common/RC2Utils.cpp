@@ -8,6 +8,7 @@ typedef char* uuid_string_t;
 #endif
 #include <sys/stat.h>
 #include <cerrno>
+#include <fstream>
 #include <boost/filesystem.hpp>
 #include "json/reader.h"
 #include "json/writer.h"
@@ -94,6 +95,21 @@ RC2::JsonDictionary::operator std::string () const
 	return string();
 }
 
+std::string
+RC2::SlurpFile(const char *filename)
+{
+	std::ifstream in(filename, std::ios::in | std::ios::binary);
+	if (in) {
+		std::string contents;
+		in.seekg(0, std::ios::end);
+		contents.resize(in.tellg());
+		in.seekg(0, std::ios::beg);
+		in.read(&contents[0], contents.size());
+		in.close();
+		return (contents);
+	}
+	throw(errno);
+}
 
 std::string
 RC2::GenerateUUID()
