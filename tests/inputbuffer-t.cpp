@@ -52,5 +52,25 @@ namespace testing {
 		ASSERT_STREQ(json.c_str(), ib.popCurrentMessage().c_str());
 	}
 
+	TEST(InputBufferTest, ignoreBadExtraDataTest)
+	{
+		InputBufferManager ib;
+		evbuffer *buffer = evbuffer_new();
+		string json = "{ \"a\":22, \"name\":\"foo\"}";
+		string json2 = "{\"b\":11, \"stype\":\"bar\"}";
+		char junk[4] = {'A','Z',2,11};
+		setBufferToJson(buffer, json);
+		evbuffer_add(buffer, &junk, sizeof(junk));
+		ib.appendData(buffer);
+		
+		ASSERT_TRUE(ib.hasCompleteMessage());
+		ASSERT_STREQ(json.c_str(), ib.popCurrentMessage().c_str());
+
+		setBufferToJson(buffer, json2);
+		ib.appendData(buffer);
+		ASSERT_TRUE(ib.hasCompleteMessage());
+		ASSERT_STREQ(json2.c_str(), ib.popCurrentMessage().c_str());
+	}
+
 };
 };
