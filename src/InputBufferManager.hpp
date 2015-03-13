@@ -5,6 +5,8 @@
 #include <memory>
 #include <boost/noncopyable.hpp>
 
+extern const uint32_t kRSessionMagicNumber;
+
 namespace RC2 {
 
 	class InputBufferManager : private boost::noncopyable {

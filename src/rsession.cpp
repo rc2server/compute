@@ -19,7 +19,6 @@
 using namespace std;
 namespace fs = boost::filesystem;
 
-const uint32_t kRSessionMagicNumber = 0x21;
 extern Rboolean R_Visible;
 
 static string escape_quotes(const string before);

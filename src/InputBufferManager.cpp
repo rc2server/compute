@@ -38,7 +38,7 @@ RC2::InputBufferManager::appendData(struct evbuffer *inBuffer)
 		if ((jsonSize + 8) <= dataSize) {
 			std::unique_ptr<char[]> buff(new char[dataSize]);
 			evbuffer_remove(_buffer, buff.get(), dataSize);
-			_currentJson = string(buff.get()[8], jsonSize);
+			_currentJson += string(&buff.get()[8], jsonSize);
 		}
 	}
 }
