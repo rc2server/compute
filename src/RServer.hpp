@@ -9,8 +9,9 @@
 #define	RSERVER_HPP
 
 #include <event2/event.h>
+#include <boost/noncopyable.hpp>
 
-class RServer
+class RServer : private boost::noncopyable
 {
 public:
 	RServer();

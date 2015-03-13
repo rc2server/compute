@@ -3,10 +3,11 @@
 #include <event2/event.h>
 #include <event2/buffer.h>
 #include <memory>
+#include <boost/noncopyable.hpp>
 
 namespace RC2 {
 
-	class InputBufferManager {
+	class InputBufferManager : private boost::noncopyable {
 	
 		public:
 			InputBufferManager();

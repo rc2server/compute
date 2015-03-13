@@ -1,11 +1,13 @@
 #pragma once
 #include <RInside.h>
 #include <functional>
+#include <boost/noncopyable.hpp>
 
 namespace RC2 {
 
 
-	class RSessionCallbacks : public Callbacks {
+	class RSessionCallbacks : public Callbacks, private boost::noncopyable 
+	{
 		public:
 			RSessionCallbacks() {}
 			virtual ~RSessionCallbacks() {}

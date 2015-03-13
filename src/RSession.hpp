@@ -5,9 +5,7 @@
 #include <stdint.h>
 #include <functional>
 #include <json/elements.h>
-#include <event2/event.h>
-#include <event2/bufferevent.h>
-#include "common/RC2Utils.hpp"
+#include <boost/noncopyable.hpp>
 
 extern const uint32_t kRSessionMagicNumber;
 
@@ -26,7 +24,7 @@ namespace RC2 {
 	class RSessionCallbacks;
 	class InputBufferManager;
 
-	class RSession {
+	class RSession : private boost::noncopyable {
 
 		public:
 					RSession(RSessionCallbacks *callbacks);
@@ -34,7 +32,7 @@ namespace RC2 {
 			
 			bool 	parseArguments(int argc, char *argv[]);
 			void	prepareForRunLoop();
-			void	installExitHandler(event_callback_fn callback);
+			void	installExitHandler(void(*)(short flags));
 
 			bool isVerbose() const { return _verbose; }
 			void setVerbose(bool v) { _verbose = v; }
@@ -42,7 +40,7 @@ namespace RC2 {
 			RSessionCallbacks* getCallbacks() const { return _callbacks; }
 			void setCallbacks(RSessionCallbacks *cbs) { _callbacks = cbs; }
 
-			std::string getWorkingDirectory() const { return _tmpDir->getPath(); }
+			std::string getWorkingDirectory() const;
 
 			void	sendJsonToClientSource(std::string json);
 /*
@@ -76,26 +74,10 @@ namespace RC2 {
 			void	handleJsonCommand(std::string json);
 			void	handleOpenCommand(std::string arg);
 
-			event_base*					_eventBase;
-			struct bufferevent*			_eventBuffer;
-			InputBufferManager*			_inputBuffer;
-			RInside*					_R;
-			std::unique_ptr<TemporaryDirectory>	_tmpDir;
-//			KQueueFileWatcher*			_fileWatcher;
+			struct Impl;
+			std::unique_ptr<Impl>		_impl;
 			RSessionCallbacks*		 	_callbacks;
-//			dispatch_io_t				_clientSource;
-//			dispatch_io_t				_stdoutSource;
-//			dispatch_io_t				_stderrSource;
-//			dispatch_data_t				_dataInProgress;
-//			dispatch_queue_t			_queue;
-			std::string					_outBuffer;
-//			OutputCallback				_outFunction; //if no _clientSource, this is used (likely for testing)
-			int							_socket;
 			bool						_verbose;
-			bool						_open;
-			bool						_ignoreOutput;
-			bool						_sourceInProgress;
-			bool						_watchVariables;
-	
+				
 	};
 };

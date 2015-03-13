@@ -18,7 +18,7 @@ exitHandler()
 }
 
 void
-signalHandler(evutil_socket_t socket, short flags, void* arg)
+signalHandler(short flags)
 {
 	std::cerr << "signal called " << flags << std::endl;
 	abort();
