@@ -13,14 +13,14 @@ static RC2::RSession *session=nullptr;
 void
 exitHandler()
 {
-	std::cerr << "terminate called " << std::endl;
+	cerr << "terminate called " << endl;
 	abort();
 }
 
 void
 signalHandler(short flags)
 {
-	std::cerr << "signal called " << flags << std::endl;
+	cerr << "signal called " << flags << endl;
 	abort();
 }
 
@@ -33,8 +33,10 @@ main(int argc, char** argv)
 	session = new RC2::RSession(callbacks);
 	session->prepareForRunLoop();
 	session->installExitHandler(signalHandler);
-	
-	
+	session->startEventLoop();
+	if (session->isVerbose()) {
+		cerr << "event loop exited" << endl;
+	}
     return 0;
 }
 

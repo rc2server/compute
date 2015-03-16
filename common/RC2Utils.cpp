@@ -111,6 +111,16 @@ RC2::SlurpFile(const char *filename)
 	throw(errno);
 }
 
+std::runtime_error 
+RC2::FormatErrorAsJson(int errorCode, std::string details)
+{
+	RC2::JsonDictionary json;
+	json.addString("msg", "error");
+	json.addInt("errorCode", errorCode);
+	json.addString("errorDetails", details);
+	return std::runtime_error(json);
+}
+
 std::string
 RC2::GenerateUUID()
 {

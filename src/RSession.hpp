@@ -33,6 +33,7 @@ namespace RC2 {
 			bool 	parseArguments(int argc, char *argv[]);
 			void	prepareForRunLoop();
 			void	installExitHandler(void(*)(short flags));
+			void	startEventLoop();
 
 			bool isVerbose() const { return _verbose; }
 			void setVerbose(bool v) { _verbose = v; }
@@ -73,6 +74,7 @@ namespace RC2 {
 			void	clearFileChanges();
 			void	handleJsonCommand(std::string json);
 			void	handleOpenCommand(std::string arg);
+
 
 			struct Impl;
 			std::unique_ptr<Impl>		_impl;

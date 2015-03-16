@@ -2,6 +2,7 @@
 #include <iostream>
 #include <tclap/CmdLine.h>
 #include <execinfo.h>
+#include <sys/stat.h>
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 #include <regex>
@@ -27,7 +28,8 @@ static string formatErrorAsJson(int errorCode, string details);
 struct RC2::RSession::Impl {
 	event_base*					eventBase;
 	struct bufferevent*			eventBuffer;
-	InputBufferManager*			inputBuffer;
+	struct evbuffer*			outBuffer;
+	InputBufferManager			inputBuffer;
 	RInside*					R;
 	std::unique_ptr<TemporaryDirectory>	tmpDir;
 //			KQueueFileWatcher*			_fileWatcher;
@@ -36,7 +38,7 @@ struct RC2::RSession::Impl {
 //			dispatch_io_t				_stderrSource;
 //			dispatch_data_t				_dataInProgress;
 //			dispatch_queue_t			_queue;
-	std::string					outBuffer;
+//	std::string					outBuffer;
 //			OutputCallback				_outFunction; //if no _clientSource, this is used (likely for testing)
 	int							socket;
 	bool						open;
@@ -47,36 +49,29 @@ struct RC2::RSession::Impl {
 
 
 RC2::RSession::RSession(RSessionCallbacks *callbacks)
+		: _impl{}
 {
 	std::cerr << "RSession created" << endl;
-//	_dataInProgress = nullptr;
 //	_clientSource = nullptr;
-	_impl->socket = 0;
-	_impl->open = false;
-	_impl->ignoreOutput = false;
-	_impl->watchVariables = false;
-	_impl->sourceInProgress = false;
 	_callbacks = callbacks;
 	//TODO: set callbacks output lambda
 }
 
 RC2::RSession::~RSession()
 {
-//	if (_dataInProgress)
-//		dispatch_release(_dataInProgress);
 	if (_impl->R) {
 		_impl->R->parseEvalQNT("save.image()");
 		delete _impl->R;
 		_impl->R = nullptr;
 	}
-	if (_impl->inputBuffer)
-		delete _impl->inputBuffer;
 //	if (_fileWatcher) {
 //		delete _fileWatcher;
 //		_fileWatcher = nullptr;
 //	}
 //	if (_outFunction)
 //		Block_release(_outFunction);
+	if (nullptr != _impl->outBuffer)
+		evbuffer_free(_impl->outBuffer);
 	_verbose && std::cerr << "RSession destroyed" << endl;
 }
 
@@ -114,7 +109,6 @@ RC2::RSession::prepareForRunLoop()
 	event_config_require_features(config, EV_FEATURE_FDS);
 	_impl->eventBase = event_base_new_with_config(config);
 	event_config_free(config);
-	_impl->inputBuffer = new InputBufferManager();
 	evutil_make_socket_nonblocking(_impl->socket);
 	_impl->eventBuffer = bufferevent_socket_new(_impl->eventBase, _impl->socket, 0);
 	if (_impl->eventBuffer == nullptr) {
@@ -125,43 +119,113 @@ RC2::RSession::prepareForRunLoop()
 	bufferevent_setcb(_impl->eventBuffer,
 		[](struct bufferevent *bev, void *ctx) {
 			RSession *me = static_cast<RSession*>(ctx);
-			me->_impl->inputBuffer->appendData(bufferevent_get_input(bev));
-			if (me->_impl->inputBuffer->hasCompleteMessage()) {
-				me->handleJsonCommand(me->_impl->inputBuffer->popCurrentMessage());
+			me->_impl->inputBuffer.appendData(bufferevent_get_input(bev));
+			if (me->_impl->inputBuffer.hasCompleteMessage()) {
+				me->handleJsonCommand(me->_impl->inputBuffer.popCurrentMessage());
 			}
 		},
 		nullptr,
 		nullptr,
 		this);
+	_impl->outBuffer = evbuffer_new();
+}
+
+void
+RC2::RSession::startEventLoop()
+{
+	event_base_loop(_impl->eventBase, 0);
+}
+
+void
+RC2::RSession::sendJsonToClientSource(string json)
+{
+	if (json.length() < 1)
+		return;
+	if (_impl->socket > 0) { //only send if we have a valid socket
+		cerr << "sending:" << json << endl;
+		int32_t header[2];
+		header[0] = kRSessionMagicNumber;
+		header[1] = json.length();
+		header[0] = htonl(header[0]);
+		header[1] = htonl(header[1]);
+		evbuffer_add(_impl->outBuffer, &header, sizeof(header));
+		evbuffer_add(_impl->outBuffer, json.c_str(), json.length());
+		
+		bufferevent_write_buffer(_impl->eventBuffer, _impl->outBuffer);
+	} else {
+		std::cerr << "output w/o client:" << json << endl;
+	}
 }
 
 void
 RC2::RSession::handleJsonCommand(string json)
 {
-	if (json.length() < 1)
-		return;
-	_verbose && std::cerr << "json=" << json << endl;
-	json::Object doc;
 	try {
-		std::istringstream ist(json);
-		json::Reader::Read(doc, ist);
-	} catch (json::Reader::ParseException &pe) {
-		std::cerr << "parse exception:" << pe.what() << endl;
-		return;
-	} catch (std::exception &ex) {
-		std::cerr << "unknown exception parsing:" << ex.what() << endl;
-	}
-	string msg(((json::String)doc[string("msg")]).Value());
-	string arg(((json::String)doc["argument"]).Value());
-	if (msg == "open") {
-		handleOpenCommand(arg);
-	} else {
+		if (json.length() < 1)
+			return;
+		_verbose && std::cerr << "json=" << json << endl;
+		json::Object doc;
+		try {
+			std::istringstream ist(json);
+			json::Reader::Read(doc, ist);
+		} catch (json::Reader::ParseException &pe) {
+			std::cerr << "parse exception:" << pe.what() << endl;
+			return;
+		} catch (std::exception &ex) {
+			std::cerr << "unknown exception parsing:" << ex.what() << endl;
+		}
+		string msg(((json::String)doc[string("msg")]).Value());
+		string arg(((json::String)doc["argument"]).Value());
+		if (msg == "open") {
+			handleOpenCommand(arg);
+		} else {
+		}
+	} catch (std::runtime_error error) {
+		cerr << "handleJsonCommand error: " << error.what() << endl;
+		sendJsonToClientSource(error.what());
 	}
 }
 
 void
 RC2::RSession::handleOpenCommand(string arg)
 {
+	bool outDir = arg.length() < 1;
+	if (outDir)
+		arg = "/tmp/" + RC2::GenerateUUID();
+	_verbose && cerr << "got open message: " << arg << endl;
+	struct stat sb;
+	if (stat(arg.c_str(), &sb) == 0) {
+		if (!S_ISDIR(sb.st_mode)) {
+			//exists and not a directory
+			throw (FormatErrorAsJson(kError_Open_InvalidDir, "invalid working directory"));
+		}
+	} else {
+		//does not exist. try creating
+		int rc = RC2::MakeDirectoryPath(arg, 0755);
+		if (rc != 0) {
+			throw (FormatErrorAsJson(kError_Open_CreateDirFailed, 
+				"failed to create working directory"));
+		}
+	}
+	_impl->tmpDir = std::move(std::unique_ptr<TemporaryDirectory>(new TemporaryDirectory(arg, outDir)));
+	setenv("TMPDIR", arg.c_str(), 1);
+	setenv("TEMP", arg.c_str(), 1);
+	setenv("R_DEFAULT_DEVICE", "png", 1);
+	_verbose && std::cerr << "setting wd" << endl;
+	_impl->R->parseEvalQNT("setwd(\"" + escape_quotes(arg) + "\")");
+	_impl->ignoreOutput = true;
+	_impl->R->parseEvalQNT("library(rc2);");
+	_impl->R->parseEvalQNT("library(knitr)");
+	_impl->R->parseEvalQNT("library(markdown)");
+	_impl->R->parseEvalQNT("library(tools)");
+	_impl->R->parseEvalQNT("rm(argv)"); //RInside creates this even though we passed NULL
+	_impl->ignoreOutput = false;
+	_impl->R->parseEvalQNT("options(device = \"rc2.pngdev\")");
+	sendJsonToClientSource("{\"msg\":\"opensuccess\"}");
+	_impl->open = true;
+	_verbose && cerr << "open done" << endl;
+//	_fileWatcher = new KQueueFileWatcher();
+//	_fileWatcher->initializeWatcher(_tmpDir->getPath()); 
 }
 
 void
