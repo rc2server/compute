@@ -17,9 +17,8 @@ namespace RC2 {
 								std::vector<std::string> &added,  
 								std::vector<std::string> &modified, 
 								std::vector<std::string> &deleted
-							);
+							)=0;
 	
-		private:
 			FileWatcher(const FileWatcher&) = delete;
 			FileWatcher& operator=(const FileWatcher&) = delete;
 	};
