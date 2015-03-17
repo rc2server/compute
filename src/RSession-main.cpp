@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <signal.h>
+#include <boost/log/trivial.hpp>
 #include "common/RC2Utils.hpp"
 #include "RSessionCallbacks.hpp"
 #include "RSession.hpp"
@@ -34,9 +35,7 @@ main(int argc, char** argv)
 	session->prepareForRunLoop();
 	session->installExitHandler(signalHandler);
 	session->startEventLoop();
-	if (session->isVerbose()) {
-		cerr << "event loop exited" << endl;
-	}
+	BOOST_LOG_TRIVIAL(info) << "event loop exited" << endl;
     return 0;
 }
 

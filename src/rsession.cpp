@@ -5,6 +5,9 @@
 #include <sys/stat.h>
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/log/core.hpp>
+#include <boost/log/expressions.hpp>
 #include <regex>
 #include <RInside.h>
 #include <event2/buffer.h>
@@ -16,6 +19,10 @@
 #include "InputBufferManager.hpp"
 //#include "FormattedException.hpp"
 #include "common/RC2Utils.hpp"
+#include "FileWatcher.hpp"
+
+#define RC2LOG(x) BOOST_LOG_TRIVIAL(x)
+namespace logging = boost::log;
 
 using namespace std;
 namespace fs = boost::filesystem;
@@ -26,33 +33,25 @@ static string escape_quotes(const string before);
 static string formatErrorAsJson(int errorCode, string details);
 
 struct RC2::RSession::Impl {
-	event_base*					eventBase;
-	struct bufferevent*			eventBuffer;
-	struct evbuffer*			outBuffer;
-	InputBufferManager			inputBuffer;
-	RInside*					R;
-	std::unique_ptr<TemporaryDirectory>	tmpDir;
-//			KQueueFileWatcher*			_fileWatcher;
-//			dispatch_io_t				_clientSource;
-//			dispatch_io_t				_stdoutSource;
-//			dispatch_io_t				_stderrSource;
-//			dispatch_data_t				_dataInProgress;
-//			dispatch_queue_t			_queue;
-//	std::string					outBuffer;
-//			OutputCallback				_outFunction; //if no _clientSource, this is used (likely for testing)
-	int							socket;
-	bool						open;
-	bool						ignoreOutput;
-	bool						sourceInProgress;
-	bool						watchVariables;
+	event_base*						eventBase;
+	struct bufferevent*				eventBuffer;
+	struct evbuffer*				outBuffer;
+	InputBufferManager				inputBuffer;
+	RInside*						R;
+	unique_ptr<FileWatcher>			fileWatcher;
+	unique_ptr<TemporaryDirectory>	tmpDir;
+	int								socket;
+	bool							open;
+	bool							ignoreOutput;
+	bool							sourceInProgress;
+	bool							watchVariables;
 };
 
 
 RC2::RSession::RSession(RSessionCallbacks *callbacks)
 		: _impl{}
 {
-	std::cerr << "RSession created" << endl;
-//	_clientSource = nullptr;
+	RC2LOG(info) << "RSession created" << endl;
 	_callbacks = callbacks;
 	//TODO: set callbacks output lambda
 }
@@ -64,15 +63,9 @@ RC2::RSession::~RSession()
 		delete _impl->R;
 		_impl->R = nullptr;
 	}
-//	if (_fileWatcher) {
-//		delete _fileWatcher;
-//		_fileWatcher = nullptr;
-//	}
-//	if (_outFunction)
-//		Block_release(_outFunction);
 	if (nullptr != _impl->outBuffer)
 		evbuffer_free(_impl->outBuffer);
-	_verbose && std::cerr << "RSession destroyed" << endl;
+	RC2LOG(info) << "RSession destroyed" << endl;
 }
 
 bool
@@ -88,10 +81,15 @@ RC2::RSession::parseArguments(int argc, char *argv[])
 			
 		cmdLine.parse(argc, argv);
 		_impl->socket = portArg.getValue();
-		_verbose = switchArg.getValue();
+		bool verbose = switchArg.getValue();
+
+		logging::core::get()->set_filter
+		(
+			logging::trivial::severity >= (verbose ? logging::trivial::info : logging::trivial::warning)
+		);
 		
 	} catch (TCLAP::ArgException &e) {
-		std::cerr << "error:" << e.error() << endl;
+		cerr << "error:" << e.error() << endl;
 	}
 	return true;
 }
@@ -153,7 +151,7 @@ RC2::RSession::sendJsonToClientSource(string json)
 		
 		bufferevent_write_buffer(_impl->eventBuffer, _impl->outBuffer);
 	} else {
-		std::cerr << "output w/o client:" << json << endl;
+		RC2LOG(warning) << "output w/o client:" << json << endl;
 	}
 }
 
@@ -163,7 +161,7 @@ RC2::RSession::handleJsonCommand(string json)
 	try {
 		if (json.length() < 1)
 			return;
-		_verbose && std::cerr << "json=" << json << endl;
+		RC2LOG(info) << "json=" << json << endl;
 		json::Object doc;
 		try {
 			std::istringstream ist(json);
@@ -181,7 +179,7 @@ RC2::RSession::handleJsonCommand(string json)
 		} else {
 		}
 	} catch (std::runtime_error error) {
-		cerr << "handleJsonCommand error: " << error.what() << endl;
+		RC2LOG(warning) << "handleJsonCommand error: " << error.what() << endl;
 		sendJsonToClientSource(error.what());
 	}
 }
@@ -192,7 +190,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	bool outDir = arg.length() < 1;
 	if (outDir)
 		arg = "/tmp/" + RC2::GenerateUUID();
-	_verbose && cerr << "got open message: " << arg << endl;
+	RC2LOG(info) << "got open message: " << arg << endl;
 	struct stat sb;
 	if (stat(arg.c_str(), &sb) == 0) {
 		if (!S_ISDIR(sb.st_mode)) {
@@ -211,7 +209,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	setenv("TMPDIR", arg.c_str(), 1);
 	setenv("TEMP", arg.c_str(), 1);
 	setenv("R_DEFAULT_DEVICE", "png", 1);
-	_verbose && std::cerr << "setting wd" << endl;
+	RC2LOG(info) << "setting wd" << endl;
 	_impl->R->parseEvalQNT("setwd(\"" + escape_quotes(arg) + "\")");
 	_impl->ignoreOutput = true;
 	_impl->R->parseEvalQNT("library(rc2);");
@@ -223,7 +221,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	_impl->R->parseEvalQNT("options(device = \"rc2.pngdev\")");
 	sendJsonToClientSource("{\"msg\":\"opensuccess\"}");
 	_impl->open = true;
-	_verbose && cerr << "open done" << endl;
+	RC2LOG(info) << "open done" << endl;
 //	_fileWatcher = new KQueueFileWatcher();
 //	_fileWatcher->initializeWatcher(_tmpDir->getPath()); 
 }

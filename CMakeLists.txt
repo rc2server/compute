@@ -22,7 +22,7 @@ set_property(GLOBAL PROPERTY CXX_STANDARD 11)
 set_property(GLOBAL PROPERTY CXX_STANDARD_REQUIRED ON)
 
 add_definitions(-std=c++11)
-SET(CMAKE_CXX_FLAGS "-std=c++11")
+SET(CMAKE_CXX_FLAGS "-std=c++11 -DBOOST_LOG_DYN_LINK")
 
 include_directories (${CMAKE_CURRENT_SOURCE_DIR} 
 	${CMAKE_ROOT}
@@ -43,4 +43,4 @@ add_executable(rsession src/RSession-main.cpp)
 add_executable(rserver src/RServer-main.cpp)
 
 target_link_libraries(rserver src common event uuid boost_filesystem boost_system)
-target_link_libraries(rsession src common R event boost_filesystem RInside boost_system uuid)
+target_link_libraries(rsession src common R event boost_filesystem RInside boost_log pthread boost_system uuid)

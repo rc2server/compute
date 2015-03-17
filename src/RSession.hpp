@@ -35,9 +35,6 @@ namespace RC2 {
 			void	installExitHandler(void(*)(short flags));
 			void	startEventLoop();
 
-			bool isVerbose() const { return _verbose; }
-			void setVerbose(bool v) { _verbose = v; }
-			
 			RSessionCallbacks* getCallbacks() const { return _callbacks; }
 			void setCallbacks(RSessionCallbacks *cbs) { _callbacks = cbs; }
 
@@ -79,7 +76,6 @@ namespace RC2 {
 			struct Impl;
 			std::unique_ptr<Impl>		_impl;
 			RSessionCallbacks*		 	_callbacks;
-			bool						_verbose;
 				
 	};
 };
