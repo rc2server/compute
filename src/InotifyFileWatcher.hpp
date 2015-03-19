@@ -1,7 +1,6 @@
 #include <memory>
 #include <map>
 #include <string>
-#include <sys/stat.h>
 #include <event2/event.h>
 #include <event2/bufferevent.h>
 #include <boost/noncopyable.hpp>
@@ -18,20 +17,15 @@ class InotifyFileWatcher : public FileWatcher, private boost::noncopyable
 		
 			virtual void	initializeWatcher(std::string dirPath);
 			
-			virtual void	checkFiles(
+			virtual void	startWatch();
+			
+			virtual void	stopWatch(
 								std::vector<std::string> &added,  
 								std::vector<std::string> &modified, 
 								std::vector<std::string> &deleted
 							);
 
 	private:
-		class FSObject {
-			public:
-			std::string		name;
-			struct stat 	sb;
-			int				wd;
-			inline bool is_dir() const { return S_ISDIR(sb.st_mode); }
-		};
 	
 		void	handleInotifyEvent(struct bufferevent *bev);
 		static void handleInotifyEvent(struct bufferevent *bev, void *ctx)
@@ -40,11 +34,9 @@ class InotifyFileWatcher : public FileWatcher, private boost::noncopyable
 			watcher->handleInotifyEvent(bev);
 		}
 	
-		int									_inotifyFd;
-		struct event_base*					_eventBase;
-		std::string							_dirPath;
-		std::map<int, FSObject>				_files;
-		FSObject							_root;
+		class FSObject;
+		struct Impl;
+		std::unique_ptr<Impl>	_impl;
 };
 
 };

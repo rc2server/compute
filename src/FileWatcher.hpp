@@ -13,7 +13,9 @@ namespace RC2 {
 
 			virtual void	initializeWatcher(std::string dirPath)=0;
 			
-			virtual void	checkFiles(
+			virtual void	startWatch()=0;
+			
+			virtual void	stopWatch(
 								std::vector<std::string> &added,  
 								std::vector<std::string> &modified, 
 								std::vector<std::string> &deleted
