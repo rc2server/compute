@@ -6,6 +6,10 @@
 #include <fstream>
 #include <thread>
 #include <mutex>
+#include <boost/filesystem.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/log/core.hpp>
+#include <boost/log/expressions.hpp>
 #include "../src/InotifyFileWatcher.hpp"
 #include "common/RC2Utils.hpp"
 
@@ -33,7 +37,16 @@ namespace testing {
 		file.close();
 	}
 
-	TEST(InotifyWatcherTest, simpleAddTest)
+	class InotifyWatcherTest : public ::testing::Test {
+		protected:
+			static void SetUpTestCase() {
+				boost::log::core::get()->set_filter(
+					boost::log::trivial::severity >= (boost::log::trivial::warning)
+				);
+			}
+	};
+
+	TEST_F(InotifyWatcherTest, simpleAddTest)
 	{
 		event_base *eb = event_base_new();
 		InotifyFileWatcher watcher(eb);
@@ -66,7 +79,7 @@ namespace testing {
 		event_base_free(eb);
 	}
 
-	TEST(InotifyWatcherTest, simpleModifyTest)
+	TEST_F(InotifyWatcherTest, simpleModifyTest)
 	{
 		TemporaryDirectory tmpDir;
 		string tfilename = tmpDir.getPath() + "/foo";
