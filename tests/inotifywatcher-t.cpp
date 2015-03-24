@@ -13,6 +13,7 @@
 #include "../src/InotifyFileWatcher.hpp"
 #include "common/RC2Utils.hpp"
 
+//TODO: add test case for deleting parent folder
 
 using namespace std;
 
@@ -97,7 +98,10 @@ namespace testing {
 		mx.lock();
 		thread t([&] () {
 			unique_lock<mutex> ulock(mx);
-			modifyDummyFile(tfilename);
+		ofstream file;
+		file.open(tfilename, ofstream::out | ofstream::app);
+		file << "data here" << endl;
+		file.close();
 			event_base_loopbreak(eb);
 		});
 		mx.unlock();
@@ -109,6 +113,41 @@ namespace testing {
 		ASSERT_TRUE(added.size() == 0);
 		ASSERT_TRUE(modified.size() == 1);
 		ASSERT_TRUE(deleted.size() == 0);
+		//wait for bg threads to continue
+		t.join();
+
+		event_base_free(eb);
+	}
+
+	TEST_F(InotifyWatcherTest, simpleDeleteTest)
+	{
+		TemporaryDirectory tmpDir;
+		string tfilename = tmpDir.getPath() + "/foo";
+		writeDummyFile(tfilename);
+
+		event_base *eb = event_base_new();
+		InotifyFileWatcher watcher(eb);
+		vector<string> added, modified, deleted;
+
+		watcher.initializeWatcher(tmpDir.getPath());
+		watcher.startWatch();
+		
+		//delete foo
+		mutex mx;
+		mx.lock();
+		thread t([&] () {
+			unique_lock<mutex> ulock(mx);
+			unlink(tfilename.c_str());
+			event_base_loopbreak(eb);
+		});
+		mx.unlock();
+
+		event_base_loop(eb, EVLOOP_ONCE); //deleted
+		watcher.stopWatch(added, modified, deleted);
+		
+		ASSERT_TRUE(added.size() == 0);
+		ASSERT_TRUE(modified.size() == 0);
+		ASSERT_TRUE(deleted.size() == 1);
 		//wait for bg threads to continue
 		t.join();
 
