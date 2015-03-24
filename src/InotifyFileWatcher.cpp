@@ -31,6 +31,20 @@ struct RC2::InotifyFileWatcher::Impl
 	set<string>			addedFiles;
 	set<string>			modifiedFiles;
 	set<string>			deletedFiles;
+
+	void watchFile(string fname) {
+		FSObject fo;
+		fo.name = fname;
+		string fullPath = dirPath + "/" + fo.name;
+		if (stat(fullPath.c_str(), &fo.sb) == -1)
+			return;
+		fo.wd = inotify_add_watch(inotifyFd, fullPath.c_str(), 
+					IN_CLOSE_WRITE | IN_DELETE_SELF | IN_MODIFY);
+		if (fo.wd == -1)
+			throw FormattedException("inotify_add_warched failed %s", fo.name.c_str());
+		files[fo.wd] = fo;
+		BOOST_LOG_TRIVIAL(info) << "watching " << fo.name << endl;
+	}
 };
 
 
@@ -70,17 +84,7 @@ RC2::InotifyFileWatcher::initializeWatcher(std::string dirPath)
 		//skip "." and ".." but not other files that start with a period
 		if (ent->d_name[0] == '.' && (strlen(ent->d_name) == 1 || ent->d_name[1] == '.'))
 			continue;
-		FSObject fo;
-		fo.name = ent->d_name;
-		string fullPath = dirPath + "/" + fo.name;
-		if (stat(fullPath.c_str(), &fo.sb) == -1)
-			continue;
-		fo.wd = inotify_add_watch(_impl->inotifyFd, fullPath.c_str(), 
-					IN_CLOSE_WRITE | IN_DELETE_SELF | IN_MODIFY);
-		if (fo.wd == -1)
-			throw FormattedException("inotify_add_warched failed %s", fo.name.c_str());
-		_impl->files[fo.wd] = fo;
-		BOOST_LOG_TRIVIAL(info) << "watching " << fo.name << endl;
+		_impl->watchFile(ent->d_name);
 	}
 	closedir(dir);
 	
@@ -100,10 +104,21 @@ RC2::InotifyFileWatcher::handleInotifyEvent(struct bufferevent *bev)
 	char *p;
 	for (p=buf; p < buf + numRead; ) {
 		struct inotify_event *event = (struct inotify_event*)p;
-		if(event->mask & IN_CREATE) {
+		int evtype = event->mask & 0xffff;
+		cerr << "notify:" << std::hex << evtype << " for " << 
+			_impl->files[event->wd].name << endl;
+		if(evtype == IN_CREATE) {
 			_impl->addedFiles.insert((string)event->name);
-		} else if (event->mask & IN_CLOSE_WRITE) {
+			_impl->watchFile(event->name);
+			//need to add a watch for this file
+		} else if (evtype == IN_CLOSE_WRITE) {
 			_impl->modifiedFiles.insert((string)event->name);
+		} else if (evtype == IN_DELETE_SELF) {
+			cerr << "in delete called for " << event->name << endl;
+			_impl->deletedFiles.insert((string)event->name);
+			//discard our records of it
+			inotify_rm_watch(_impl->inotifyFd, event->wd);
+			_impl->files.erase(event->wd);
 		}
 		//handle event
 		p += sizeof(struct inotify_event) + event->len;
