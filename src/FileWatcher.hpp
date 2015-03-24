@@ -7,8 +7,8 @@ namespace RC2 {
 	class FileWatcher {
 		
 		public:
-							FileWatcher();
-			virtual			~FileWatcher();
+							FileWatcher()=default;
+			virtual			~FileWatcher()=default;
 
 
 			virtual void	initializeWatcher(std::string dirPath)=0;
