@@ -4,14 +4,17 @@
 #include <sys/inotify.h>
 #include <set>
 #include <iostream>
+#include <iomanip>
 #include <boost/log/trivial.hpp>
 #include <boost/log/core.hpp>
 #include <boost/log/expressions.hpp>
+#include <boost/format.hpp>
 #include "InotifyFileWatcher.hpp"
 #include "../common/FormattedException.hpp"
 
 using namespace std;
 namespace logging = boost::log;
+using boost::format;
 
 struct RC2::InotifyFileWatcher::FSObject 
 {
@@ -31,13 +34,17 @@ struct RC2::InotifyFileWatcher::Impl
 	set<string>			addedFiles;
 	set<string>			modifiedFiles;
 	set<string>			deletedFiles;
+	
+	class StatException : public runtime_error {
+		using runtime_error::runtime_error;
+	};
 
 	void watchFile(string fname) {
 		FSObject fo;
 		fo.name = fname;
 		string fullPath = dirPath + "/" + fo.name;
 		if (stat(fullPath.c_str(), &fo.sb) == -1)
-			return;
+			throw StatException((format("stat failed for %s") % fo.name).str());
 		fo.wd = inotify_add_watch(inotifyFd, fullPath.c_str(), 
 					IN_CLOSE_WRITE | IN_DELETE_SELF | IN_MODIFY);
 		if (fo.wd == -1)
@@ -84,7 +91,10 @@ RC2::InotifyFileWatcher::initializeWatcher(std::string dirPath)
 		//skip "." and ".." but not other files that start with a period
 		if (ent->d_name[0] == '.' && (strlen(ent->d_name) == 1 || ent->d_name[1] == '.'))
 			continue;
-		_impl->watchFile(ent->d_name);
+		try {
+			_impl->watchFile(ent->d_name);
+		} catch (Impl::StatException &se) {
+		}
 	}
 	closedir(dir);
 	
@@ -104,8 +114,8 @@ RC2::InotifyFileWatcher::handleInotifyEvent(struct bufferevent *bev)
 	char *p;
 	for (p=buf; p < buf + numRead; ) {
 		struct inotify_event *event = (struct inotify_event*)p;
-		int evtype = event->mask & 0xffff;
-		cerr << "notify:" << std::hex << evtype << " for " << 
+		int evtype = event->mask & 0xffff; //events are in lower word, flags in upper
+		BOOST_LOG_TRIVIAL(info) << "notify:" << std::hex << evtype << " for " << 
 			_impl->files[event->wd].name << endl;
 		if(evtype == IN_CREATE) {
 			_impl->addedFiles.insert((string)event->name);
@@ -114,7 +124,6 @@ RC2::InotifyFileWatcher::handleInotifyEvent(struct bufferevent *bev)
 		} else if (evtype == IN_CLOSE_WRITE) {
 			_impl->modifiedFiles.insert((string)event->name);
 		} else if (evtype == IN_DELETE_SELF) {
-			cerr << "in delete called for " << event->name << endl;
 			_impl->deletedFiles.insert((string)event->name);
 			//discard our records of it
 			inotify_rm_watch(_impl->inotifyFd, event->wd);
