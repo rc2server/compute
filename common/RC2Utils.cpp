@@ -125,9 +125,9 @@ std::string
 RC2::GenerateUUID()
 {
 	uuid_t uuid;
-	uuid_string_t uuidStr=NULL;
+	char uuidStr[40];
 	uuid_generate(uuid);
-	uuid_unparse(uuid, uuidStr);
+	uuid_unparse_lower(uuid, uuidStr);
 	return uuidStr;
 }
 
