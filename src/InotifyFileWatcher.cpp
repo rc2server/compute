@@ -55,10 +55,10 @@ struct RC2::InotifyFileWatcher::Impl
 };
 
 
-RC2::InotifyFileWatcher::InotifyFileWatcher(struct event_base *eb)
+RC2::InotifyFileWatcher::InotifyFileWatcher()
 	: _impl(new Impl())
 {
-	_impl->eventBase = eb;
+	_impl->eventBase = nullptr;
 	_impl->inotifyFd = -1;
 }
 
@@ -66,6 +66,12 @@ RC2::InotifyFileWatcher::~InotifyFileWatcher()
 {
 	if (_impl->inotifyFd != -1)
 		close(_impl->inotifyFd);
+}
+
+void
+RC2::InotifyFileWatcher::setEventBase(struct event_base *eb)
+{
+	_impl->eventBase = eb;
 }
 
 void

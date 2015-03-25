@@ -50,7 +50,8 @@ namespace testing {
 	TEST_F(InotifyWatcherTest, simpleAddTest)
 	{
 		event_base *eb = event_base_new();
-		InotifyFileWatcher watcher(eb);
+		InotifyFileWatcher watcher;
+		watcher.setEventBase(eb);
 		vector<string> added, modified, deleted;
 		TemporaryDirectory tmpDir;
 		mutex mx;
@@ -87,7 +88,8 @@ namespace testing {
 		writeDummyFile(tfilename);
 
 		event_base *eb = event_base_new();
-		InotifyFileWatcher watcher(eb);
+		InotifyFileWatcher watcher;
+		watcher.setEventBase(eb);
 		vector<string> added, modified, deleted;
 
 		watcher.initializeWatcher(tmpDir.getPath());
@@ -126,7 +128,8 @@ namespace testing {
 		writeDummyFile(tfilename);
 
 		event_base *eb = event_base_new();
-		InotifyFileWatcher watcher(eb);
+		InotifyFileWatcher watcher;
+		watcher.setEventBase(eb);
 		vector<string> added, modified, deleted;
 
 		watcher.initializeWatcher(tmpDir.getPath());

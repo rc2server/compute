@@ -12,9 +12,10 @@ class InotifyFileWatcher : public FileWatcher, private boost::noncopyable
 {
 	public:
 	
-							InotifyFileWatcher(struct event_base *evbase);
+							InotifyFileWatcher();
 		virtual				~InotifyFileWatcher();
 		
+					void	setEventBase(struct event_base *evbase);
 			virtual void	initializeWatcher(std::string dirPath);
 			
 			virtual void	startWatch();
