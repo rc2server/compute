@@ -60,15 +60,16 @@ namespace RC2 {
 */			
 		private:
 /*			void	prepareForRead();
-			void	flushOutputBuffer();
 //			void	processOutput(bool done, dispatch_data_t data, int error, bool stderr);
 			void	handleOpenCommand(std::string arg);
 			void	handleHelpCommand(std::string arg, std::string startTime);
 */		
-			std::string	formatStringAsJson(std::string &input, bool is_error);
+			std::string	formatStringAsJson(const std::string &input, bool is_error);
 			std::string acknowledgeExecComplete(std::string stime, json::UnknownElement *clientExtras=nullptr);
 			void	addFileChangesToJson(JsonDictionary& json);
 			void	clearFileChanges();
+			void	flushOutputBuffer();
+			void	sendTextToClient(std::string text, bool is_error=false);
 			void	handleJsonCommand(std::string json);
 			void	handleOpenCommand(std::string arg);
 

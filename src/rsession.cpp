@@ -19,7 +19,7 @@
 #include "InputBufferManager.hpp"
 //#include "FormattedException.hpp"
 #include "common/RC2Utils.hpp"
-#include "FileWatcher.hpp"
+#include "InotifyFileWatcher.hpp"
 
 #define RC2LOG(x) BOOST_LOG_TRIVIAL(x)
 namespace logging = boost::log;
@@ -38,22 +38,42 @@ struct RC2::RSession::Impl {
 	struct evbuffer*				outBuffer;
 	InputBufferManager				inputBuffer;
 	RInside*						R;
-	unique_ptr<FileWatcher>			fileWatcher;
+	unique_ptr<InotifyFileWatcher>	fileWatcher;
 	unique_ptr<TemporaryDirectory>	tmpDir;
+	shared_ptr<string>				consoleOutBuffer;
 	int								socket;
 	bool							open;
 	bool							ignoreOutput;
 	bool							sourceInProgress;
 	bool							watchVariables;
+	
+	Impl();
 };
 
+
+RC2::RSession::Impl::Impl()
+	: consoleOutBuffer(new string)
+{
+}
 
 RC2::RSession::RSession(RSessionCallbacks *callbacks)
 		: _impl{}
 {
 	RC2LOG(info) << "RSession created" << endl;
 	_callbacks = callbacks;
-	//TODO: set callbacks output lambda
+	auto clambda = [&](const string &text, bool is_error) -> void {
+		if (_impl->ignoreOutput)
+			return;
+		if (is_error) {
+			string errstr = formatStringAsJson(text, true);
+			sendJsonToClientSource(errstr);
+		} else {
+			if (R_Visible || _impl->sourceInProgress) {
+				_impl->consoleOutBuffer->append(text);
+			}
+		}
+	};
+	_callbacks->_writeLambda = clambda;
 }
 
 RC2::RSession::~RSession()
@@ -126,33 +146,13 @@ RC2::RSession::prepareForRunLoop()
 		nullptr,
 		this);
 	_impl->outBuffer = evbuffer_new();
+	_impl->fileWatcher->setEventBase(_impl->eventBase);
 }
 
 void
 RC2::RSession::startEventLoop()
 {
 	event_base_loop(_impl->eventBase, 0);
-}
-
-void
-RC2::RSession::sendJsonToClientSource(string json)
-{
-	if (json.length() < 1)
-		return;
-	if (_impl->socket > 0) { //only send if we have a valid socket
-		cerr << "sending:" << json << endl;
-		int32_t header[2];
-		header[0] = kRSessionMagicNumber;
-		header[1] = json.length();
-		header[0] = htonl(header[0]);
-		header[1] = htonl(header[1]);
-		evbuffer_add(_impl->outBuffer, &header, sizeof(header));
-		evbuffer_add(_impl->outBuffer, json.c_str(), json.length());
-		
-		bufferevent_write_buffer(_impl->eventBuffer, _impl->outBuffer);
-	} else {
-		RC2LOG(warning) << "output w/o client:" << json << endl;
-	}
 }
 
 void
@@ -175,8 +175,37 @@ RC2::RSession::handleJsonCommand(string json)
 		string msg(((json::String)doc[string("msg")]).Value());
 		string arg(((json::String)doc["argument"]).Value());
 		if (msg == "open") {
+			if (_impl->open) {
+				RC2LOG(error) << "duplicate open message received" << endl;
+				return;
+			}
 			handleOpenCommand(arg);
 		} else {
+			if (!_impl->open) {
+				RC2LOG(error) << "R not open" << endl;
+				return;
+			}
+			string startTimeStr = ((json::String)doc["startTime"]).Value();
+			string jsonStr;
+			if (msg == "close") {
+				_impl->R->parseEvalQNT("save.image()");
+				event_base_loopbreak(_impl->eventBase);
+			} else if (msg == "clearFileChanges") {
+				_impl->fileWatcher->startWatch(); //clears cache
+			} else if (msg == "execScript") {
+				RC2LOG(debug) << "exec:" << arg << endl;
+				SEXP ans;
+				RInside::ParseEvalResult result = _impl->R->parseEvalR(arg, ans);
+				flushOutputBuffer();
+				if (result == RInside::ParseEvalResult::PE_SUCCESS) {
+					sendJsonToClientSource(acknowledgeExecComplete(startTimeStr));
+//					bool sendDelta = ((json::Boolean)doc["watchVariables"]).Value();
+//					if (sendDelta)
+//						handleListVariablesCommand(true, doc["clientData"]);
+				} else if (result == RInside::ParseEvalResult::PE_INCOMPLETE) {
+					sendTextToClient("Incomplete R statement\n", true);
+				}
+			}
 		}
 	} catch (std::runtime_error error) {
 		RC2LOG(warning) << "handleJsonCommand error: " << error.what() << endl;
@@ -222,15 +251,14 @@ RC2::RSession::handleOpenCommand(string arg)
 	sendJsonToClientSource("{\"msg\":\"opensuccess\"}");
 	_impl->open = true;
 	RC2LOG(info) << "open done" << endl;
-//	_fileWatcher = new KQueueFileWatcher();
-//	_fileWatcher->initializeWatcher(_tmpDir->getPath()); 
+	_impl->fileWatcher->initializeWatcher(_impl->tmpDir->getPath());
 }
 
 void
 RC2::RSession::addFileChangesToJson(JsonDictionary& json)
 {
 	std::vector<std::string> add, mod, del;
-//	_fileWatcher->checkFiles(add, mod, del);
+	_impl->fileWatcher->stopWatch(add, mod, del);
 	mod.insert(mod.end(), add.begin(), add.end()); //merge add/modified
 	if (mod.size() > 0)
 		json.addStringArray("filesModified", mod);
@@ -245,8 +273,53 @@ RC2::RSession::clearFileChanges()
 	addFileChangesToJson(json);
 }
 
+void
+RC2::RSession::flushOutputBuffer()
+{
+	_impl->ignoreOutput = true;
+	_impl->R->parseEvalQNT("rc2.pngoff()");		
+	_impl->ignoreOutput = false;
+	if (_impl->consoleOutBuffer->length() > 0) {
+		sendTextToClient(*_impl->consoleOutBuffer.get(), false);
+		_impl->consoleOutBuffer.get()->clear();
+	}
+}
+
+void
+RC2::RSession::sendTextToClient(string text, bool is_error)
+{
+	if (is_error) {
+		string errstr = formatStringAsJson(text, true);
+		sendJsonToClientSource(errstr);
+	} else if (!_impl->consoleOutBuffer->empty()) {
+		string msg = formatStringAsJson(text, false);
+		sendJsonToClientSource(msg);
+	}
+}
+
+void
+RC2::RSession::sendJsonToClientSource(string json)
+{
+	if (json.length() < 1)
+		return;
+	if (_impl->socket > 0) { //only send if we have a valid socket
+		cerr << "sending:" << json << endl;
+		int32_t header[2];
+		header[0] = kRSessionMagicNumber;
+		header[1] = json.length();
+		header[0] = htonl(header[0]);
+		header[1] = htonl(header[1]);
+		evbuffer_add(_impl->outBuffer, &header, sizeof(header));
+		evbuffer_add(_impl->outBuffer, json.c_str(), json.length());
+		
+		bufferevent_write_buffer(_impl->eventBuffer, _impl->outBuffer);
+	} else {
+		RC2LOG(warning) << "output w/o client:" << json << endl;
+	}
+}
+
 string
-RC2::RSession::formatStringAsJson(string &input, bool is_error)
+RC2::RSession::formatStringAsJson(const string &input, bool is_error)
 {
 	if (input.length() < 1)
 		return "";

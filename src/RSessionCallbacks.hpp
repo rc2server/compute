@@ -19,6 +19,6 @@ namespace RC2 {
 			bool has_WriteConsole() override { return true; }
 
 			//used for WriteConsole
-			std::function<void(std::string, bool)> _writeLambda;
+			std::function<void(const std::string&, bool)> _writeLambda;
 	};
 };
