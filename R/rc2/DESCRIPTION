@@ -1,0 +1,11 @@
+Package: rc2
+Type: Package
+Title: Enables file interaction with rc2
+Version: 1.0
+Date: 2011-06-14
+Author: Mark Lilback
+Maintainer: Mark Lilback <mlilback@stat.wvu.edu>
+Description: Loads files from a database
+License: BSD
+Depends: stringr
+LazyLoad: yes

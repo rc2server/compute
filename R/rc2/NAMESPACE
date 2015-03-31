@@ -1,0 +1,4 @@
+useDynLib("rc2")
+export("help", "rc2.defineFunction",
+	"rc2.listVariables", "rc2.sublistValue", "rc2.clearEnvironment",
+	"rc2.pngdev", "rc2.pngoff")
