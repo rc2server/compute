@@ -249,8 +249,8 @@ RC2::RSession::handleOpenCommand(string arg)
 	_impl->R->parseEvalQNT("library(markdown)");
 	_impl->R->parseEvalQNT("library(tools)");
 	_impl->R->parseEvalQNT("rm(argv)"); //RInside creates this even though we passed NULL
-	_impl->ignoreOutput = false;
 	_impl->R->parseEvalQNT("options(device = \"rc2.pngdev\")");
+	_impl->ignoreOutput = false;
 	sendJsonToClientSource("{\"msg\":\"opensuccess\"}");
 	_impl->open = true;
 	RC2LOG(info) << "open done" << endl;
