@@ -40,7 +40,8 @@ namespace RC2 {
 
 			std::string getWorkingDirectory() const;
 
-			void	sendJsonToClientSource(std::string json);
+			//unit test subclasses might override
+			virtual void	sendJsonToClientSource(std::string json);
 /*
 			//methods that should be private but are needed when unit testing
 #ifndef UNITTESTING
@@ -58,7 +59,7 @@ namespace RC2 {
 			std::string	executeSweave(std::string arg, std::string startTime, json::UnknownElement *clientExtras);
 			void	setOutputFunction(OutputCallback callback);
 */			
-		private:
+		protected:
 /*			void	prepareForRead();
 //			void	processOutput(bool done, dispatch_data_t data, int error, bool stderr);
 			void	handleOpenCommand(std::string arg);
