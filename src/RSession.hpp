@@ -7,6 +7,8 @@
 #include <json/elements.h>
 #include <boost/noncopyable.hpp>
 
+using std::string;
+
 extern const uint32_t kRSessionMagicNumber;
 
 class RInside;
@@ -16,8 +18,8 @@ class RInside;
 #define kError_Execfile_InvalidInput 103
 #define kError_ExecFile_MarkdownFailed 104
 
-typedef std::function<void(std::string&)> OutputCallback;
-//typedef void (^OutputCallback)(std::string &str);
+typedef std::function<void(string&)> OutputCallback;
+//typedef void (^OutputCallback)(string &str);
 
 namespace RC2 {
 
@@ -38,42 +40,43 @@ namespace RC2 {
 			RSessionCallbacks* getCallbacks() const { return _callbacks; }
 			void setCallbacks(RSessionCallbacks *cbs) { _callbacks = cbs; }
 
-			std::string getWorkingDirectory() const;
+			string getWorkingDirectory() const;
 
 			//unit test subclasses might override
-			virtual void	sendJsonToClientSource(std::string json);
+			virtual void	sendJsonToClientSource(string json);
 /*
 			//methods that should be private but are needed when unit testing
 #ifndef UNITTESTING
 		private:
 #endif
 			//the following are only public to allow for unit testing
-//			std::string	handleIncomingData(dispatch_data_t data);
-//			std::string handleIncomingOutput(dispatch_data_t data);
-			void	sendToClient(std::string text, bool is_error=false);
-			void	handleJsonCommand(std::string json);
-			std::string	handleListVariablesCommand(bool delta, json::UnknownElement clientExtras);
-			std::string	handleGetVariableCommand(std::string varName, std::string startTime);
-			std::string	executeFile(std::string arg, std::string startTime, json::UnknownElement clientExtras);
-			std::string	executeRMarkdown(std::string arg, std::string startTime, json::UnknownElement *clientExtras);
-			std::string	executeSweave(std::string arg, std::string startTime, json::UnknownElement *clientExtras);
+//			string	handleIncomingData(dispatch_data_t data);
+//			string handleIncomingOutput(dispatch_data_t data);
+			void	sendToClient(string text, bool is_error=false);
+			void	handleJsonCommand(string json);
+			string	handleListVariablesCommand(bool delta, json::UnknownElement clientExtras);
+			string	handleGetVariableCommand(string varName, string startTime);
 			void	setOutputFunction(OutputCallback callback);
 */			
 		protected:
 /*			void	prepareForRead();
 //			void	processOutput(bool done, dispatch_data_t data, int error, bool stderr);
-			void	handleOpenCommand(std::string arg);
-			void	handleHelpCommand(std::string arg, std::string startTime);
+			void	handleOpenCommand(string arg);
+			void	handleHelpCommand(string arg, string startTime);
 */		
-			std::string	formatStringAsJson(const std::string &input, bool is_error);
-			std::string acknowledgeExecComplete(std::string stime, json::UnknownElement *clientExtras=nullptr);
+			string	formatStringAsJson(const string &input, bool is_error);
+			string	acknowledgeExecComplete(string stime, json::UnknownElement *clientExtras=nullptr);
 			void	addFileChangesToJson(JsonDictionary& json);
 			void	clearFileChanges();
 			void	flushOutputBuffer();
-			void	sendTextToClient(std::string text, bool is_error=false);
-			void	handleJsonCommand(std::string json);
-			void	handleOpenCommand(std::string arg);
+			void	sendOutputBufferToClient(bool is_error);
+			void	sendTextToClient(string text, bool is_error=false);
+			void	handleJsonCommand(string json);
+			void	handleOpenCommand(string arg);
 
+			string	executeFile(string arg, string startTime, json::UnknownElement clientExtras);
+			string	executeRMarkdown(string arg, string startTime, json::UnknownElement *clientExtras);
+			string	executeSweave(string arg, string startTime, json::UnknownElement *clientExtras);
 
 			struct Impl;
 			std::unique_ptr<Impl>		_impl;

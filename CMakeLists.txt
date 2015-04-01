@@ -43,4 +43,4 @@ add_executable(rsession src/RSession-main.cpp)
 add_executable(rserver src/RServer-main.cpp)
 
 target_link_libraries(rserver src common event uuid boost_filesystem boost_system)
-target_link_libraries(rsession src common R event boost_filesystem RInside boost_log pthread boost_system uuid)
+target_link_libraries(rsession src common R event boost_filesystem RInside boost_log pthread boost_regex boost_system uuid)

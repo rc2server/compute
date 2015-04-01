@@ -1,0 +1,22 @@
+* point 1
+
+$$
+	\begin{aligned}
+	\dot{x} & = \sigma(y-x) \\
+	\dot{y} & = \rho x - y -xz \\
+	\dot{z} & = -\beta z + xy
+	\end{aligned}
+$$
+
+* point 4 $\frac{1}{n} \sum_{i=i}^{n} x_{i}$
+
+
+```r
+plot(rnorm(100))
+```
+
+![plot of chunk foo](figure/foo.png) 
+
+
+_blah blah_
+

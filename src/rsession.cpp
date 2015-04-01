@@ -8,7 +8,7 @@
 #include <boost/log/trivial.hpp>
 #include <boost/log/core.hpp>
 #include <boost/log/expressions.hpp>
-#include <regex>
+#include <boost/regex.hpp>
 #include <RInside.h>
 #include <event2/buffer.h>
 #include <event2/event.h>
@@ -112,7 +112,7 @@ RC2::RSession::parseArguments(int argc, char *argv[])
 		);
 		
 	} catch (TCLAP::ArgException &e) {
-		cerr << "error:" << e.error() << endl;
+		RC2LOG(error) << "error:" << e.error() << endl;
 	}
 	return true;
 }
@@ -133,7 +133,7 @@ RC2::RSession::prepareForRunLoop()
 	evutil_make_socket_nonblocking(_impl->socket);
 	_impl->eventBuffer = bufferevent_socket_new(_impl->eventBase, _impl->socket, 0);
 	if (_impl->eventBuffer == nullptr) {
-		cerr << "failed to create bufferevent socket" << endl;
+		RC2LOG(error) << "failed to create bufferevent socket" << endl;
 		return;
 	}
 	bufferevent_enable(_impl->eventBuffer, EV_READ|EV_WRITE);
@@ -170,10 +170,10 @@ RC2::RSession::handleJsonCommand(string json)
 			std::istringstream ist(json);
 			json::Reader::Read(doc, ist);
 		} catch (json::Reader::ParseException &pe) {
-			std::cerr << "parse exception:" << pe.what() << endl;
+			RC2LOG(error) << "parse exception:" << pe.what() << endl;
 			return;
 		} catch (std::exception &ex) {
-			std::cerr << "unknown exception parsing:" << ex.what() << endl;
+			RC2LOG(error) << "unknown exception parsing:" << ex.what() << endl;
 		}
 		string msg(((json::String)doc[string("msg")]).Value());
 		string arg(((json::String)doc["argument"]).Value());
@@ -208,7 +208,11 @@ RC2::RSession::handleJsonCommand(string json)
 				} else if (result == RInside::ParseEvalResult::PE_INCOMPLETE) {
 					sendTextToClient("Incomplete R statement\n", true);
 				}
+			} else if (msg == "execFile") {
+				jsonStr = executeFile(arg, startTimeStr, doc["clientData"]);
 			}
+			if (jsonStr.length() > 0)
+				sendJsonToClientSource(jsonStr);
 		}
 	} catch (std::runtime_error error) {
 		RC2LOG(warning) << "handleJsonCommand error: " << error.what() << endl;
@@ -257,10 +261,123 @@ RC2::RSession::handleOpenCommand(string arg)
 	_impl->fileWatcher.initializeWatcher(_impl->tmpDir->getPath());
 }
 
+string
+RC2::RSession::executeFile(string arg, string startTime, json::UnknownElement clientExtras)
+{
+	string result;
+	fs::path p(arg);
+	clearFileChanges();
+	if (p.extension() == ".Rmd") {
+		result = executeRMarkdown(arg, startTime, &clientExtras);
+	} else if (p.extension() == ".Rnw") {
+		result = executeSweave(arg, startTime, &clientExtras);
+	} else if (p.extension() == ".R") {
+		string cmd = "source(file=\"" + escape_quotes(arg) + "\", echo=TRUE)";
+		_impl->sourceInProgress = true;
+		_impl->R->parseEvalQNT(cmd);	
+		flushOutputBuffer();
+		_impl->sourceInProgress = false;
+		result = acknowledgeExecComplete(startTime, &clientExtras);
+	} else {
+		result = formatErrorAsJson(kError_Execfile_InvalidInput, "unsupported file type");
+	}
+	return result;
+}
+
+string
+RC2::RSession::executeRMarkdown(string arg, string startTime, json::UnknownElement *clientExtras)
+{
+	fs::path p(arg);
+	string mdname = p.stem().native() + ".md";
+	string htmlName = p.stem().native() + ".html";
+	string cmd = "knit(\"" + escape_quotes(arg) + "\"); markdownToHTML(\"" 
+		+ escape_quotes(mdname) + "\", \"" + escape_quotes(htmlName) + "\");";
+	_impl->ignoreOutput = true;
+	_impl->R->parseEvalQNT(cmd);
+	_impl->ignoreOutput = false;
+	flushOutputBuffer();
+	
+	//delete generated .md file
+	fs::path mdfile = _impl->tmpDir->getPath();
+	mdfile /= mdname;
+	fs::remove(mdfile);
+	//delete figure directory
+	fs::path figureDir = _impl->tmpDir->getPath();
+	figureDir /= "figure";
+	if (fs::exists(figureDir))
+		fs::remove_all(figureDir);
+	//find html file
+	fs::path htmlfile = _impl->tmpDir->getPath();
+	htmlfile /= htmlName;
+	if (fs::exists(htmlfile)) {
+		return acknowledgeExecComplete(startTime, clientExtras);
+	}
+	return formatErrorAsJson(kError_ExecFile_MarkdownFailed, "failed to generate html");
+}
+
+string
+RC2::RSession::executeSweave(string arg, string startTime, json::UnknownElement *clientExtras)
+{
+	fs::path srcPath(_impl->tmpDir->getPath());
+	srcPath /= arg;
+	string baseName = srcPath.stem().native();
+	fs::path scratchPath(_impl->tmpDir->getPath());
+	scratchPath /= ".rc2sw";
+	create_directories(scratchPath);
+	string cmd = "setwd('" + escape_quotes(scratchPath.string()) + "')";
+	_impl->R->parseEvalNT(cmd);
+	cmd = "Sweave('../";
+	cmd += escape_quotes(arg);
+	cmd += "', encoding='UTF-8')";
+	try {
+		_impl->R->parseEval(cmd);
+	} catch (std::runtime_error &e) {
+		sendOutputBufferToClient(true);
+		return acknowledgeExecComplete(startTime, clientExtras);
+	}
+	fs::path texPath(scratchPath);
+	texPath /= baseName + ".tex";
+	if (!fs::exists(texPath)) {
+		//there was an error
+		RC2LOG(warning) << "sweave failed" << endl;
+	} else {
+		cmd = "texi2dvi('";
+		cmd += escape_quotes(texPath.string());
+		cmd += "', pdf=TRUE)";
+//		_impl->ignoreOutput = true;
+		_impl->R->parseEvalNT(cmd);
+		fs::path genPdfPath(scratchPath);
+		genPdfPath /= baseName + ".pdf";
+		fs::path destPdfPath(_impl->tmpDir->getPath());
+		destPdfPath /= baseName + ".pdf";
+		if (fs::exists(genPdfPath)) {
+			fs::copy_file(genPdfPath, destPdfPath, fs::copy_option::overwrite_if_exists);
+		} else {
+			RC2LOG(info) << "genPdfPath empty:" << genPdfPath << endl;
+			fs::path errorPath(scratchPath);
+			errorPath /= baseName + ".log";
+			if (fs::exists(errorPath)) {
+				fs::path logPath(srcPath.parent_path());
+				logPath /= baseName = ".log";
+				fs::copy_file(errorPath, logPath, fs::copy_option::overwrite_if_exists);
+				//TODO: send message saying to look at the log file
+			} else {
+				//report error with no details
+			}
+		}
+	}
+	cmd = "setwd('" + escape_quotes(scratchPath.parent_path().string()) + "')";
+	_impl->R->parseEvalNT(cmd);
+	_impl->ignoreOutput = false;
+	//TODO: delete scratchPath
+	flushOutputBuffer();
+	return acknowledgeExecComplete(startTime, clientExtras);
+}
+
 void
 RC2::RSession::addFileChangesToJson(JsonDictionary& json)
 {
-	std::vector<std::string> add, mod, del;
+	std::vector<string> add, mod, del;
 	_impl->fileWatcher.stopWatch(add, mod, del);
 	mod.insert(mod.end(), add.begin(), add.end()); //merge add/modified
 	if (mod.size() > 0)
@@ -276,37 +393,43 @@ RC2::RSession::clearFileChanges()
 	addFileChangesToJson(json);
 }
 
+//causes R to save any images generated and then sends the output buffer to the client
 void
 RC2::RSession::flushOutputBuffer()
 {
 	_impl->ignoreOutput = true;
 	_impl->R->parseEvalQNT("rc2.pngoff()");		
 	_impl->ignoreOutput = false;
+	sendOutputBufferToClient(false);
+}
+
+//if the consoleOutputBuffer has any text in it, sends that to client and clears the buffer
+void
+RC2::RSession::sendOutputBufferToClient(bool is_error)
+{
 	if (_impl->consoleOutBuffer->length() > 0) {
-		sendTextToClient(*_impl->consoleOutBuffer.get(), false);
+		sendTextToClient(*_impl->consoleOutBuffer.get(), is_error);
 		_impl->consoleOutBuffer.get()->clear();
 	}
 }
 
+//sends raw text (such has R console output or hard-coded string) packaged as json
 void
 RC2::RSession::sendTextToClient(string text, bool is_error)
 {
-	if (is_error) {
-		string errstr = formatStringAsJson(text, true);
-		sendJsonToClientSource(errstr);
-	} else if (!_impl->consoleOutBuffer->empty()) {
-		string msg = formatStringAsJson(text, false);
-		sendJsonToClientSource(msg);
-	}
+	string msg = formatStringAsJson(text, is_error);
+	sendJsonToClientSource(msg);
 }
 
+//packages json as bytes and sends over socket
+// subclasses can override (i.e. testing) to avoid socket use
 void
 RC2::RSession::sendJsonToClientSource(string json)
 {
 	if (json.length() < 1)
 		return;
 	if (_impl->socket > 0) { //only send if we have a valid socket
-		cerr << "sending:" << json << endl;
+		RC2LOG(info) << "sending:" << json << endl;
 		int32_t header[2];
 		header[0] = kRSessionMagicNumber;
 		header[1] = json.length();
@@ -329,8 +452,8 @@ RC2::RSession::formatStringAsJson(const string &input, bool is_error)
 	string output = input;
 	
 	if (_impl->sourceInProgress) {
-		std::regex reg("\n\\$value\n[^]*?$");
-		output = std::regex_replace(input, reg, std::string("\n"));
+		static const boost::regex reg("\n\\$value\n.*$");
+		output = boost::regex_replace(input, reg, "\n");
 	}
 	
 	RC2::JsonDictionary json;
@@ -347,7 +470,8 @@ RC2::RSession::getWorkingDirectory() const
 }
 
 string
-RC2::RSession::acknowledgeExecComplete(string stime, json::UnknownElement *clientExtras) {
+RC2::RSession::acknowledgeExecComplete(string stime, json::UnknownElement *clientExtras) 
+{
 	RC2::JsonDictionary json;
 	json.addString("msg", "execComplete");
 	json.addString("startTime", stime);

@@ -2,11 +2,17 @@
 #include <string>
 #include <iostream>
 #include <queue>
+#include <boost/log/trivial.hpp>
+#include <boost/log/core.hpp>
+#include <boost/log/expressions.hpp>
 #include "common/RC2Utils.hpp"
 #include "../src/RSession.hpp"
 #include "../src/RSessionCallbacks.hpp"
+#define BOOST_NO_CXX11_SCOPED_ENUMS
+#include <boost/filesystem.hpp>
 
 using namespace std;
+namespace fs = boost::filesystem;
 
 namespace RC2 {
 
@@ -20,6 +26,10 @@ class TestingSession : public RSession {
 		using RSession::RSession;
 		virtual void	sendJsonToClientSource(std::string json);
 		
+		bool fileExists(string filename);
+		void copyFileToWorkingDirectory(string srcPath);
+		void removeAllWorkingFiles();
+		
 		void doJson(std::string json);
 		
 		inline void emptyMessages() { while (!_messages.empty()) _messages.pop(); }
@@ -32,7 +42,37 @@ class TestingSession : public RSession {
 void
 TestingSession::sendJsonToClientSource(std::string json) {
 	_messages.push(json);
-//	cerr << json << endl;
+	cerr << json << endl;
+}
+
+bool
+TestingSession::fileExists(string filename)
+{
+	fs::path fp = getWorkingDirectory();
+	fp /= filename;
+	return fs::exists(fp);
+}
+
+void
+TestingSession::copyFileToWorkingDirectory(string srcPath)
+{
+	fs::path src = GetPathForExecutable(getpid());
+	src = src.parent_path();
+	src /= srcPath;
+	fs::path dest = getWorkingDirectory();
+	dest /= src.filename();
+	if (!fs::exists(src))
+		throw runtime_error("no such file");
+	fs::copy_file(src, dest, fs::copy_option::overwrite_if_exists);
+}
+
+void
+TestingSession::removeAllWorkingFiles()
+{
+	fs::path wd(getWorkingDirectory());
+	for (fs::directory_iterator end_itr, itr(wd); itr != end_itr; ++itr) {
+		remove_all(itr->path());
+	}
 }
 
 json::Object
@@ -58,21 +98,70 @@ TestingSession::doJson(std::string json) {
 
 namespace testing {
 
-	TEST(RSessionTest, basicScript)
-	{
-		RSessionCallbacks *callbacks = new RSessionCallbacks();
-		TestingSession *session = new TestingSession(callbacks);
-		session->doJson("{\"msg\":\"open\", \"argument\": \"\"}");
+	class SessionTest : public ::testing::Test {
+		protected:
+			static RSessionCallbacks *callbacks;
+			static TestingSession *session;
+			
+			static void SetUpTestCase() {
+				boost::log::core::get()->set_filter(
+					boost::log::trivial::severity >= (boost::log::trivial::info)
+				);
+				callbacks = new RSessionCallbacks();
+				session = new TestingSession(callbacks);
+				session->doJson("{\"msg\":\"open\", \"argument\": \"\"}");
+			}
+			
+			static void TearDownTestCase() {
+				try {
+					delete session;
+					delete callbacks;
+				} catch (...) {
+				}
+			}
+			
+			virtual void SetUp() {
+				session->emptyMessages();
+			}
+			
+			virtual void TearDown() {
+				session->removeAllWorkingFiles();
+			}
+	};
 
-		session->emptyMessages();
+	RSessionCallbacks* SessionTest::callbacks = NULL;
+	TestingSession* SessionTest::session = NULL;
+
+	TEST_F(SessionTest, basicScript)
+	{
 		session->doJson("{\"msg\":\"execScript\", \"argument\":\"2*2\"}");
 		ASSERT_EQ(session->_messages.size(), 2);
 		json::Object results1 = session->popMessage();
 		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "results");
 		ASSERT_TRUE(stringForJsonKey(results1, "string") == "[1] 4\n");
+	}
 
-//		ASSERT_EQ(1, 2-1);
+	TEST_F(SessionTest, execFiles)
+	{
+		session->copyFileToWorkingDirectory("test1.R");
+		session->doJson("{\"msg\":\"execFile\", \"argument\":\"test1.R\"}");
+		ASSERT_EQ(session->_messages.size(), 2);
+		json::Object results1 = session->popMessage();
+		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "results");
+		ASSERT_TRUE(stringForJsonKey(results1, "string") == "\n> x <- 4\n\n> x * x\n[1] 16\n");
+	}
+
+	TEST_F(SessionTest, execRMD)
+	{
+		session->copyFileToWorkingDirectory("test1.Rmd");
+		session->doJson("{\"msg\":\"execFile\", \"argument\":\"test1.Rmd\"}");
+		ASSERT_EQ(session->_messages.size(), 1);
+		json::Object results1 = session->popMessage();
+		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "execComplete");
+		ASSERT_TRUE(session->fileExists("test1.html"));
 	}
 
 };
 };
+
+
