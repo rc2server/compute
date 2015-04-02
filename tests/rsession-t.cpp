@@ -161,6 +161,16 @@ namespace testing {
 		ASSERT_TRUE(session->fileExists("test1.html"));
 	}
 
+	TEST_F(SessionTest, execSweave)
+	{
+		session->copyFileToWorkingDirectory("test1.Rnw");
+		session->doJson("{\"msg\":\"execFile\", \"argument\":\"test1.Rnw\"}");
+		ASSERT_EQ(session->_messages.size(), 1);
+		json::Object results1 = session->popMessage();
+		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "execComplete");
+		ASSERT_TRUE(session->fileExists("test1.pdf"));
+	}
+
 };
 };
 
