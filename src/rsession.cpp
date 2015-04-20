@@ -61,7 +61,7 @@ RC2::RSession::RSession(RSessionCallbacks *callbacks)
 {
 	RC2LOG(info) << "RSession created" << endl;
 	_callbacks = callbacks;
-	setenv("R_HOME", "/usr/lib/R", 0); //will not overwrite
+	setenv("R_HOME", "/usr/local/lib/R", 0); //will not overwrite
 	_impl->R = new RInside(0, NULL, false, true, false);
 	auto clambda = [&](const string &text, bool is_error) -> void {
 		if (_impl->ignoreOutput)
@@ -197,19 +197,30 @@ RC2::RSession::handleJsonCommand(string json)
 				_impl->fileWatcher.startWatch(); //clears cache
 			} else if (msg == "execScript") {
 				RC2LOG(debug) << "exec:" << arg << endl;
+				_impl->fileWatcher.startWatch();
 				SEXP ans;
 				RInside::ParseEvalResult result = _impl->R->parseEvalR(arg, ans);
 				flushOutputBuffer();
 				if (result == RInside::ParseEvalResult::PE_SUCCESS) {
 					sendJsonToClientSource(acknowledgeExecComplete(startTimeStr));
-//					bool sendDelta = ((json::Boolean)doc["watchVariables"]).Value();
-//					if (sendDelta)
-//						handleListVariablesCommand(true, doc["clientData"]);
+					bool sendDelta = ((json::Boolean)doc["watchVariables"]).Value();
+					if (sendDelta)
+						handleListVariablesCommand(true, doc["clientData"]);
 				} else if (result == RInside::ParseEvalResult::PE_INCOMPLETE) {
 					sendTextToClient("Incomplete R statement\n", true);
 				}
 			} else if (msg == "execFile") {
 				jsonStr = executeFile(arg, startTimeStr, doc["clientData"]);
+			} else if (msg == "help") {
+				handleHelpCommand(arg, startTimeStr);
+			} else if (msg == "listVariables") {
+				bool startWatch = ((json::Boolean)doc["watch"]).Value();
+				_impl->watchVariables = startWatch;
+				jsonStr = handleListVariablesCommand(startWatch, doc["clientData"]);
+			} else if (msg == "getVariable") {
+				jsonStr = handleGetVariableCommand(arg, startTimeStr);
+			} else if (msg == "toggleVariableWatch") {
+				_impl->watchVariables = ((json::Boolean)doc["watch"]).Value();
 			}
 			if (jsonStr.length() > 0)
 				sendJsonToClientSource(jsonStr);
@@ -253,7 +264,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	_impl->R->parseEvalQNT("library(markdown)");
 	_impl->R->parseEvalQNT("library(tools)");
 	_impl->R->parseEvalQNT("rm(argv)"); //RInside creates this even though we passed NULL
-	_impl->R->parseEvalQNT("options(device = \"rc2.pngdev\")");
+	_impl->R->parseEvalQNT("options(device = \"rc2.pngdev\", bitmapType = \"cairo\")");
 	_impl->ignoreOutput = false;
 	sendJsonToClientSource("{\"msg\":\"opensuccess\"}");
 	_impl->open = true;
@@ -262,11 +273,97 @@ RC2::RSession::handleOpenCommand(string arg)
 }
 
 string
+RC2::RSession::handleListVariablesCommand(bool delta, json::UnknownElement clientExtras)
+{
+	string rArg;
+	if (delta)
+		rArg = "delta=TRUE";
+	string cmd("rc2.listVariables(" + rArg + ")");
+	std::cerr << "list variables" << endl;
+	JsonDictionary json;
+	_impl->ignoreOutput = true;
+	try {
+		Rcpp::CharacterVector results = _impl->R->parseEval(cmd);
+		RC2LOG(info) << "executed list vars" << endl;
+		string jsonStr(results[0]);
+
+		json::Object varDict;
+		std::istringstream ist(jsonStr);
+		json::Reader::Read(varDict, ist);
+
+		json.addString("msg", "variableupdate");
+		json.addObject("variables", varDict);
+		json.addBool("delta", delta);
+		try {
+			//the following will raise exception if not a dict
+			json.addObject("clientData", varDict["clientData"]);
+		} catch (json::Exception &je) {
+		}
+		sendJsonToClientSource(json);
+	} catch (std::runtime_error &err) {
+		RC2LOG(warning) << "listVariables got error:" << err.what() << endl;
+	}
+	_impl->ignoreOutput = false;
+	return json;
+}
+
+string
+RC2::RSession::handleGetVariableCommand(string varName, string startTime)
+{
+	string cmd("rc2.sublistValue(\"" + escape_quotes(varName) + "\")");
+	RC2LOG(info) << "get variable:" << varName << endl;
+	_impl->ignoreOutput = true;
+	JsonDictionary json;
+	try {
+		Rcpp::CharacterVector results = _impl->R->parseEval(cmd);
+		string jsonStr(results[0]);
+
+		json::Object varDict;
+		std::istringstream ist(jsonStr);
+		json::Reader::Read(varDict, ist);
+
+		json.addString("msg", "variablevalue");
+		json.addString("startTime", startTime);
+		json.addObject("value", varDict);
+	} catch (std::runtime_error &err) {
+		RC2LOG(warning) << "getVariable got error:" << err.what() << endl;
+	}
+	_impl->ignoreOutput = false;
+	return json;
+}
+
+void
+RC2::RSession::handleHelpCommand(string arg, string startTime)
+{
+	string helpCmd("help(\"" + escape_quotes(arg) + "\")");
+	std::cerr << "help:" << helpCmd << endl;
+	_impl->ignoreOutput = true;
+	try {
+		Rcpp::List list = _impl->R->parseEval(helpCmd);
+		Rcpp::CharacterVector helpType = list[0];
+		Rcpp::CharacterVector helpPaths = list[1];
+		std::vector<string> paths;
+		for (Rcpp::CharacterVector::iterator itr=helpPaths.begin(); itr != helpPaths.end(); ++itr)
+			paths.push_back((char*)*itr);
+		JsonDictionary json;
+		json.addString("msg", "results");
+		json.addString("startTime", startTime);
+		json.addString("helpTopic", arg);
+		string jsonStr = json.addStringArray("helpPath", paths);
+		sendJsonToClientSource(jsonStr);
+	} catch (std::runtime_error &err) {
+		RC2LOG(warning) << "help got error:" << err.what() << endl;
+	}
+	_impl->ignoreOutput = false;
+}
+
+string
 RC2::RSession::executeFile(string arg, string startTime, json::UnknownElement clientExtras)
 {
 	string result;
 	fs::path p(arg);
 	clearFileChanges();
+	_impl->fileWatcher.startWatch();
 	if (p.extension() == ".Rmd") {
 		result = executeRMarkdown(arg, startTime, &clientExtras);
 	} else if (p.extension() == ".Rnw") {

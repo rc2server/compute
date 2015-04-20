@@ -54,15 +54,12 @@ namespace RC2 {
 //			string handleIncomingOutput(dispatch_data_t data);
 			void	sendToClient(string text, bool is_error=false);
 			void	handleJsonCommand(string json);
-			string	handleListVariablesCommand(bool delta, json::UnknownElement clientExtras);
-			string	handleGetVariableCommand(string varName, string startTime);
 			void	setOutputFunction(OutputCallback callback);
 */			
 		protected:
 /*			void	prepareForRead();
 //			void	processOutput(bool done, dispatch_data_t data, int error, bool stderr);
 			void	handleOpenCommand(string arg);
-			void	handleHelpCommand(string arg, string startTime);
 */		
 			string	formatStringAsJson(const string &input, bool is_error);
 			string	acknowledgeExecComplete(string stime, json::UnknownElement *clientExtras=nullptr);
@@ -73,6 +70,9 @@ namespace RC2 {
 			void	sendTextToClient(string text, bool is_error=false);
 			void	handleJsonCommand(string json);
 			void	handleOpenCommand(string arg);
+			void	handleHelpCommand(string arg, string startTime);
+			string	handleListVariablesCommand(bool delta, json::UnknownElement clientExtras);
+			string	handleGetVariableCommand(string varName, string startTime);
 
 			string	executeFile(string arg, string startTime, json::UnknownElement clientExtras);
 			string	executeRMarkdown(string arg, string startTime, json::UnknownElement *clientExtras);

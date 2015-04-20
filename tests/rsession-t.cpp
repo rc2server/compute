@@ -110,6 +110,7 @@ namespace testing {
 				callbacks = new RSessionCallbacks();
 				session = new TestingSession(callbacks);
 				session->doJson("{\"msg\":\"open\", \"argument\": \"\"}");
+				cerr << "SetupTestCase session open\n";
 			}
 			
 			static void TearDownTestCase() {
@@ -127,7 +128,7 @@ namespace testing {
 			virtual void TearDown() {
 				session->removeAllWorkingFiles();
 			}
-	};
+	}; 
 
 	RSessionCallbacks* SessionTest::callbacks = NULL;
 	TestingSession* SessionTest::session = NULL;
@@ -171,6 +172,23 @@ namespace testing {
 		ASSERT_TRUE(session->fileExists("test1.pdf"));
 	}
 
+	TEST_F(SessionTest, genImages)
+	{
+		session->doJson("{\"msg\":\"execScript\", \"argument\":\"plot(rnorm(11))\"}");
+		ASSERT_EQ(session->_messages.size(), 1);
+		json::Object results1 = session->popMessage();
+		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "execComplete");
+		ASSERT_TRUE(session->fileExists("rc2img001.png"));
+	}
+/*
+	TEST_F(SessionTest, singleHelp)
+	{
+		session->doJson("{\"msg\":\"help\", \"argument\":\"lm\"}");
+		ASSERT_EQ(session->_messages.size(), 1);
+		json::Object results1 = session->popMessage();
+		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "execComplete");
+	}
+*/
 };
 };
 

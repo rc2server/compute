@@ -23,15 +23,19 @@ set_property(GLOBAL PROPERTY CXX_STANDARD_REQUIRED ON)
 
 add_definitions(-std=c++11)
 SET(CMAKE_CXX_FLAGS "-std=c++11 -DBOOST_LOG_DYN_LINK")
+#following fixes compile error because somehow -rdynamic is getting set as a linker flag
+SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
+SET(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "-Wl,--no-export-dynamic")
 
 include_directories (${CMAKE_CURRENT_SOURCE_DIR} 
 	${CMAKE_ROOT}
 	/usr/local/lib/R/site-library/RInside/include
 	/usr/local/lib/R/site-library/Rcpp/include
-	/usr/share/R/include)
+	/usr/local/lib/R/include)
 
 link_directories (
 	/usr/local/lib/R/site-library/RInside/lib
+	/usr/local/lib/R/lib
 )
 
 add_subdirectory (common)
