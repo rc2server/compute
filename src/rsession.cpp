@@ -203,9 +203,9 @@ RC2::RSession::handleJsonCommand(string json)
 				flushOutputBuffer();
 				if (result == RInside::ParseEvalResult::PE_SUCCESS) {
 					sendJsonToClientSource(acknowledgeExecComplete(startTimeStr));
-					bool sendDelta = ((json::Boolean)doc["watchVariables"]).Value();
+					bool sendDelta = _impl->watchVariables || ((json::Boolean)doc["watchVariables"]).Value();
 					if (sendDelta)
-						handleListVariablesCommand(true, doc["clientData"]);
+						jsonStr = handleListVariablesCommand(true, doc["clientData"]);
 				} else if (result == RInside::ParseEvalResult::PE_INCOMPLETE) {
 					sendTextToClient("Incomplete R statement\n", true);
 				}
@@ -279,13 +279,12 @@ RC2::RSession::handleListVariablesCommand(bool delta, json::UnknownElement clien
 	if (delta)
 		rArg = "delta=TRUE";
 	string cmd("rc2.listVariables(" + rArg + ")");
-	std::cerr << "list variables" << endl;
 	JsonDictionary json;
 	_impl->ignoreOutput = true;
 	try {
 		Rcpp::CharacterVector results = _impl->R->parseEval(cmd);
-		RC2LOG(info) << "executed list vars" << endl;
 		string jsonStr(results[0]);
+		RC2LOG(info) << "executed list vars" << endl;
 
 		json::Object varDict;
 		std::istringstream ist(jsonStr);
@@ -299,7 +298,6 @@ RC2::RSession::handleListVariablesCommand(bool delta, json::UnknownElement clien
 			json.addObject("clientData", varDict["clientData"]);
 		} catch (json::Exception &je) {
 		}
-		sendJsonToClientSource(json);
 	} catch (std::runtime_error &err) {
 		RC2LOG(warning) << "listVariables got error:" << err.what() << endl;
 	}

@@ -21,6 +21,20 @@ stringForJsonKey(json::Object &obj, string key) {
 	return ((json::String)obj[key]).Value();
 }
 
+int
+intValueFromVariableArray(json::Array &array, string key, string value) {
+	for (auto itr=array.Begin(); itr != array.End(); ++itr) {
+		json::Object obj = (*itr);
+		string val = ((json::String)obj[key]).Value();
+		if (val == value) {
+			json::Array valArray(obj["value"]);
+			return ((json::Number)valArray[0]).Value();
+		}
+	}
+	return -1;
+}
+
+
 class TestingSession : public RSession {
 	public:
 		using RSession::RSession;
@@ -82,6 +96,7 @@ TestingSession::popMessage() {
 	try {
 		std::istringstream ist(json);
 		json::Reader::Read(doc, ist);
+		_messages.pop();
 	} catch (json::Reader::ParseException &pe) {
 		cerr << "parse exception:" << pe.what() << endl;
 	} catch (std::exception &ex) {
@@ -213,6 +228,38 @@ namespace testing {
 		int firstVal = (static_cast<json::Number>(valArray[0])).Value();
 		cerr << "firstVal=" << firstVal << endl;
 		ASSERT_TRUE(firstVal == 22);
+	}
+
+	TEST_F(SessionTest, listVariables)
+	{
+		session->doJson("{\"msg\":\"execScript\", \"argument\":\"rm(list=ls())\"}");
+		session->doJson("{\"msg\":\"execScript\", \"argument\":\"x<-22;y<-11\"}");
+		session->emptyMessages();
+		session->doJson("{\"msg\":\"listVariables\", \"argument\":\"\", \"watch\":true}");
+		ASSERT_EQ(session->_messages.size(), 1);
+		json::Object results1 = session->popMessage();
+		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "variableupdate");
+		json::Object valObj = results1["variables"];
+		json::Array valArray = valObj["values"];
+		int val = intValueFromVariableArray(valArray, "name", "x");
+		ASSERT_EQ(val, 22);
+		val = intValueFromVariableArray(valArray, "name", "y");
+		ASSERT_EQ(val, 11);
+		
+		//check that delta changes are being sent
+		session->emptyMessages();
+		ASSERT_EQ(session->_messages.size(), 0);
+		session->doJson("{\"msg\":\"execScript\", \"argument\":\"x<-x + y\"}");
+		ASSERT_EQ(session->_messages.size(), 2);
+		results1 = session->popMessage();
+		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "execComplete");
+		results1 = session->popMessage();
+		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "variableupdate");
+		ASSERT_TRUE(((json::Boolean)results1["delta"]).Value());
+		valObj = results1["variables"];
+		valArray = valObj["values"];
+		val = intValueFromVariableArray(valArray, "name", "x");
+		ASSERT_EQ(val, 33);
 	}
 
 };
