@@ -438,9 +438,9 @@ RC2::RSession::executeSweave(string arg, string startTime, json::UnknownElement 
 		//there was an error
 		RC2LOG(warning) << "sweave failed" << endl;
 	} else {
-		cmd = "texi2dvi('";
+		cmd = "texi2pdf('";
 		cmd += escape_quotes(texPath.string());
-		cmd += "', pdf=TRUE)";
+		cmd += "')";
 //		_impl->ignoreOutput = true;
 		_impl->R->parseEvalNT(cmd);
 		fs::path genPdfPath(scratchPath);
