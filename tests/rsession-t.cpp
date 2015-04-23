@@ -180,15 +180,41 @@ namespace testing {
 		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "execComplete");
 		ASSERT_TRUE(session->fileExists("rc2img001.png"));
 	}
-/*
+
 	TEST_F(SessionTest, singleHelp)
 	{
 		session->doJson("{\"msg\":\"help\", \"argument\":\"lm\"}");
 		ASSERT_EQ(session->_messages.size(), 1);
 		json::Object results1 = session->popMessage();
-		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "execComplete");
+		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "results");
+		ASSERT_TRUE(stringForJsonKey(results1, "helpTopic") == "lm");
+	}
+
+/*	TEST_F(SessionTest, multipleHelp)
+	{
+		session->doJson("{\"msg\":\"help\", \"argument\":\"lm\"}");
+		ASSERT_EQ(session->_messages.size(), 1);
+		json::Object results1 = session->popMessage();
+		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "results");
+		ASSERT_TRUE(stringForJsonKey(results1, "helpTopic") == "lm");
 	}
 */
+
+	TEST_F(SessionTest, getVariable)
+	{
+		session->doJson("{\"msg\":\"execScript\", \"argument\":\"testVar<-22\"}");
+		session->emptyMessages();
+		session->doJson("{\"msg\":\"getVariable\", \"argument\":\"testVar\"}");
+		ASSERT_EQ(session->_messages.size(), 1);
+		json::Object results1 = session->popMessage();
+		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "variablevalue");
+		json::Object valObj = results1["value"];
+		json::Array valArray = valObj["value"];
+		int firstVal = (static_cast<json::Number>(valArray[0])).Value();
+		cerr << "firstVal=" << firstVal << endl;
+		ASSERT_TRUE(firstVal == 22);
+	}
+
 };
 };
 
