@@ -3,12 +3,11 @@
 #include <tclap/CmdLine.h>
 #include <execinfo.h>
 #include <sys/stat.h>
+#include <boost/log/utility/setup/file.hpp>
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/core.hpp>
-#include <boost/log/expressions.hpp>
 #include <boost/regex.hpp>
+#include <glog/logging.h>
 #include <RInside.h>
 #include <event2/buffer.h>
 #include <event2/event.h>
@@ -21,16 +20,17 @@
 #include "common/RC2Utils.hpp"
 #include "InotifyFileWatcher.hpp"
 
-#define RC2LOG(x) BOOST_LOG_TRIVIAL(x)
-namespace logging = boost::log;
-
 using namespace std;
 namespace fs = boost::filesystem;
+
+#undef LOG
+#define LOG(x) cerr
 
 extern Rboolean R_Visible;
 
 static string escape_quotes(const string before);
 static string formatErrorAsJson(int errorCode, string details);
+static void rc2_log_callback(int severity, const char *msg);
 
 struct RC2::RSession::Impl {
 	event_base*						eventBase;
@@ -54,12 +54,13 @@ struct RC2::RSession::Impl {
 RC2::RSession::Impl::Impl()
 	: consoleOutBuffer(new string)
 {
+	google::InitGoogleLogging("rsession");
 }
 
 RC2::RSession::RSession(RSessionCallbacks *callbacks)
 		: _impl(new Impl())
 {
-	RC2LOG(info) << "RSession created" << endl;
+	LOG(INFO) << "RSession created" << endl;
 	_callbacks = callbacks;
 	setenv("R_HOME", "/usr/local/lib/R", 0); //will not overwrite
 	_impl->R = new RInside(0, NULL, false, true, false);
@@ -88,7 +89,7 @@ RC2::RSession::~RSession()
 	}
 	if (nullptr != _impl->outBuffer)
 		evbuffer_free(_impl->outBuffer);
-	RC2LOG(info) << "RSession destroyed" << endl;
+	LOG(INFO) << "RSession destroyed" << endl;
 }
 
 bool
@@ -106,13 +107,15 @@ RC2::RSession::parseArguments(int argc, char *argv[])
 		_impl->socket = portArg.getValue();
 		bool verbose = switchArg.getValue();
 
-		logging::core::get()->set_filter
-		(
-			logging::trivial::severity >= (verbose ? logging::trivial::info : logging::trivial::warning)
-		);
+//		logging::core::get()->set_filter
+//		(
+//			logging::trivial::severity >= (verbose ? logging::trivial::info : logging::trivial::warning)
+//		);
+		
+		LOG(INFO) << "arguments parsed\n";
 		
 	} catch (TCLAP::ArgException &e) {
-		RC2LOG(error) << "error:" << e.error() << endl;
+		LOG(ERROR) << "error:" << e.error() << endl;
 	}
 	return true;
 }
@@ -126,6 +129,7 @@ RC2::RSession::installExitHandler(void(*handler)(short flags))
 void
 RC2::RSession::prepareForRunLoop()
 {
+	event_set_log_callback(rc2_log_callback);
 	struct event_config *config = event_config_new();
 	event_config_require_features(config, EV_FEATURE_FDS);
 	_impl->eventBase = event_base_new_with_config(config);
@@ -133,21 +137,15 @@ RC2::RSession::prepareForRunLoop()
 	evutil_make_socket_nonblocking(_impl->socket);
 	_impl->eventBuffer = bufferevent_socket_new(_impl->eventBase, _impl->socket, 0);
 	if (_impl->eventBuffer == nullptr) {
-		RC2LOG(error) << "failed to create bufferevent socket" << endl;
+		LOG(ERROR) << "failed to create bufferevent socket" << endl;
 		return;
 	}
-	bufferevent_enable(_impl->eventBuffer, EV_READ|EV_WRITE);
 	bufferevent_setcb(_impl->eventBuffer,
-		[](struct bufferevent *bev, void *ctx) {
-			RSession *me = static_cast<RSession*>(ctx);
-			me->_impl->inputBuffer.appendData(bufferevent_get_input(bev));
-			if (me->_impl->inputBuffer.hasCompleteMessage()) {
-				me->handleJsonCommand(me->_impl->inputBuffer.popCurrentMessage());
-			}
-		},
+		RSession::handleJsonStatic,
 		nullptr,
 		nullptr,
 		this);
+	bufferevent_enable(_impl->eventBuffer, EV_READ|EV_WRITE|BEV_OPT_DEFER_CALLBACKS);
 	_impl->outBuffer = evbuffer_new();
 	_impl->fileWatcher.setEventBase(_impl->eventBase);
 }
@@ -158,34 +156,46 @@ RC2::RSession::startEventLoop()
 	event_base_loop(_impl->eventBase, 0);
 }
 
+void 
+RC2::RSession::handleJsonStatic(struct bufferevent *bev, void *ctx)
+{
+	LOG(INFO) << "got bufferevent\n";
+	RC2::RSession *me = static_cast<RC2::RSession*>(ctx);
+	me->_impl->inputBuffer.appendData(bufferevent_get_input(bev));
+	if (me->_impl->inputBuffer.hasCompleteMessage()) {
+		me->handleJsonCommand(me->_impl->inputBuffer.popCurrentMessage());
+	}
+}
+
 void
 RC2::RSession::handleJsonCommand(string json)
 {
+	LOG(INFO) << "handleJsonCommand\n";
 	try {
 		if (json.length() < 1)
 			return;
-		RC2LOG(info) << "json=" << json << endl;
+		LOG(INFO) << "json=" << json << endl;
 		json::Object doc;
 		try {
 			std::istringstream ist(json);
 			json::Reader::Read(doc, ist);
 		} catch (json::Reader::ParseException &pe) {
-			RC2LOG(error) << "parse exception:" << pe.what() << endl;
+			LOG(ERROR) << "parse exception:" << pe.what() << endl;
 			return;
 		} catch (std::exception &ex) {
-			RC2LOG(error) << "unknown exception parsing:" << ex.what() << endl;
+			LOG(ERROR) << "unknown exception parsing:" << ex.what() << endl;
 		}
 		string msg(((json::String)doc[string("msg")]).Value());
 		string arg(((json::String)doc["argument"]).Value());
 		if (msg == "open") {
 			if (_impl->open) {
-				RC2LOG(error) << "duplicate open message received" << endl;
+				LOG(ERROR) << "duplicate open message received" << endl;
 				return;
 			}
 			handleOpenCommand(arg);
 		} else {
 			if (!_impl->open) {
-				RC2LOG(error) << "R not open" << endl;
+				LOG(ERROR) << "R not open" << endl;
 				return;
 			}
 			string startTimeStr = ((json::String)doc["startTime"]).Value();
@@ -196,7 +206,7 @@ RC2::RSession::handleJsonCommand(string json)
 			} else if (msg == "clearFileChanges") {
 				_impl->fileWatcher.startWatch(); //clears cache
 			} else if (msg == "execScript") {
-				RC2LOG(debug) << "exec:" << arg << endl;
+				LOG(INFO) << "exec:" << arg << endl;
 				_impl->fileWatcher.startWatch();
 				SEXP ans;
 				RInside::ParseEvalResult result = _impl->R->parseEvalR(arg, ans);
@@ -226,7 +236,7 @@ RC2::RSession::handleJsonCommand(string json)
 				sendJsonToClientSource(jsonStr);
 		}
 	} catch (std::runtime_error error) {
-		RC2LOG(warning) << "handleJsonCommand error: " << error.what() << endl;
+		LOG(WARNING) << "handleJsonCommand error: " << error.what() << endl;
 		sendJsonToClientSource(error.what());
 	}
 }
@@ -237,7 +247,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	bool outDir = arg.length() < 1;
 	if (outDir)
 		arg = "/tmp/" + RC2::GenerateUUID();
-	RC2LOG(info) << "got open message: " << arg << endl;
+	LOG(INFO) << "got open message: " << arg << endl;
 	struct stat sb;
 	if (stat(arg.c_str(), &sb) == 0) {
 		if (!S_ISDIR(sb.st_mode)) {
@@ -245,7 +255,8 @@ RC2::RSession::handleOpenCommand(string arg)
 			throw (FormatErrorAsJson(kError_Open_InvalidDir, "invalid working directory"));
 		}
 	} else {
-		//does not exist. try creating
+		//does not exist. try creating a tmp one
+		arg = "/tmp/" + GenerateUUID();
 		int rc = RC2::MakeDirectoryPath(arg, 0755);
 		if (rc != 0) {
 			throw (FormatErrorAsJson(kError_Open_CreateDirFailed, 
@@ -256,7 +267,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	setenv("TMPDIR", arg.c_str(), 1);
 	setenv("TEMP", arg.c_str(), 1);
 	setenv("R_DEFAULT_DEVICE", "png", 1);
-	RC2LOG(info) << "setting wd" << endl;
+	LOG(INFO) << "setting wd" << endl;
 	_impl->R->parseEvalQNT("setwd(\"" + escape_quotes(arg) + "\")");
 	_impl->ignoreOutput = true;
 	_impl->R->parseEvalQNT("library(rc2);");
@@ -268,7 +279,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	_impl->ignoreOutput = false;
 	sendJsonToClientSource("{\"msg\":\"opensuccess\"}");
 	_impl->open = true;
-	RC2LOG(info) << "open done" << endl;
+	LOG(INFO) << "open done" << endl;
 	_impl->fileWatcher.initializeWatcher(_impl->tmpDir->getPath());
 }
 
@@ -284,7 +295,7 @@ RC2::RSession::handleListVariablesCommand(bool delta, json::UnknownElement clien
 	try {
 		Rcpp::CharacterVector results = _impl->R->parseEval(cmd);
 		string jsonStr(results[0]);
-		RC2LOG(info) << "executed list vars" << endl;
+		LOG(INFO) << "executed list vars" << endl;
 
 		json::Object varDict;
 		std::istringstream ist(jsonStr);
@@ -299,7 +310,7 @@ RC2::RSession::handleListVariablesCommand(bool delta, json::UnknownElement clien
 		} catch (json::Exception &je) {
 		}
 	} catch (std::runtime_error &err) {
-		RC2LOG(warning) << "listVariables got error:" << err.what() << endl;
+		LOG(WARNING) << "listVariables got error:" << err.what() << endl;
 	}
 	_impl->ignoreOutput = false;
 	return json;
@@ -309,7 +320,7 @@ string
 RC2::RSession::handleGetVariableCommand(string varName, string startTime)
 {
 	string cmd("rc2.sublistValue(\"" + escape_quotes(varName) + "\")");
-	RC2LOG(info) << "get variable:" << varName << endl;
+	LOG(INFO) << "get variable:" << varName << endl;
 	_impl->ignoreOutput = true;
 	JsonDictionary json;
 	try {
@@ -324,7 +335,7 @@ RC2::RSession::handleGetVariableCommand(string varName, string startTime)
 		json.addString("startTime", startTime);
 		json.addObject("value", varDict);
 	} catch (std::runtime_error &err) {
-		RC2LOG(warning) << "getVariable got error:" << err.what() << endl;
+		LOG(WARNING) << "getVariable got error:" << err.what() << endl;
 	}
 	_impl->ignoreOutput = false;
 	return json;
@@ -350,7 +361,7 @@ RC2::RSession::handleHelpCommand(string arg, string startTime)
 		string jsonStr = json.addStringArray("helpPath", paths);
 		sendJsonToClientSource(jsonStr);
 	} catch (std::runtime_error &err) {
-		RC2LOG(warning) << "help got error:" << err.what() << endl;
+		LOG(WARNING) << "help got error:" << err.what() << endl;
 	}
 	_impl->ignoreOutput = false;
 }
@@ -434,7 +445,7 @@ RC2::RSession::executeSweave(string arg, string startTime, json::UnknownElement 
 	texPath /= baseName + ".tex";
 	if (!fs::exists(texPath)) {
 		//there was an error
-		RC2LOG(warning) << "sweave failed" << endl;
+		LOG(WARNING) << "sweave failed" << endl;
 	} else {
 		cmd = "texi2pdf('";
 		cmd += escape_quotes(texPath.string());
@@ -448,7 +459,7 @@ RC2::RSession::executeSweave(string arg, string startTime, json::UnknownElement 
 		if (fs::exists(genPdfPath)) {
 			fs::copy_file(genPdfPath, destPdfPath, fs::copy_option::overwrite_if_exists);
 		} else {
-			RC2LOG(info) << "genPdfPath empty:" << genPdfPath << endl;
+			LOG(INFO) << "genPdfPath empty:" << genPdfPath << endl;
 			fs::path errorPath(scratchPath);
 			errorPath /= baseName + ".log";
 			if (fs::exists(errorPath)) {
@@ -524,7 +535,7 @@ RC2::RSession::sendJsonToClientSource(string json)
 	if (json.length() < 1)
 		return;
 	if (_impl->socket > 0) { //only send if we have a valid socket
-		RC2LOG(info) << "sending:" << json << endl;
+		LOG(INFO) << "sending:" << json << endl;
 		int32_t header[2];
 		header[0] = kRSessionMagicNumber;
 		header[1] = json.length();
@@ -535,7 +546,7 @@ RC2::RSession::sendJsonToClientSource(string json)
 		
 		bufferevent_write_buffer(_impl->eventBuffer, _impl->outBuffer);
 	} else {
-		RC2LOG(warning) << "output w/o client:" << json << endl;
+		LOG(WARNING) << "output w/o client:" << json << endl;
 	}
 }
 
@@ -603,5 +614,11 @@ formatErrorAsJson(int errorCode, string details)
 	json.addInt("errorCode", errorCode);
 	json.addString("errorDetails", details);
 	return json;
+}
+
+void 
+rc2_log_callback(int severity, const char *msg)
+{
+	cerr << "logging " << severity << ":" << msg << endl;
 }
 

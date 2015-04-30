@@ -7,9 +7,7 @@
 #include <thread>
 #include <mutex>
 #include <boost/filesystem.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/core.hpp>
-#include <boost/log/expressions.hpp>
+#include <glog/logging.h>
 #include "../src/InotifyFileWatcher.hpp"
 #include "common/RC2Utils.hpp"
 
@@ -41,9 +39,9 @@ namespace testing {
 	class InotifyWatcherTest : public ::testing::Test {
 		protected:
 			static void SetUpTestCase() {
-				boost::log::core::get()->set_filter(
-					boost::log::trivial::severity >= (boost::log::trivial::warning)
-				);
+//				boost::log::core::get()->set_filter(
+//					boost::log::trivial::severity >= (boost::log::trivial::warning)
+//				);
 			}
 	};
 

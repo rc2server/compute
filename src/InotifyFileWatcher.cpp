@@ -5,15 +5,12 @@
 #include <set>
 #include <iostream>
 #include <iomanip>
-#include <boost/log/trivial.hpp>
-#include <boost/log/core.hpp>
-#include <boost/log/expressions.hpp>
+#include <glog/logging.h>
 #include <boost/format.hpp>
 #include "InotifyFileWatcher.hpp"
 #include "../common/FormattedException.hpp"
 
 using namespace std;
-namespace logging = boost::log;
 using boost::format;
 
 struct RC2::InotifyFileWatcher::FSObject 
@@ -50,7 +47,7 @@ struct RC2::InotifyFileWatcher::Impl
 		if (fo.wd == -1)
 			throw FormattedException("inotify_add_warched failed %s", fo.name.c_str());
 		files[fo.wd] = fo;
-		BOOST_LOG_TRIVIAL(info) << "watching " << fo.name << endl;
+		LOG(INFO) << "watching " << fo.name << endl;
 	}
 };
 
@@ -90,7 +87,7 @@ RC2::InotifyFileWatcher::initializeWatcher(std::string dirPath)
 		throw FormattedException("inotify_add_watched failed");
 	stat(dirPath.c_str(), &_impl->root.sb);
 	_impl->files[_impl->root.wd] = _impl->root;
-	BOOST_LOG_TRIVIAL(info) << "watching " << dirPath << endl;
+	LOG(INFO) << "watching " << dirPath << endl;
 	
 	dir = opendir(dirPath.c_str());
 	while ((ent = readdir(dir)) != NULL) {
@@ -114,14 +111,14 @@ RC2::InotifyFileWatcher::initializeWatcher(std::string dirPath)
 void
 RC2::InotifyFileWatcher::handleInotifyEvent(struct bufferevent *bev)
 {
-	BOOST_LOG_TRIVIAL(info) << "handleInotify called" << endl;
+	LOG(INFO) << "handleInotify called" << endl;
 	char buf[I_BUF_LEN];
 	size_t numRead = bufferevent_read(bev, buf, I_BUF_LEN);
 	char *p;
 	for (p=buf; p < buf + numRead; ) {
 		struct inotify_event *event = (struct inotify_event*)p;
 		int evtype = event->mask & 0xffff; //events are in lower word, flags in upper
-		BOOST_LOG_TRIVIAL(info) << "notify:" << std::hex << evtype << " for " << 
+		LOG(INFO) << "notify:" << std::hex << evtype << " for " << 
 			_impl->files[event->wd].name << endl;
 		if(evtype == IN_CREATE) {
 			_impl->addedFiles.insert((string)event->name);

@@ -19,6 +19,6 @@ SET(TESTS
 
 FOREACH(test ${TESTS})
 	add_executable(${test}-t ${test}-t.cpp)
-	target_link_libraries(${test}-t src event common R RInside uuid boost_filesystem boost_regex boost_log boost_system ${GTEST_BOTH_LIBRARIES} pthread)
+	target_link_libraries(${test}-t src event common R RInside uuid boost_filesystem boost_regex glog boost_system ${GTEST_BOTH_LIBRARIES} pthread)
 	add_test(${test} ${test}-t)
 ENDFOREACH()

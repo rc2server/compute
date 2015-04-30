@@ -2,9 +2,7 @@
 #include <string>
 #include <iostream>
 #include <queue>
-#include <boost/log/trivial.hpp>
-#include <boost/log/core.hpp>
-#include <boost/log/expressions.hpp>
+#include <glog/logging.h>
 #include "common/RC2Utils.hpp"
 #include "../src/RSession.hpp"
 #include "../src/RSessionCallbacks.hpp"
@@ -119,9 +117,9 @@ namespace testing {
 			static TestingSession *session;
 			
 			static void SetUpTestCase() {
-				boost::log::core::get()->set_filter(
-					boost::log::trivial::severity >= (boost::log::trivial::info)
-				);
+//				boost::log::core::get()->set_filter(
+//					boost::log::trivial::severity >= (boost::log::trivial::info)
+//				);
 				callbacks = new RSessionCallbacks();
 				session = new TestingSession(callbacks);
 				session->doJson("{\"msg\":\"open\", \"argument\": \"\"}");

@@ -78,6 +78,8 @@ namespace RC2 {
 			string	executeRMarkdown(string arg, string startTime, json::UnknownElement *clientExtras);
 			string	executeSweave(string arg, string startTime, json::UnknownElement *clientExtras);
 
+			static void handleJsonStatic(struct bufferevent *bev, void *ctx);
+
 			struct Impl;
 			std::unique_ptr<Impl>		_impl;
 			RSessionCallbacks*		 	_callbacks;
