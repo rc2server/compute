@@ -19,6 +19,7 @@
 //#include "FormattedException.hpp"
 #include "common/RC2Utils.hpp"
 #include "InotifyFileWatcher.hpp"
+#include "FileManager.hpp"
 
 using namespace std;
 namespace fs = boost::filesystem;
@@ -38,9 +39,11 @@ struct RC2::RSession::Impl {
 	struct evbuffer*				outBuffer;
 	InputBufferManager				inputBuffer;
 	RInside*						R;
+	FileManager						fileManager;
 	InotifyFileWatcher				fileWatcher;
 	unique_ptr<TemporaryDirectory>	tmpDir;
 	shared_ptr<string>				consoleOutBuffer;
+	int								wspaceId;
 	int								socket;
 	bool							open;
 	bool							ignoreOutput;
@@ -187,6 +190,7 @@ RC2::RSession::handleJsonCommand(string json)
 		}
 		string msg(((json::String)doc[string("msg")]).Value());
 		string arg(((json::String)doc["argument"]).Value());
+		_impl->wspaceId = ((json::Number)doc["wspaceId"]).Value();
 		if (msg == "open") {
 			if (_impl->open) {
 				LOG(ERROR) << "duplicate open message received" << endl;
@@ -247,7 +251,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	bool outDir = arg.length() < 1;
 	if (outDir)
 		arg = "/tmp/" + RC2::GenerateUUID();
-	LOG(INFO) << "got open message: " << arg << endl;
+	LOG(INFO) << "got open message: " << _impl->wspaceId << endl;
 	struct stat sb;
 	if (stat(arg.c_str(), &sb) == 0) {
 		if (!S_ISDIR(sb.st_mode)) {
@@ -263,6 +267,8 @@ RC2::RSession::handleOpenCommand(string arg)
 				"failed to create working directory"));
 		}
 	}
+	_impl->fileManager.initFileManager("postgresql://rc2:rc2@10.0.2.2/rc2?application_name=rsession",
+		_impl->wspaceId);
 	_impl->tmpDir = std::move(std::unique_ptr<TemporaryDirectory>(new TemporaryDirectory(arg, outDir)));
 	setenv("TMPDIR", arg.c_str(), 1);
 	setenv("TEMP", arg.c_str(), 1);

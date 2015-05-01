@@ -3,6 +3,7 @@ project (rcompute-src)
 
 add_library (src InputBufferManager.cpp 
 					InotifyFileWatcher.cpp
+					FileManager.cpp
 					RServer.cpp 
 					RSession.cpp 
 					RSessionCallbacks.cpp )

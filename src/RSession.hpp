@@ -44,23 +44,8 @@ namespace RC2 {
 
 			//unit test subclasses might override
 			virtual void	sendJsonToClientSource(string json);
-/*
-			//methods that should be private but are needed when unit testing
-#ifndef UNITTESTING
-		private:
-#endif
-			//the following are only public to allow for unit testing
-//			string	handleIncomingData(dispatch_data_t data);
-//			string handleIncomingOutput(dispatch_data_t data);
-			void	sendToClient(string text, bool is_error=false);
-			void	handleJsonCommand(string json);
-			void	setOutputFunction(OutputCallback callback);
-*/			
+
 		protected:
-/*			void	prepareForRead();
-//			void	processOutput(bool done, dispatch_data_t data, int error, bool stderr);
-			void	handleOpenCommand(string arg);
-*/		
 			string	formatStringAsJson(const string &input, bool is_error);
 			string	acknowledgeExecComplete(string stime, json::UnknownElement *clientExtras=nullptr);
 			void	addFileChangesToJson(JsonDictionary& json);
