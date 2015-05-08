@@ -57,6 +57,7 @@ struct RC2::RSession::Impl {
 RC2::RSession::Impl::Impl()
 	: consoleOutBuffer(new string)
 {
+	FLAGS_log_dir = "/tmp";
 	google::InitGoogleLogging("rsession");
 }
 
@@ -132,7 +133,7 @@ RC2::RSession::installExitHandler(void(*handler)(short flags))
 void
 RC2::RSession::prepareForRunLoop()
 {
-	event_set_log_callback(rc2_log_callback);
+//	event_set_log_callback(rc2_log_callback);
 	struct event_config *config = event_config_new();
 	event_config_require_features(config, EV_FEATURE_FDS);
 	_impl->eventBase = event_base_new_with_config(config);
@@ -267,9 +268,11 @@ RC2::RSession::handleOpenCommand(string arg)
 				"failed to create working directory"));
 		}
 	}
+	_impl->tmpDir = std::move(std::unique_ptr<TemporaryDirectory>(new TemporaryDirectory(arg, outDir)));
+	LOG(INFO) << "wd=" << _impl->tmpDir->getPath() << endl;
+	_impl->fileManager.setWorkingDir(_impl->tmpDir->getPath());
 	_impl->fileManager.initFileManager("postgresql://rc2:rc2@10.0.2.2/rc2?application_name=rsession",
 		_impl->wspaceId);
-	_impl->tmpDir = std::move(std::unique_ptr<TemporaryDirectory>(new TemporaryDirectory(arg, outDir)));
 	setenv("TMPDIR", arg.c_str(), 1);
 	setenv("TEMP", arg.c_str(), 1);
 	setenv("R_DEFAULT_DEVICE", "png", 1);

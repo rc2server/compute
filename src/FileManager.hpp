@@ -10,6 +10,8 @@ namespace RC2 {
 			~FileManager();
 			void initFileManager(std::string connectString, int wspaceId);
 	
+			void setWorkingDir(std::string dir);
+	
 		private:
 			class Impl;
 			std::unique_ptr<Impl>		_impl;

@@ -34,6 +34,7 @@ SET(Compute_Libs
 	boost_system
 	uuid
 	pq
+	pqtypes
 	glog
 )
 
@@ -60,6 +61,7 @@ include_directories (${CMAKE_CURRENT_SOURCE_DIR}
 	${CMAKE_ROOT}
 	${CPPNET-LIB_INCLUDE_DIR}
 	/usr/include
+	/usr/include/postgresql
 	/usr/local/lib/R/site-library/RInside/include
 	/usr/local/lib/R/site-library/Rcpp/include
 	/usr/local/lib/R/include)
