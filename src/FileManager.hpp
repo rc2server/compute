@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <event2/event.h>
 
 namespace RC2 {
 
@@ -8,9 +9,10 @@ namespace RC2 {
 		public:
 			FileManager();
 			~FileManager();
-			void initFileManager(std::string connectString, int wspaceId);
+			void 	initFileManager(std::string connectString, int wspaceId);
 	
-			void setWorkingDir(std::string dir);
+			void 	setWorkingDir(std::string dir);
+			void	setEventBase(struct event_base *evbase);
 	
 		private:
 			class Impl;

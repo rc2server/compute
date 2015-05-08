@@ -40,7 +40,7 @@ struct RC2::RSession::Impl {
 	InputBufferManager				inputBuffer;
 	RInside*						R;
 	FileManager						fileManager;
-	InotifyFileWatcher				fileWatcher;
+//	InotifyFileWatcher				fileWatcher;
 	unique_ptr<TemporaryDirectory>	tmpDir;
 	shared_ptr<string>				consoleOutBuffer;
 	int								wspaceId;
@@ -151,7 +151,8 @@ RC2::RSession::prepareForRunLoop()
 		this);
 	bufferevent_enable(_impl->eventBuffer, EV_READ|EV_WRITE|BEV_OPT_DEFER_CALLBACKS);
 	_impl->outBuffer = evbuffer_new();
-	_impl->fileWatcher.setEventBase(_impl->eventBase);
+//	_impl->fileWatcher.setEventBase(_impl->eventBase);
+	_impl->fileManager.setEventBase(_impl->eventBase);
 }
 
 void
@@ -209,10 +210,10 @@ RC2::RSession::handleJsonCommand(string json)
 				_impl->R->parseEvalQNT("save.image()");
 				event_base_loopbreak(_impl->eventBase);
 			} else if (msg == "clearFileChanges") {
-				_impl->fileWatcher.startWatch(); //clears cache
+//				_impl->fileWatcher.startWatch(); //clears cache
 			} else if (msg == "execScript") {
 				LOG(INFO) << "exec:" << arg << endl;
-				_impl->fileWatcher.startWatch();
+//				_impl->fileWatcher.startWatch();
 				SEXP ans;
 				RInside::ParseEvalResult result = _impl->R->parseEvalR(arg, ans);
 				flushOutputBuffer();
@@ -289,7 +290,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	sendJsonToClientSource("{\"msg\":\"opensuccess\"}");
 	_impl->open = true;
 	LOG(INFO) << "open done" << endl;
-	_impl->fileWatcher.initializeWatcher(_impl->tmpDir->getPath());
+//	_impl->fileWatcher.initializeWatcher(_impl->tmpDir->getPath());
 }
 
 string
@@ -381,7 +382,7 @@ RC2::RSession::executeFile(string arg, string startTime, json::UnknownElement cl
 	string result;
 	fs::path p(arg);
 	clearFileChanges();
-	_impl->fileWatcher.startWatch();
+//	_impl->fileWatcher.startWatch();
 	if (p.extension() == ".Rmd") {
 		result = executeRMarkdown(arg, startTime, &clientExtras);
 	} else if (p.extension() == ".Rnw") {
@@ -493,7 +494,7 @@ void
 RC2::RSession::addFileChangesToJson(JsonDictionary& json)
 {
 	std::vector<string> add, mod, del;
-	_impl->fileWatcher.stopWatch(add, mod, del);
+//	_impl->fileWatcher.stopWatch(add, mod, del);
 	mod.insert(mod.end(), add.begin(), add.end()); //merge add/modified
 	if (mod.size() > 0)
 		json.addStringArray("filesModified", mod);
