@@ -55,7 +55,8 @@ struct RC2::RSession::Impl {
 
 
 RC2::RSession::Impl::Impl()
-	: consoleOutBuffer(new string)
+	: consoleOutBuffer(new string), open(false), ignoreOutput(false), 
+		sourceInProgress(false), watchVariables(false)
 {
 	FLAGS_log_dir = "/tmp";
 	google::InitGoogleLogging("rsession");
