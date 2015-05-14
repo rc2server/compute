@@ -122,13 +122,14 @@ namespace testing {
 //				);
 				callbacks = new RSessionCallbacks();
 				session = new TestingSession(callbacks);
-				session->doJson("{\"msg\":\"open\", \"argument\": \"\"}");
+				session->doJson("{\"msg\":\"open\", \"argument\": \"\", \"wspaceId\":154}");
 				cerr << "SetupTestCase session open\n";
 			}
-			
+		
 			static void TearDownTestCase() {
 				try {
 					delete session;
+					session = NULL;
 					delete callbacks;
 				} catch (...) {
 				}

@@ -49,14 +49,14 @@ struct RC2::RSession::Impl {
 	bool							ignoreOutput;
 	bool							sourceInProgress;
 	bool							watchVariables;
-	
+
 	Impl();
 };
 
 
 RC2::RSession::Impl::Impl()
 	: consoleOutBuffer(new string), open(false), ignoreOutput(false), 
-		sourceInProgress(false), watchVariables(false)
+		sourceInProgress(false), watchVariables(false), outBuffer(nullptr)
 {
 	FLAGS_log_dir = "/tmp";
 	google::InitGoogleLogging("rsession");
@@ -273,7 +273,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	_impl->tmpDir = std::move(std::unique_ptr<TemporaryDirectory>(new TemporaryDirectory(arg, outDir)));
 	LOG(INFO) << "wd=" << _impl->tmpDir->getPath() << endl;
 	_impl->fileManager.setWorkingDir(_impl->tmpDir->getPath());
-	_impl->fileManager.initFileManager("postgresql://rc2:rc2@10.0.2.2/rc2?application_name=rsession",
+	_impl->fileManager.initFileManager("postgresql://rc2@127.0.0.1:9000/rc2?application_name=rsession",
 		_impl->wspaceId);
 	setenv("TMPDIR", arg.c_str(), 1);
 	setenv("TEMP", arg.c_str(), 1);

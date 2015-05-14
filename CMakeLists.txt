@@ -34,7 +34,6 @@ SET(Compute_Libs
 	boost_system
 	uuid
 	pq
-	pqtypes
 	glog
 )
 
