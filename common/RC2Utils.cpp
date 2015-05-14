@@ -82,6 +82,16 @@ RC2::JsonDictionary::addStringArray(std::string key, std::vector<std::string> st
 	return string();
 }
 
+void
+RC2::JsonDictionary::addLongArray(std::string key, std::vector<long> longs)
+{
+	json::Array array;
+	for (auto itr = longs.begin(); itr != longs.end(); ++itr) {
+		array.Insert(json::Number(*itr));
+	}
+	_doc[key] = array;
+}
+
 std::string
 RC2::JsonDictionary::string() const
 {
