@@ -44,6 +44,7 @@ struct RC2::RSession::Impl {
 	unique_ptr<TemporaryDirectory>	tmpDir;
 	shared_ptr<string>				consoleOutBuffer;
 	int								wspaceId;
+	int								sessionRecId;
 	int								socket;
 	bool							open;
 	bool							ignoreOutput;
@@ -199,6 +200,7 @@ RC2::RSession::handleJsonCommand(string json)
 				LOG(ERROR) << "duplicate open message received" << endl;
 				return;
 			}
+			_impl->sessionRecId = ((json::Number)doc["sessionRecId"]).Value();
 			handleOpenCommand(arg);
 		} else {
 			if (!_impl->open) {
@@ -274,7 +276,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	LOG(INFO) << "wd=" << _impl->tmpDir->getPath() << endl;
 	_impl->fileManager.setWorkingDir(_impl->tmpDir->getPath());
 	_impl->fileManager.initFileManager("postgresql://rc2@127.0.0.1:9000/rc2?application_name=rsession",
-		_impl->wspaceId);
+		_impl->wspaceId, _impl->sessionRecId);
 	setenv("TMPDIR", arg.c_str(), 1);
 	setenv("TEMP", arg.c_str(), 1);
 	setenv("R_DEFAULT_DEVICE", "png", 1);
@@ -383,6 +385,7 @@ RC2::RSession::executeFile(string arg, string startTime, json::UnknownElement cl
 	string result;
 	fs::path p(arg);
 	clearFileChanges();
+	_impl->fileManager.resetWatch();
 //	_impl->fileWatcher.startWatch();
 	if (p.extension() == ".Rmd") {
 		result = executeRMarkdown(arg, startTime, &clientExtras);
@@ -495,12 +498,16 @@ void
 RC2::RSession::addFileChangesToJson(JsonDictionary& json)
 {
 	std::vector<string> add, mod, del;
+	std::vector<long> imageIds;
+	_impl->fileManager.checkWatch(imageIds);
 //	_impl->fileWatcher.stopWatch(add, mod, del);
 	mod.insert(mod.end(), add.begin(), add.end()); //merge add/modified
 	if (mod.size() > 0)
 		json.addStringArray("filesModified", mod);
 	if (del.size() > 0)
 		json.addStringArray("filesDeleted", del);
+	if (imageIds.size() > 0)
+		json.addLongArray("images", imageIds);
 }
 
 void

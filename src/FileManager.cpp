@@ -13,6 +13,7 @@
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
+#include <boost/regex.hpp>
 #include <sys/types.h>
 #include <utime.h>
 #include "../common/FormattedException.hpp"
@@ -24,19 +25,29 @@ namespace fs = boost::filesystem;
 #undef LOG
 #define LOG(x) cerr
 
+class DBResult {
+	PGresult *res;
+	public:
+		DBResult(PGresult *inRes) : res(inRes) {}
+		~DBResult() { PQclear(res); }
+		operator PGresult*() const { return res; }
+};
+
 //for db fetched data
 struct DBFileInfo {
-	long	id, version;
-	string	name;
-	bool	projectFile;
+	long		id, version;
+	string		name, path;
+	int			watchDescriptor;
+	struct stat	sb;
+	bool		projectFile;
 	
-	DBFileInfo(long anId, long aVersion, const char *aName, bool projFile=false) 
-		: id(anId), version(aVersion), name(aName), projectFile(projFile)
-	{}
-
 	DBFileInfo(uint32_t anId, uint32_t aVersion, string &aName, bool projFile=false)
 		: id((long)anId), version((long)aVersion), name(aName), projectFile(projFile)
-	{}
+	{
+		if (projectFile)
+			path = "shared/";
+		path += name;
+	}
 	
 	friend ostream& operator<<(ostream &out, DBFileInfo &finfo) {
 		out << "(" << finfo.id << ": " << finfo.name << ")";
@@ -44,38 +55,42 @@ struct DBFileInfo {
 	}
 };
 
-//for inotify
-struct FSObject 
-{
-	string			name;
-	struct stat 	sb;
-	int				wd;
-	inline bool is_dir() const { return S_ISDIR(sb.st_mode); }
-};
+typedef shared_ptr<DBFileInfo> DBFileInfoPtr;
 
+struct FSDirectory {
+	int wd;
+	struct stat sb;
+};
 
 class RC2::FileManager::Impl {
 	public:
-		long					wspaceId_;
-		long					projectId_;
-		PGconn*					dbcon_;
-		map<long, DBFileInfo>	dbFiles_;
-		map<int, FSObject>		fsFiles_;
-		string					workingDir;
-		struct event_base*		eventBase_;
-		int						inotifyFd_;
-		FSObject				root_;
+		long						wspaceId_;
+		long						projectId_;
+		long						sessionRecId_;
+		PGconn*						dbcon_;
+		map<long, DBFileInfoPtr>	filesById_;
+		map<int, DBFileInfoPtr>		filesByWatchDesc_;
+		vector<long>				imageIds_;
+		string						workingDir;
+		struct event_base*			eventBase_;
+		int							inotifyFd_;
+		FSDirectory					rootDir_;
+		boost::regex				imgRegex_;
+
+		Impl()
+			: imgRegex_("rc2img(\\d+).png")
+		{}
 
 		void cleanup(); //replacement for destructor
-		void connect(string str, long wspaceId);
+		void connect(string str, long wspaceId, long sessionRecId);
 		void loadFiles(const char *whereClause, bool isProject);
-		void insertDBFile(string fname);
-		void updateDBFile(FSObject &fobj);
-		void removeDBFile(FSObject &fobj);
+		long insertDBFile(string fname); //returns db id
+		void updateDBFile(DBFileInfoPtr fobj);
+		void removeDBFile(DBFileInfoPtr fobj);
 		long query1long(const char *query);
 		
 		void	setupInotify(FileManager *fm);
-		void 	watchFile(string fname);
+		void 	watchFile(DBFileInfoPtr file);
 		void	handleInotifyEvent(struct bufferevent *bev);
 		static void handleInotifyEvent(struct bufferevent *bev, void *ctx)
 		{
@@ -97,9 +112,10 @@ RC2::FileManager::Impl::cleanup() {
 }
 
 void
-RC2::FileManager::Impl::connect(string str, long wspaceId) 
+RC2::FileManager::Impl::connect(string str, long wspaceId, long sessionRecId) 
 {
 	wspaceId_ = wspaceId;
+	sessionRecId_ = sessionRecId;
 	dbcon_ = PQconnectdb(str.c_str());
 	//TODO: error checking
 	char msg[255];
@@ -119,13 +135,10 @@ RC2::FileManager::Impl::connect(string str, long wspaceId)
 void
 RC2::FileManager::Impl::loadFiles(const char *whereClause, bool isProject)
 {
-	struct timespec start={0,0}, end={0,0};
-	clock_gettime(CLOCK_MONOTONIC, &start);
-
 	ostringstream query;
 	query << "select f.id::int4, f.version::int4, f.name, extract('epoch' from f.lastmodified)::int4, " 
 		"d.bindata from rcfile f join rcfiledata d on f.id = d.id " << whereClause;
-	PGresult *res = PQexecParams(dbcon_, query.str().c_str(), 0, NULL, NULL, NULL, NULL, 1);
+	DBResult res(PQexecParams(dbcon_, query.str().c_str(), 0, NULL, NULL, NULL, NULL, 1));
 	ExecStatusType rc = PQresultStatus(res);
 	if (PGRES_TUPLES_OK == rc) {
 		int numfiles = PQntuples(res);
@@ -142,7 +155,8 @@ RC2::FileManager::Impl::loadFiles(const char *whereClause, bool isProject)
 			lastmod = ntohl(*(uint32_t*)ptr);
 			int datalen = PQgetlength(res, i, 4);
 			char *data = PQgetvalue(res, i, 4);
-			dbFiles_.insert(map<long,DBFileInfo>::value_type(pid, DBFileInfo(pid, pver, pname, isProject)));
+			DBFileInfoPtr filePtr(new DBFileInfo(pid, pver, pname, isProject));
+			filesById_.insert(map<long,DBFileInfoPtr>::value_type(pid, filePtr));
 			//write data to disk
 			fs::path filepath(workingDir);
 			if (isProject)
@@ -160,42 +174,65 @@ RC2::FileManager::Impl::loadFiles(const char *whereClause, bool isProject)
 	} else {
 		LOG(ERROR) << "sql error: " << PQresultErrorMessage(res) << endl;
 	}
-	PQclear(res);
-
-	clock_gettime(CLOCK_MONOTONIC, &end);
-	printf("load files (%lu) took %.5f seconds\n", dbFiles_.size(),
-		((double)end.tv_sec + 1.0e-9*end.tv_nsec) -
-		((double)start.tv_sec + 1.0e-9*start.tv_nsec));
 }
 
-void 
+long 
 RC2::FileManager::Impl::insertDBFile(string fname) {
+	boost::smatch what;
+	if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
+		cerr << "found image " << what[1] << endl;
+		string filePath = workingDir + "/" + fname;
+		ifstream file(filePath, ios::in|ios::binary|ios::ate);
+		int size = file.tellg();
+		unique_ptr<char[]> buffer(new char[size]);
+		file.seekg(0, ios::beg);
+		file.read(buffer.get(), size);
+		file.close();
+		long imgId = query1long("select nextval('sessionimage_seq'::regclass)");
+		if (imgId <= 0)
+			throw FormattedException("failed to get session image id");
+		stringstream query;
+		query << "insert into sessionimage (id,sessionid,name,imgdata) values (" << imgId 
+			<< "," << sessionRecId_ << ",'img" << imgId << ".png',$1)";
+		Oid in_oid[] = {1043,17};
+		int pformats = 1;
+		const char *params[] = {buffer.get()};
+		DBResult res(PQexecParams(dbcon_, query.str().c_str(), 3, in_oid, params, 
+			&size, &pformats, 1));
+		ExecStatusType rc = PQresultStatus(res);
+		if (!rc == PGRES_COMMAND_OK) {
+			throw FormattedException("failed to insert image in db: %s", PQresultErrorMessage(res));
+		}
+		imageIds_.push_back(imgId);
+		fs::remove(filePath);
+		return 0;
+	}
 	cerr << "insert file:" << fname << endl;
+	return 0;
 }
 
 void 
-RC2::FileManager::Impl::updateDBFile(FSObject &fobj) {
-	cerr << "update file:" << fobj.name << endl;
+RC2::FileManager::Impl::updateDBFile(DBFileInfoPtr fobj) {
+	cerr << "update file:" << fobj->name << endl;
 	
 }
 
 void 
-RC2::FileManager::Impl::removeDBFile(FSObject &fobj) {
-	cerr << "rm file:" << fobj.name << endl;
+RC2::FileManager::Impl::removeDBFile(DBFileInfoPtr fobj) {
+	cerr << "rm file:" << fobj->name << endl;
 }
 
 long
 RC2::FileManager::Impl::query1long(const char *query)
 {
 	long value = 0;
-	PGresult *res = PQexec(dbcon_, query);
+	DBResult res(PQexec(dbcon_, query));
 	ExecStatusType rc = PQresultStatus(res);
 	if (PGRES_TUPLES_OK == rc) {
 		value = atol(PQgetvalue(res, 0, 0));
 	} else {
 		LOG(ERROR) << "sql error:" << PQresultErrorMessage(res) << endl;
 	}
-	PQclear(res);
 	return value;
 }
 
@@ -203,29 +240,21 @@ RC2::FileManager::Impl::query1long(const char *query)
 
 void
 RC2::FileManager::Impl::setupInotify(FileManager *fm) {
-	DIR *dir;
-	class dirent *ent;
 	inotifyFd_ = inotify_init();
 	if (inotifyFd_ == -1)
 		throw FormattedException("inotify_init() failed for %s", workingDir.c_str());
-	root_.wd = inotify_add_watch(inotifyFd_, workingDir.c_str(), 
+	rootDir_.wd = inotify_add_watch(inotifyFd_, workingDir.c_str(), 
 		IN_CREATE | IN_DELETE | IN_DELETE_SELF | IN_MOVE_SELF | IN_MOVE);
-	if (root_.wd == -1)
+	if (rootDir_.wd == -1)
 		throw FormattedException("inotify_add_watched failed");
-	stat(workingDir.c_str(), &root_.sb);
-	fsFiles_[root_.wd] = root_;
-	
-	dir = opendir(workingDir.c_str());
-	while ((ent = readdir(dir)) != NULL) {
-		//skip "." and ".." but not other files that start with a period
-		if (ent->d_name[0] == '.' && (strlen(ent->d_name) == 1 || ent->d_name[1] == '.'))
-			continue;
+	stat(workingDir.c_str(), &rootDir_.sb);
+	//TODO - watch shared directory
+	for (auto itr=filesById_.begin(); itr != filesById_.end(); ++itr) {
 		try {
-			watchFile(ent->d_name);
+			watchFile(itr->second);
 		} catch (Impl::StatException &se) {
 		}
 	}
-	closedir(dir);
 	
 	struct bufferevent *evt = bufferevent_socket_new(eventBase_, inotifyFd_, 0);
 	bufferevent_setcb(evt, FileManager::Impl::handleInotifyEvent, NULL, NULL, fm);
@@ -237,7 +266,7 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 void
 RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 {
-	LOG(INFO) << "handleInotify called:" << workingDir << endl;
+//	LOG(INFO) << "handleInotify called:" << workingDir << endl;
 	char buf[I_BUF_LEN];
 	size_t numRead = bufferevent_read(bev, buf, I_BUF_LEN);
 	char *p;
@@ -247,16 +276,17 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 		LOG(INFO) << "notify:" << std::hex << evtype << " for " << 
 			event->wd << endl;
 		if(evtype == IN_CREATE) {
-			insertDBFile((string)event->name);
-			watchFile(event->name);
-			//need to add a watch for this file
+			long newFileId = insertDBFile((string)event->name);
+			if (newFileId > 0) {
+				//need to add a watch for this file
+				watchFile(filesById_[newFileId]);
+			}
 		} else if (evtype == IN_CLOSE_WRITE) {
-			updateDBFile(fsFiles_[event->wd]);
+			updateDBFile(filesByWatchDesc_[event->wd]);
 		} else if (evtype == IN_DELETE_SELF) {
-			removeDBFile(fsFiles_[event->wd]);
+			removeDBFile(filesByWatchDesc_[event->wd]);
 			//discard our records of it
 			inotify_rm_watch(inotifyFd_, event->wd);
-			fsFiles_.erase(event->wd);
 		}
 		//handle event
 		p += sizeof(struct inotify_event) + event->len;
@@ -264,18 +294,16 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 }
 
 void 
-RC2::FileManager::Impl::watchFile(string fname) {
-	FSObject fo;
-	fo.name = fname;
-	string fullPath = workingDir + "/" + fo.name;
-	if (stat(fullPath.c_str(), &fo.sb) == -1)
-		throw StatException((format("stat failed for %s") % fo.name).str());
-	fo.wd = inotify_add_watch(inotifyFd_, fullPath.c_str(), 
+RC2::FileManager::Impl::watchFile(DBFileInfoPtr file) {
+	string fullPath = workingDir + file->path;
+	if (stat(fullPath.c_str(), &file->sb) == -1)
+		throw StatException((format("stat failed for %s") % file->name).str());
+	file->watchDescriptor = inotify_add_watch(inotifyFd_, fullPath.c_str(), 
 				IN_CLOSE_WRITE | IN_DELETE_SELF | IN_MODIFY);
-	if (fo.wd == -1)
-		throw FormattedException("inotify_add_warched failed %s", fo.name.c_str());
-	fsFiles_[fo.wd] = fo;
-	LOG(INFO) << "watching " << fo.name << endl;
+	if (file->watchDescriptor == -1)
+		throw FormattedException("inotify_add_warched failed %s", file->name.c_str());
+	filesByWatchDesc_[file->watchDescriptor] = file;
+	LOG(INFO) << "watching " << file->path << endl;
 }
 
 
@@ -295,15 +323,9 @@ RC2::FileManager::~FileManager()
 }
 
 void
-RC2::FileManager::initFileManager(string connectString, int wspaceId)
+RC2::FileManager::initFileManager(string connectString, int wspaceId, int sessionRecId)
 {
-	struct timespec start={0,0}, end={0,0};
-	clock_gettime(CLOCK_MONOTONIC, &start);
-	_impl->connect(connectString, wspaceId);
-	clock_gettime(CLOCK_MONOTONIC, &end);
-	printf("connection took %.5f seconds\n", 
-		((double)end.tv_sec + 1.0e-9*end.tv_nsec) -
-		((double)start.tv_sec + 1.0e-9*start.tv_nsec));
+	_impl->connect(connectString, wspaceId, sessionRecId);
 	_impl->setupInotify(this);
 }
 
@@ -318,3 +340,16 @@ RC2::FileManager::setEventBase(struct event_base *eb)
 {
 	_impl->eventBase_ = eb;
 }
+
+void
+RC2::FileManager::resetWatch()
+{
+	_impl->imageIds_.erase(_impl->imageIds_.begin(), _impl->imageIds_.end());
+}
+
+void
+RC2::FileManager::checkWatch(vector<long> &imageIds)
+{
+	imageIds = _impl->imageIds_;
+}
+
