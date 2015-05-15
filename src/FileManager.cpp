@@ -16,6 +16,7 @@
 #include <boost/regex.hpp>
 #include <sys/types.h>
 #include <utime.h>
+#include "../common/PostgresUtils.hpp"
 #include "../common/FormattedException.hpp"
 
 using namespace std;
@@ -25,13 +26,6 @@ namespace fs = boost::filesystem;
 #undef LOG
 #define LOG(x) cerr
 
-class DBResult {
-	PGresult *res;
-	public:
-		DBResult(PGresult *inRes) : res(inRes) {}
-		~DBResult() { PQclear(res); }
-		operator PGresult*() const { return res; }
-};
 
 //for db fetched data
 struct DBFileInfo {
@@ -88,7 +82,11 @@ class RC2::FileManager::Impl {
 		void updateDBFile(DBFileInfoPtr fobj);
 		void removeDBFile(DBFileInfoPtr fobj);
 		long query1long(const char *query);
+		bool executeDBCommand(string cmd);
 		
+		unique_ptr<char[]> readFileBlob(DBFileInfoPtr fobj, size_t &size);
+		unique_ptr<char[]> readFileBlob(string filePath, size_t &size);
+
 		void	setupInotify(FileManager *fm);
 		void 	watchFile(DBFileInfoPtr file);
 		void	handleInotifyEvent(struct bufferevent *bev);
@@ -140,7 +138,7 @@ RC2::FileManager::Impl::loadFiles(const char *whereClause, bool isProject)
 		"d.bindata from rcfile f join rcfiledata d on f.id = d.id " << whereClause;
 	DBResult res(PQexecParams(dbcon_, query.str().c_str(), 0, NULL, NULL, NULL, NULL, 1));
 	ExecStatusType rc = PQresultStatus(res);
-	if (PGRES_TUPLES_OK == rc) {
+	if (res.dataReturned()) {
 		int numfiles = PQntuples(res);
 		for (int i=0; i < numfiles; i++) {
 			uint32_t pid=0, pver=0, lastmod=0;
@@ -172,22 +170,19 @@ RC2::FileManager::Impl::loadFiles(const char *whereClause, bool isProject)
 			utime(filepath.c_str(), &modbuf);
 		}
 	} else {
-		LOG(ERROR) << "sql error: " << PQresultErrorMessage(res) << endl;
+		LOG(ERROR) << "sql error: " << res.errorMessage() << endl;
 	}
 }
 
 long 
-RC2::FileManager::Impl::insertDBFile(string fname) {
+RC2::FileManager::Impl::insertDBFile(string fname) 
+{
 	boost::smatch what;
 	if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
 		cerr << "found image " << what[1] << endl;
 		string filePath = workingDir + "/" + fname;
-		ifstream file(filePath, ios::in|ios::binary|ios::ate);
-		int size = file.tellg();
-		unique_ptr<char[]> buffer(new char[size]);
-		file.seekg(0, ios::beg);
-		file.read(buffer.get(), size);
-		file.close();
+		size_t size;
+		unique_ptr<char[]> buffer = readFileBlob(filePath, size);
 		long imgId = query1long("select nextval('sessionimage_seq'::regclass)");
 		if (imgId <= 0)
 			throw FormattedException("failed to get session image id");
@@ -196,12 +191,12 @@ RC2::FileManager::Impl::insertDBFile(string fname) {
 			<< "," << sessionRecId_ << ",'img" << imgId << ".png',$1)";
 		Oid in_oid[] = {1043,17};
 		int pformats = 1;
+		int pSizes[] = {(int)size};
 		const char *params[] = {buffer.get()};
-		DBResult res(PQexecParams(dbcon_, query.str().c_str(), 3, in_oid, params, 
-			&size, &pformats, 1));
-		ExecStatusType rc = PQresultStatus(res);
-		if (!rc == PGRES_COMMAND_OK) {
-			throw FormattedException("failed to insert image in db: %s", PQresultErrorMessage(res));
+		DBResult res(PQexecParams(dbcon_, query.str().c_str(), 1, in_oid, params, 
+			pSizes, &pformats, 1));
+		if (res.commandOK()) {
+			throw FormattedException("failed to insert image in db: %s", res.errorMessage());
 		}
 		imageIds_.push_back(imgId);
 		fs::remove(filePath);
@@ -212,14 +207,71 @@ RC2::FileManager::Impl::insertDBFile(string fname) {
 }
 
 void 
-RC2::FileManager::Impl::updateDBFile(DBFileInfoPtr fobj) {
+RC2::FileManager::Impl::updateDBFile(DBFileInfoPtr fobj) 
+{
 	cerr << "update file:" << fobj->name << endl;
-	
+
+	int newVersion = fobj->version + 1;
+	string fullPath = workingDir + fobj->path;
+	if (stat(fullPath.c_str(), &fobj->sb) == -1)
+		throw StatException((format("stat failed for %s") % fobj->name).str());
+	time_t newMod = fobj->sb.st_mtime;
+	size_t newSize=0;
+	unique_ptr<char[]> data = readFileBlob(fobj, newSize);
+
+	DBTransaction trans(dbcon_);
+	ostringstream query;
+	query << "update rcfile set version = " << newVersion << ", lastmodified = to_timestamp("
+		<< newMod << "), filesize = " << newSize << " where id = " << fobj->id;
+	DBResult res1(dbcon_, query.str());
+	if (!res1.commandOK()) {
+		throw FormattedException("failed to update file %ld: %s", fobj->id, res1.errorMessage());
+	}
+	query.clear();
+	query.seekp(0);
+	query << "update rcfile set bindata = $1 where id = " << fobj->id;
+	Oid in_oid[] = {1043};
+	int pformats[] = {1};
+	int pSizes[] = {(int)newSize};
+	const char *params[] = {data.get()};
+	DBResult res2(PQexecParams(dbcon_, query.str().c_str(), 1, in_oid, params, 
+		pSizes, pformats, 1));
+	if (!res2.commandOK()) {
+		throw FormattedException("failed to update file %ld: %s", fobj->id, res2.errorMessage());
+	}
+	DBResult commitRes(trans.commit());
+	if (!commitRes.commandOK()) {
+		throw FormattedException("failed to commit file updates %ld: %s", fobj->id, commitRes.errorMessage());
+	}
+	fobj->version = newVersion;
 }
 
 void 
-RC2::FileManager::Impl::removeDBFile(DBFileInfoPtr fobj) {
+RC2::FileManager::Impl::removeDBFile(DBFileInfoPtr fobj) 
+{
 	cerr << "rm file:" << fobj->name << endl;
+	ostringstream query;
+	query << "delete from rcfile where id = " << fobj->id;
+	DBResult res(PQexec(dbcon_, query.str().c_str()));
+	if (res.commandOK()) {
+		filesById_.erase(fobj->id);
+		filesByWatchDesc_.erase(fobj->id);
+	} else {
+		LOG(ERROR) << "sql error delting file " << fobj->id << ":" 
+			<< res.errorMessage() << endl;
+	}
+}
+
+bool
+RC2::FileManager::Impl::executeDBCommand(string cmd)
+{
+	DBResult res(PQexec(dbcon_, cmd.c_str()));
+	if (res.commandOK()) {
+		LOG(ERROR) << "sql error executing: " << cmd << " (" 
+			<< res.errorMessage() << ")" << endl;
+		return false;
+	}
+	return true;
 }
 
 long
@@ -227,13 +279,31 @@ RC2::FileManager::Impl::query1long(const char *query)
 {
 	long value = 0;
 	DBResult res(PQexec(dbcon_, query));
-	ExecStatusType rc = PQresultStatus(res);
-	if (PGRES_TUPLES_OK == rc) {
+	if (res.dataReturned()) {
 		value = atol(PQgetvalue(res, 0, 0));
 	} else {
-		LOG(ERROR) << "sql error:" << PQresultErrorMessage(res) << endl;
+		LOG(ERROR) << "sql error:" << res.errorMessage() << endl;
 	}
 	return value;
+}
+
+unique_ptr<char[]>
+RC2::FileManager::Impl::readFileBlob(DBFileInfoPtr fobj, size_t &size)
+{
+	string filePath = workingDir + "/" + fobj->path;
+	return readFileBlob(filePath, size);
+}
+
+unique_ptr<char[]>
+RC2::FileManager::Impl::readFileBlob(string filePath, size_t &size)
+{
+	ifstream file(filePath, ios::in|ios::binary|ios::ate);
+	size = file.tellg();
+	unique_ptr<char[]> buffer(new char[size]);
+	file.seekg(0, ios::beg);
+	file.read(buffer.get(), size);
+	file.close();
+	return buffer;
 }
 
 #pragma mark -
