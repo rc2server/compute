@@ -26,6 +26,11 @@ namespace fs = boost::filesystem;
 #undef LOG
 #define LOG(x) cerr
 
+struct BoolChanger {
+	bool *bptr, oldVal;
+	BoolChanger(bool *var) : bptr(var) { oldVal = *bptr; *bptr = !oldVal; }
+	~BoolChanger() { *bptr = oldVal; }
+};
 
 //for db fetched data
 struct DBFileInfo {
@@ -70,6 +75,8 @@ class RC2::FileManager::Impl {
 		int							inotifyFd_;
 		FSDirectory					rootDir_;
 		boost::regex				imgRegex_;
+		bool						ignoreFSNotifications_;
+		bool						ignoreDBNotifications_;
 
 		Impl()
 			: imgRegex_("rc2img(\\d+).png")
@@ -94,6 +101,14 @@ class RC2::FileManager::Impl {
 		{
 			FileManager *watcher = reinterpret_cast<FileManager*>(ctx);
 			watcher->_impl->handleInotifyEvent(bev);
+		}
+
+		void handleDBNotification();
+		static void handleDBNotify(int fd, short event_type, void *ctx)
+		{
+			cerr << "handleDBNotify\n";
+			FileManager *watcher = reinterpret_cast<FileManager*>(ctx);
+			watcher->_impl->handleDBNotification();
 		}
 
 	class StatException : public runtime_error {
@@ -262,6 +277,26 @@ RC2::FileManager::Impl::removeDBFile(DBFileInfoPtr fobj)
 	}
 }
 
+void
+RC2::FileManager::Impl::handleDBNotification()
+{
+	BoolChanger(&this->ignoreFSNotifications_);
+	PGnotify *notify;
+	PQconsumeInput(dbcon_);
+	while((notify = PQnotifies(dbcon_)) != NULL) {
+		if (!ignoreDBNotifications_) {
+			char type = notify->extra[0];
+			if (!(type == 'i' || type == 'u' || type == 'd') || strlen(notify->extra) < 2) {
+				LOG(ERROR) << "bad db notification received:" << notify->extra << endl;
+				continue;
+			}
+			long fileId = atol(&notify->extra[2]);
+			cerr << "got notify for file " << fileId <<  "//  " << notify->extra << endl;
+		}
+		PQfreemem(notify);
+	}
+}
+
 bool
 RC2::FileManager::Impl::executeDBCommand(string cmd)
 {
@@ -329,6 +364,7 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 	struct bufferevent *evt = bufferevent_socket_new(eventBase_, inotifyFd_, 0);
 	bufferevent_setcb(evt, FileManager::Impl::handleInotifyEvent, NULL, NULL, fm);
 	bufferevent_enable(evt, EV_READ);
+	cerr << "setup notify handler\n";
 }
 
 #define I_BUF_LEN (10 * (sizeof(struct inotify_event) + NAME_MAX + 1))
@@ -336,7 +372,8 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 void
 RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 {
-//	LOG(INFO) << "handleInotify called:" << workingDir << endl;
+	if (ignoreFSNotifications_)
+		return;
 	char buf[I_BUF_LEN];
 	size_t numRead = bufferevent_read(bev, buf, I_BUF_LEN);
 	char *p;
@@ -397,6 +434,10 @@ RC2::FileManager::initFileManager(string connectString, int wspaceId, int sessio
 {
 	_impl->connect(connectString, wspaceId, sessionRecId);
 	_impl->setupInotify(this);
+	DBResult listenRes(_impl->dbcon_, "listen rcfile");
+	struct event *evt = event_new(_impl->eventBase_, PQsocket(_impl->dbcon_), 
+		EV_READ|EV_PERSIST, RC2::FileManager::Impl::handleDBNotify, this);
+	event_add(evt, NULL);
 }
 
 void
