@@ -1,3 +1,5 @@
+#pragma once
+
 #include <postgresql/libpq-fe.h>
 #include <string>
 #include <stdlib.h>
@@ -56,3 +58,15 @@ class DBTransaction {
 			return res;
 		}
 };
+
+inline long DBLongFromQuery(PGconn *db, const char *query) 
+{
+	long value = 0;
+	DBResult res(PQexec(db, query));
+	if (res.dataReturned()) {
+		value = atol(PQgetvalue(res, 0, 0));
+	} else {
+		throw std::runtime_error(res.errorMessage());
+	}
+	return value;
+}
