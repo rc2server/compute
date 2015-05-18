@@ -60,7 +60,6 @@ class RC2::FileManager::Impl {
 		void cleanup(); //replacement for destructor
 		void connect(string str, long wspaceId, long sessionRecId);
 		long insertImage(string fname, string imgNumStr);
-		long query1long(const char *query);
 		bool executeDBCommand(string cmd);
 		
 		unique_ptr<char[]> readFileBlob(DBFileInfoPtr fobj, size_t &size);
@@ -104,7 +103,7 @@ RC2::FileManager::Impl::connect(string str, long wspaceId, long sessionRecId)
 	//TODO: error checking
 	char msg[255];
 	sprintf(msg, "select projectid from workspace where id = %ld", wspaceId);
-	projectId_ = query1long(msg);
+	projectId_ = DBLongFromQuery(dbcon_, msg);
 	dbFileSource_.initializeSource(dbcon_, wspaceId_, projectId_);
 	snprintf(msg, 255, "where wspaceid = %ld", wspaceId_);
 	dbFileSource_.loadFiles(msg, false);
@@ -124,7 +123,7 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 	string filePath = workingDir + "/" + fname;
 	size_t size;
 	unique_ptr<char[]> buffer = ReadFileBlob(filePath, size);
-	long imgId = query1long("select nextval('sessionimage_seq'::regclass)");
+	long imgId = DBLongFromQuery(dbcon_, "select nextval('sessionimage_seq'::regclass)");
 	if (imgId <= 0)
 		throw FormattedException("failed to get session image id");
 	stringstream query;
@@ -174,19 +173,6 @@ RC2::FileManager::Impl::executeDBCommand(string cmd)
 		return false;
 	}
 	return true;
-}
-
-long
-RC2::FileManager::Impl::query1long(const char *query)
-{
-	long value = 0;
-	DBResult res(PQexec(dbcon_, query));
-	if (res.dataReturned()) {
-		value = atol(PQgetvalue(res, 0, 0));
-	} else {
-		LOG(ERROR) << "sql error:" << res.errorMessage() << endl;
-	}
-	return value;
 }
 
 unique_ptr<char[]>

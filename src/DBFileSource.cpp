@@ -122,7 +122,52 @@ RC2::DBFileSource::removeLocalFile(long fileId)
 long
 RC2::DBFileSource::insertDBFile(string fname, bool isProjectFile)
 {
-	LOG(INFO) << "insert file to db not implemented\n";
+	string filePath = _impl->workingDir_ + "/" + (isProjectFile ? "shared/" : "") + fname;
+
+	DBTransaction trans(_impl->db_);
+	long fileId = DBLongFromQuery(_impl->db_, "select nextval('rcfile_seq'::regclass)");
+
+	DBFileInfoPtr fobj(new DBFileInfo(fileId, 1, fname, isProjectFile));
+	if (stat(filePath.c_str(), &fobj->sb) == -1)
+		throw runtime_error((format("stat failed for %s") % fname).str());
+	time_t modTime = fobj->sb.st_mtime;
+	size_t newSize=0;
+	unique_ptr<char[]> data = ReadFileBlob(filePath, newSize);
+
+	char *escapedNamePtr = PQescapeLiteral(_impl->db_, fname.c_str(), fname.length());
+	string escapedName = escapedNamePtr;
+	PQfreemem(escapedNamePtr);
+	string idname = isProjectFile ? "projectid" : "wspaceid";
+	long typeId = isProjectFile ? _impl->projId_ : _impl->wspaceId_;
+	ostringstream query;
+	query << "insert into rcfile (id, version, " << idname 
+		<< ",name,filesize,lastmodified) values = ("
+		<< fileId << ", 1, " << typeId << ",'" << escapedName << "'," << newSize 
+		<< "to_timestamp(" << modTime << "))";
+	DBResult res1(_impl->db_, query.str());
+	if (!res1.commandOK()) {
+		throw FormattedException("failed to insert file %s: %s", fname.c_str(), res1.errorMessage());
+	}
+	query.clear();
+	query.seekp(0);
+	query << "insert into rcfiledata (id, bindata) values (" << fileId << ", $1)";
+	Oid in_oid[] = {1043};
+	int pformats[] = {1};
+	int pSizes[] = {(int)newSize};
+	const char *params[] = {data.get()};
+	DBResult res2(PQexecParams(_impl->db_, query.str().c_str(), 1, in_oid, params, 
+		pSizes, pformats, 1));
+	if (!res2.commandOK()) {
+		throw FormattedException("failed to insert file %s: %s", fname.c_str(), res2.errorMessage());
+	}
+	DBResult commitRes(trans.commit());
+	if (!commitRes.commandOK()) {
+		throw FormattedException("failed to commit file inserts %s: %s", fname.c_str(), 
+			commitRes.errorMessage());
+	}
+	//need to insert fobj
+	filesById_.insert(map<long,DBFileInfoPtr>::value_type(fileId, fobj));
+	return fileId;
 }
 
 void 
@@ -131,12 +176,11 @@ RC2::DBFileSource::updateDBFile(DBFileInfoPtr fobj)
 	LOG(INFO) << "update file:" << fobj->name << endl;
 
 	int newVersion = fobj->version + 1;
-	string fullPath = _impl->workingDir_ + fobj->path;
-	if (stat(fullPath.c_str(), &fobj->sb) == -1)
+	string filePath = _impl->workingDir_ + "/" + fobj->path;
+	if (stat(filePath.c_str(), &fobj->sb) == -1)
 		throw runtime_error((format("stat failed for %s") % fobj->name).str());
 	time_t newMod = fobj->sb.st_mtime;
 	size_t newSize=0;
-	string filePath = _impl->workingDir_ + "/" + fobj->path;
 	unique_ptr<char[]> data = ReadFileBlob(filePath, newSize);
 
 	DBTransaction trans(_impl->db_);
@@ -149,7 +193,7 @@ RC2::DBFileSource::updateDBFile(DBFileInfoPtr fobj)
 	}
 	query.clear();
 	query.seekp(0);
-	query << "update rcfile set bindata = $1 where id = " << fobj->id;
+	query << "update rcfiledata set bindata = $1 where id = " << fobj->id;
 	Oid in_oid[] = {1043};
 	int pformats[] = {1};
 	int pSizes[] = {(int)newSize};
