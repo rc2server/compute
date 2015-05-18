@@ -4,6 +4,7 @@ project (rcompute-src)
 add_library (src InputBufferManager.cpp 
 					InotifyFileWatcher.cpp
 					FileManager.cpp
+					DBFileSource.cpp
 					RServer.cpp 
 					RSession.cpp 
 					RSessionCallbacks.cpp )

@@ -5,11 +5,9 @@
 #include <map>
 #include <dirent.h>
 #include <fcntl.h>
-#include <sys/stat.h>
 #include <sys/inotify.h>
 #include <event2/bufferevent.h>
 #include <postgresql/libpq-fe.h>
-#include <glog/logging.h>
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
@@ -18,13 +16,13 @@
 #include <utime.h>
 #include "../common/PostgresUtils.hpp"
 #include "../common/FormattedException.hpp"
+#include "common/RC2Utils.hpp"
+#include "DBFileSource.hpp"
+#include "RC2Logging.h"
 
 using namespace std;
 using boost::format;
 namespace fs = boost::filesystem;
-
-#undef LOG
-#define LOG(x) cerr
 
 struct BoolChanger {
 	bool *bptr, oldVal;
@@ -32,29 +30,6 @@ struct BoolChanger {
 	~BoolChanger() { *bptr = oldVal; }
 };
 
-//for db fetched data
-struct DBFileInfo {
-	long		id, version;
-	string		name, path;
-	int			watchDescriptor;
-	struct stat	sb;
-	bool		projectFile;
-	
-	DBFileInfo(uint32_t anId, uint32_t aVersion, string &aName, bool projFile=false)
-		: id((long)anId), version((long)aVersion), name(aName), projectFile(projFile)
-	{
-		if (projectFile)
-			path = "shared/";
-		path += name;
-	}
-	
-	friend ostream& operator<<(ostream &out, DBFileInfo &finfo) {
-		out << "(" << finfo.id << ": " << finfo.name << ")";
-		return out;
-	}
-};
-
-typedef shared_ptr<DBFileInfo> DBFileInfoPtr;
 
 struct FSDirectory {
 	int wd;
@@ -66,8 +41,8 @@ class RC2::FileManager::Impl {
 		long						wspaceId_;
 		long						projectId_;
 		long						sessionRecId_;
+		DBFileSource				dbFileSource_;
 		PGconn*						dbcon_;
-		map<long, DBFileInfoPtr>	filesById_;
 		map<int, DBFileInfoPtr>		filesByWatchDesc_;
 		vector<long>				imageIds_;
 		string						workingDir;
@@ -84,15 +59,11 @@ class RC2::FileManager::Impl {
 
 		void cleanup(); //replacement for destructor
 		void connect(string str, long wspaceId, long sessionRecId);
-		void loadFiles(const char *whereClause, bool isProject);
-		long insertDBFile(string fname); //returns db id
-		void updateDBFile(DBFileInfoPtr fobj);
-		void removeDBFile(DBFileInfoPtr fobj);
+		long insertImage(string fname, string imgNumStr);
 		long query1long(const char *query);
 		bool executeDBCommand(string cmd);
 		
 		unique_ptr<char[]> readFileBlob(DBFileInfoPtr fobj, size_t &size);
-		unique_ptr<char[]> readFileBlob(string filePath, size_t &size);
 
 		void	setupInotify(FileManager *fm);
 		void 	watchFile(DBFileInfoPtr file);
@@ -134,147 +105,43 @@ RC2::FileManager::Impl::connect(string str, long wspaceId, long sessionRecId)
 	char msg[255];
 	sprintf(msg, "select projectid from workspace where id = %ld", wspaceId);
 	projectId_ = query1long(msg);
+	dbFileSource_.initializeSource(dbcon_, wspaceId_, projectId_);
 	snprintf(msg, 255, "where wspaceid = %ld", wspaceId_);
-	loadFiles(msg, false);
+	dbFileSource_.loadFiles(msg, false);
 	if (projectId_ > 0) {
 		fs::path spath = workingDir;
 		spath /= "shared";
 		fs::create_directory(spath);
 		sprintf(msg, "where projectid = %ld", projectId_);
-		loadFiles(msg, true);
+		dbFileSource_.loadFiles(msg, true);
 	}
 }
 
-void
-RC2::FileManager::Impl::loadFiles(const char *whereClause, bool isProject)
+long
+RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 {
-	ostringstream query;
-	query << "select f.id::int4, f.version::int4, f.name, extract('epoch' from f.lastmodified)::int4, " 
-		"d.bindata from rcfile f join rcfiledata d on f.id = d.id " << whereClause;
-	DBResult res(PQexecParams(dbcon_, query.str().c_str(), 0, NULL, NULL, NULL, NULL, 1));
-	ExecStatusType rc = PQresultStatus(res);
-	if (res.dataReturned()) {
-		int numfiles = PQntuples(res);
-		for (int i=0; i < numfiles; i++) {
-			uint32_t pid=0, pver=0, lastmod=0;
-			string pname;
-			char *ptr;
-			ptr = PQgetvalue(res, i, 0);
-			pid = ntohl(*(uint32_t*)ptr);
-			ptr = PQgetvalue(res, i, 1);
-			pver = ntohl(*(uint32_t*)ptr);
-			pname = PQgetvalue(res, i, 2);
-			ptr = PQgetvalue(res, i, 3);
-			lastmod = ntohl(*(uint32_t*)ptr);
-			int datalen = PQgetlength(res, i, 4);
-			char *data = PQgetvalue(res, i, 4);
-			DBFileInfoPtr filePtr(new DBFileInfo(pid, pver, pname, isProject));
-			filesById_.insert(map<long,DBFileInfoPtr>::value_type(pid, filePtr));
-			//write data to disk
-			fs::path filepath(workingDir);
-			if (isProject)
-				filepath /= "shared";
-			filepath /= pname;
-			ofstream filest;
-			filest.open(filepath.string(), ios::out | ios::trunc | ios::binary);
-			filest.write(data, datalen);
-			filest.close();
-			//set modification time
-			struct utimbuf modbuf;
-			modbuf.actime = modbuf.modtime = lastmod;
-			utime(filepath.c_str(), &modbuf);
-		}
-	} else {
-		LOG(ERROR) << "sql error: " << res.errorMessage() << endl;
-	}
-}
-
-long 
-RC2::FileManager::Impl::insertDBFile(string fname) 
-{
-	boost::smatch what;
-	if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
-		cerr << "found image " << what[1] << endl;
-		string filePath = workingDir + "/" + fname;
-		size_t size;
-		unique_ptr<char[]> buffer = readFileBlob(filePath, size);
-		long imgId = query1long("select nextval('sessionimage_seq'::regclass)");
-		if (imgId <= 0)
-			throw FormattedException("failed to get session image id");
-		stringstream query;
-		query << "insert into sessionimage (id,sessionid,name,imgdata) values (" << imgId 
-			<< "," << sessionRecId_ << ",'img" << imgId << ".png',$1)";
-		Oid in_oid[] = {1043,17};
-		int pformats = 1;
-		int pSizes[] = {(int)size};
-		const char *params[] = {buffer.get()};
-		DBResult res(PQexecParams(dbcon_, query.str().c_str(), 1, in_oid, params, 
-			pSizes, &pformats, 1));
-		if (res.commandOK()) {
-			throw FormattedException("failed to insert image in db: %s", res.errorMessage());
-		}
-		imageIds_.push_back(imgId);
-		fs::remove(filePath);
-		return 0;
-	}
-	cerr << "insert file:" << fname << endl;
-	return 0;
-}
-
-void 
-RC2::FileManager::Impl::updateDBFile(DBFileInfoPtr fobj) 
-{
-	cerr << "update file:" << fobj->name << endl;
-
-	int newVersion = fobj->version + 1;
-	string fullPath = workingDir + fobj->path;
-	if (stat(fullPath.c_str(), &fobj->sb) == -1)
-		throw StatException((format("stat failed for %s") % fobj->name).str());
-	time_t newMod = fobj->sb.st_mtime;
-	size_t newSize=0;
-	unique_ptr<char[]> data = readFileBlob(fobj, newSize);
-
-	DBTransaction trans(dbcon_);
-	ostringstream query;
-	query << "update rcfile set version = " << newVersion << ", lastmodified = to_timestamp("
-		<< newMod << "), filesize = " << newSize << " where id = " << fobj->id;
-	DBResult res1(dbcon_, query.str());
-	if (!res1.commandOK()) {
-		throw FormattedException("failed to update file %ld: %s", fobj->id, res1.errorMessage());
-	}
-	query.clear();
-	query.seekp(0);
-	query << "update rcfile set bindata = $1 where id = " << fobj->id;
-	Oid in_oid[] = {1043};
-	int pformats[] = {1};
-	int pSizes[] = {(int)newSize};
-	const char *params[] = {data.get()};
-	DBResult res2(PQexecParams(dbcon_, query.str().c_str(), 1, in_oid, params, 
-		pSizes, pformats, 1));
-	if (!res2.commandOK()) {
-		throw FormattedException("failed to update file %ld: %s", fobj->id, res2.errorMessage());
-	}
-	DBResult commitRes(trans.commit());
-	if (!commitRes.commandOK()) {
-		throw FormattedException("failed to commit file updates %ld: %s", fobj->id, commitRes.errorMessage());
-	}
-	fobj->version = newVersion;
-}
-
-void 
-RC2::FileManager::Impl::removeDBFile(DBFileInfoPtr fobj) 
-{
-	cerr << "rm file:" << fobj->name << endl;
-	ostringstream query;
-	query << "delete from rcfile where id = " << fobj->id;
-	DBResult res(PQexec(dbcon_, query.str().c_str()));
+	LOG(INFO) << "found image " << imgNumStr << endl;
+	string filePath = workingDir + "/" + fname;
+	size_t size;
+	unique_ptr<char[]> buffer = ReadFileBlob(filePath, size);
+	long imgId = query1long("select nextval('sessionimage_seq'::regclass)");
+	if (imgId <= 0)
+		throw FormattedException("failed to get session image id");
+	stringstream query;
+	query << "insert into sessionimage (id,sessionid,name,imgdata) values (" << imgId 
+		<< "," << sessionRecId_ << ",'img" << imgId << ".png',$1)";
+	Oid in_oid[] = {1043,17};
+	int pformats = 1;
+	int pSizes[] = {(int)size};
+	const char *params[] = {buffer.get()};
+	DBResult res(PQexecParams(dbcon_, query.str().c_str(), 1, in_oid, params, 
+		pSizes, &pformats, 1));
 	if (res.commandOK()) {
-		filesById_.erase(fobj->id);
-		filesByWatchDesc_.erase(fobj->id);
-	} else {
-		LOG(ERROR) << "sql error delting file " << fobj->id << ":" 
-			<< res.errorMessage() << endl;
+		throw FormattedException("failed to insert image in db: %s", res.errorMessage());
 	}
+	imageIds_.push_back(imgId);
+	fs::remove(filePath);
+	return 0;
 }
 
 void
@@ -326,19 +193,7 @@ unique_ptr<char[]>
 RC2::FileManager::Impl::readFileBlob(DBFileInfoPtr fobj, size_t &size)
 {
 	string filePath = workingDir + "/" + fobj->path;
-	return readFileBlob(filePath, size);
-}
-
-unique_ptr<char[]>
-RC2::FileManager::Impl::readFileBlob(string filePath, size_t &size)
-{
-	ifstream file(filePath, ios::in|ios::binary|ios::ate);
-	size = file.tellg();
-	unique_ptr<char[]> buffer(new char[size]);
-	file.seekg(0, ios::beg);
-	file.read(buffer.get(), size);
-	file.close();
-	return buffer;
+	return ReadFileBlob(filePath, size);
 }
 
 #pragma mark -
@@ -354,7 +209,7 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 		throw FormattedException("inotify_add_watched failed");
 	stat(workingDir.c_str(), &rootDir_.sb);
 	//TODO - watch shared directory
-	for (auto itr=filesById_.begin(); itr != filesById_.end(); ++itr) {
+	for (auto itr=dbFileSource_.filesById_.begin(); itr != dbFileSource_.filesById_.end(); ++itr) {
 		try {
 			watchFile(itr->second);
 		} catch (Impl::StatException &se) {
@@ -372,6 +227,7 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 void
 RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 {
+	BoolChanger(&this->ignoreDBNotifications_);
 	if (ignoreFSNotifications_)
 		return;
 	char buf[I_BUF_LEN];
@@ -383,15 +239,24 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 		LOG(INFO) << "notify:" << std::hex << evtype << " for " << 
 			event->wd << endl;
 		if(evtype == IN_CREATE) {
-			long newFileId = insertDBFile((string)event->name);
+			long newFileId=0;
+			string fname = event->name;
+			boost::smatch what;
+			if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
+				newFileId = insertImage(fname, what[1]);
+			} else {
+				newFileId = dbFileSource_.insertDBFile(fname, event->wd != rootDir_.wd);
+			}
 			if (newFileId > 0) {
 				//need to add a watch for this file
-				watchFile(filesById_[newFileId]);
+				watchFile(dbFileSource_.filesById_[newFileId]);
 			}
 		} else if (evtype == IN_CLOSE_WRITE) {
-			updateDBFile(filesByWatchDesc_[event->wd]);
+			dbFileSource_.updateDBFile(filesByWatchDesc_[event->wd]);
 		} else if (evtype == IN_DELETE_SELF) {
-			removeDBFile(filesByWatchDesc_[event->wd]);
+			DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
+			dbFileSource_.removeDBFile(fobj);
+			filesByWatchDesc_.erase(fobj->id);
 			//discard our records of it
 			inotify_rm_watch(inotifyFd_, event->wd);
 		}
