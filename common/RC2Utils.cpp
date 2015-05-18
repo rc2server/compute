@@ -131,6 +131,20 @@ RC2::FormatErrorAsJson(int errorCode, std::string details)
 	return std::runtime_error(json);
 }
 
+std::unique_ptr<char[]>
+RC2::ReadFileBlob(std::string filePath, size_t &size)
+{
+	using namespace std;
+	fstream file(filePath, ios::in|ios::binary|ios::ate);
+	size = file.tellg();
+	unique_ptr<char[]> buffer(new char[size]);
+	file.seekg(0, ios::beg);
+	file.read(buffer.get(), size);
+	file.close();
+	return buffer;
+}
+
+
 std::string
 RC2::GenerateUUID()
 {

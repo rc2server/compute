@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <memory>
 #include <stdlib.h>
 #include "json/elements.h"
 
@@ -10,6 +11,7 @@ std::string GenerateUUID();
 std::string GetPathForExecutable(pid_t pid);
 std::string SlurpFile(const char *filename);
 std::runtime_error FormatErrorAsJson(int errorCode, std::string details);
+std::unique_ptr<char[]> ReadFileBlob(std::string filePath, size_t &size);
 
 //returns the return code from last call to mkdir
 int MakeDirectoryPath(std::string s, mode_t mode);
