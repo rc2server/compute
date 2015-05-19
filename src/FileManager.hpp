@@ -17,6 +17,9 @@ namespace RC2 {
 	
 			void	resetWatch();
 			void	checkWatch(std::vector<long> &imageIds);
+			
+			//for unit testing
+			void	processDBNotification(std::string message);
 		private:
 			class Impl;
 			std::unique_ptr<Impl>		_impl;

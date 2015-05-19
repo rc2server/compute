@@ -73,12 +73,13 @@ class RC2::FileManager::Impl {
 			watcher->_impl->handleInotifyEvent(bev);
 		}
 
-		void handleDBNotification();
+		void processDBNotification(string message);
+		void handleDBNotifications();
 		static void handleDBNotify(int fd, short event_type, void *ctx)
 		{
 			cerr << "handleDBNotify\n";
 			FileManager *watcher = reinterpret_cast<FileManager*>(ctx);
-			watcher->_impl->handleDBNotification();
+			watcher->_impl->handleDBNotifications();
 		}
 
 	class StatException : public runtime_error {
@@ -144,21 +145,59 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 }
 
 void
-RC2::FileManager::Impl::handleDBNotification()
+RC2::FileManager::Impl::processDBNotification(string message)
+{
+	const char *msgStr = message.c_str();
+	char type = msgStr[0];
+	if (!(type == 'i' || type == 'u' || type == 'd') || message.length() < 2) {
+		LOG(ERROR) << "bad db notification received:" << message << endl;
+		return;
+	}
+	long fileId = atol(&msgStr[2]);
+	LOG(INFO) << "got notify for file " << fileId <<  "//  " << message << endl;
+	if (type == 'd') {
+		DBFileInfoPtr fobj = filesByWatchDesc_.at(fileId);
+		//stop notify watch first
+		inotify_rm_watch(inotifyFd_, fobj->watchDescriptor);
+		dbFileSource_.filesById_.erase(fileId);
+		filesByWatchDesc_.erase(fileId);
+		fs::remove(workingDir + "/" + fobj->path);
+	} else {
+		//parse wspace and project ids
+		long fileWspace=0, fileProject=0;
+		istringstream ss(&msgStr[2]);
+		string wstr, pstr;
+		if (getline(ss, wstr, '/') && getline(ss, pstr, '/')) {
+			fileWspace = atol(wstr.c_str());
+			fileProject = atol(pstr.c_str());
+		} else {
+			throw runtime_error("failed to parse db notification");
+		}
+		ostringstream query;
+		query << " where id = " << fileId;
+		if (type == 'i') {
+			if (fileWspace == wspaceId_ || fileProject == projectId_) {
+				dbFileSource_.loadFiles(query.str().c_str(), fileProject == projectId_);
+				watchFile(dbFileSource_.filesById_[fileId]);
+			}
+		} else if (type == 'u') {
+			if (dbFileSource_.filesById_.count(fileId) > 0) {
+				dbFileSource_.loadFiles(query.str().c_str(), 
+					dbFileSource_.filesById_[fileId]->projectFile);
+			}
+		}
+	}
+}
+
+void
+RC2::FileManager::Impl::handleDBNotifications()
 {
 	BoolChanger(&this->ignoreFSNotifications_);
 	PGnotify *notify;
 	PQconsumeInput(dbcon_);
 	while((notify = PQnotifies(dbcon_)) != NULL) {
-		if (!ignoreDBNotifications_) {
-			char type = notify->extra[0];
-			if (!(type == 'i' || type == 'u' || type == 'd') || strlen(notify->extra) < 2) {
-				LOG(ERROR) << "bad db notification received:" << notify->extra << endl;
-				continue;
-			}
-			long fileId = atol(&notify->extra[2]);
-			cerr << "got notify for file " << fileId <<  "//  " << notify->extra << endl;
-		}
+		if (!ignoreDBNotifications_)
+			processDBNotification(notify->extra);
 		PQfreemem(notify);
 	}
 }
@@ -315,3 +354,8 @@ RC2::FileManager::checkWatch(vector<long> &imageIds)
 	imageIds = _impl->imageIds_;
 }
 
+void
+RC2::FileManager::processDBNotification(string message)
+{
+	_impl->processDBNotification(message);
+}
