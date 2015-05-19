@@ -267,6 +267,8 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 			long newFileId=0;
 			string fname = event->name;
 			boost::smatch what;
+			if (event->name[0] == '.')
+				continue;
 			if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
 				newFileId = insertImage(fname, what[1]);
 			} else {
@@ -352,6 +354,18 @@ void
 RC2::FileManager::checkWatch(vector<long> &imageIds)
 {
 	imageIds = _impl->imageIds_;
+}
+
+void
+RC2::FileManager::loadRData()
+{
+	_impl->dbFileSource_.loadRData();
+}
+
+void
+RC2::FileManager::saveRData()
+{
+	_impl->dbFileSource_.saveRData();
 }
 
 void

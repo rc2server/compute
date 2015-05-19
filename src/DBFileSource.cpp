@@ -47,6 +47,45 @@ RC2::DBFileSource::setWorkingDir(string workingDir)
 }
 
 void
+RC2::DBFileSource::loadRData()
+{
+	string filepath = _impl->workingDir_ + "/.RData";
+	ostringstream query;
+	query << "select bindata from workspacedata where id = " << _impl->wspaceId_;
+	DBResult res(PQexecParams(_impl->db_, query.str().c_str(), 0, NULL, NULL, NULL, NULL, 1));
+	ExecStatusType rc = PQresultStatus(res);
+	if (res.dataReturned()) {
+		int datalen = PQgetlength(res, 0, 4);
+		char *data = PQgetvalue(res, 0, 1);
+		ofstream rdata;
+		rdata.open(filepath, ios::out | ios::trunc | ios::binary);
+		rdata.write(data, datalen);
+		rdata.close();
+	}
+}
+
+void
+RC2::DBFileSource::saveRData()
+{
+	size_t newSize=0;
+	string filePath = _impl->workingDir_ + "/.RData";
+	if (!fs::exists(filePath))
+		return;
+	unique_ptr<char[]> data = ReadFileBlob(filePath, newSize);
+	ostringstream query;
+	query << "update workspacedata set bindata = $1 where id = " << _impl->wspaceId_;
+	Oid in_oid[] = {1043};
+	int pformats[] = {1};
+	int pSizes[] = {(int)newSize};
+	const char *params[] = {data.get()};
+	DBResult res(PQexecParams(_impl->db_, query.str().c_str(), 1, in_oid, params, 
+		pSizes, pformats, 1));
+	if (!res.commandOK()) {
+		throw FormattedException("failed to update workspacedata %ld: %s", _impl->wspaceId_, res.errorMessage());
+	}
+}
+
+void
 RC2::DBFileSource::loadFiles(const char *whereClause, bool isProject)
 {
 	ostringstream query;

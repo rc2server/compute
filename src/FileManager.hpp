@@ -18,6 +18,9 @@ namespace RC2 {
 			void	resetWatch();
 			void	checkWatch(std::vector<long> &imageIds);
 			
+			void	loadRData();
+			void	saveRData();
+			
 			//for unit testing
 			void	processDBNotification(std::string message);
 		private:

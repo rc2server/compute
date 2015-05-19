@@ -90,6 +90,7 @@ RC2::RSession::~RSession()
 {
 	if (_impl->R) {
 		_impl->R->parseEvalQNT("save.image()");
+		_impl->fileManager.saveRData();
 		delete _impl->R;
 		_impl->R = nullptr;
 	}
@@ -277,6 +278,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	_impl->fileManager.setWorkingDir(_impl->tmpDir->getPath());
 	_impl->fileManager.initFileManager("postgresql://rc2@127.0.0.1:9000/rc2?application_name=rsession",
 		_impl->wspaceId, _impl->sessionRecId);
+	_impl->fileManager.loadRData();
 	setenv("TMPDIR", arg.c_str(), 1);
 	setenv("TEMP", arg.c_str(), 1);
 	setenv("R_DEFAULT_DEVICE", "png", 1);
@@ -289,6 +291,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	_impl->R->parseEvalQNT("library(tools)");
 	_impl->R->parseEvalQNT("rm(argv)"); //RInside creates this even though we passed NULL
 	_impl->R->parseEvalQNT("options(device = \"rc2.pngdev\", bitmapType = \"cairo\")");
+	_impl->R->parseEvalQNT("load(\".RData\")");
 	_impl->ignoreOutput = false;
 	sendJsonToClientSource("{\"msg\":\"opensuccess\"}");
 	_impl->open = true;
