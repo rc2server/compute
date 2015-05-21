@@ -47,8 +47,6 @@ namespace RC2 {
 
 		protected:
 			string	formatStringAsJson(const string &input, bool is_error);
-			string	acknowledgeExecComplete(string stime, json::UnknownElement *clientExtras=nullptr);
-			void	addFileChangesToJson(JsonDictionary& json);
 			void	clearFileChanges();
 			void	flushOutputBuffer();
 			void	sendOutputBufferToClient(bool is_error);
@@ -59,10 +57,12 @@ namespace RC2 {
 			string	handleListVariablesCommand(bool delta, json::UnknownElement clientExtras);
 			string	handleGetVariableCommand(string varName, string startTime);
 
-			string	executeFile(string arg, string startTime, json::UnknownElement clientExtras);
+			string	executeFile(long fileId, string startTime, json::UnknownElement clientExtras);
 			string	executeRMarkdown(string arg, string startTime, json::UnknownElement *clientExtras);
 			string	executeSweave(string arg, string startTime, json::UnknownElement *clientExtras);
 
+			void	scheduleExecCompleteAcknowledgmenet(string stime, 
+						json::UnknownElement *clientExtras=nullptr);
 			static void handleJsonStatic(struct bufferevent *bev, void *ctx);
 
 			struct Impl;

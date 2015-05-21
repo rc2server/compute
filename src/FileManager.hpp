@@ -21,6 +21,8 @@ namespace RC2 {
 			void	loadRData();
 			void	saveRData();
 			
+			std::string	filePathForId(long fileId);
+			
 			//for unit testing
 			void	processDBNotification(std::string message);
 		private:

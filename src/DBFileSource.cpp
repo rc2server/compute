@@ -25,6 +25,7 @@ class RC2::DBFileSource::Impl {
 
 
 RC2::DBFileSource::DBFileSource()
+	: _impl(new Impl())
 {
 }
 

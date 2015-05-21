@@ -77,7 +77,6 @@ class RC2::FileManager::Impl {
 		void handleDBNotifications();
 		static void handleDBNotify(int fd, short event_type, void *ctx)
 		{
-			cerr << "handleDBNotify\n";
 			FileManager *watcher = reinterpret_cast<FileManager*>(ctx);
 			watcher->_impl->handleDBNotifications();
 		}
@@ -129,17 +128,20 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 		throw FormattedException("failed to get session image id");
 	stringstream query;
 	query << "insert into sessionimage (id,sessionid,name,imgdata) values (" << imgId 
-		<< "," << sessionRecId_ << ",'img" << imgId << ".png',$1)";
-	Oid in_oid[] = {1043,17};
+		<< "," << sessionRecId_ << ",'img" << imgId << ".png',$1::bytea)";
 	int pformats = 1;
 	int pSizes[] = {(int)size};
-	const char *params[] = {buffer.get()};
-	DBResult res(PQexecParams(dbcon_, query.str().c_str(), 1, in_oid, params, 
+ 	const char *params[] = {buffer.get()};
+	DBResult res(PQexecParams(dbcon_, query.str().c_str(), 1, NULL, params,  
 		pSizes, &pformats, 1));
-	if (res.commandOK()) {
+	if (!res.commandOK()) {
+		LOG(ERROR) << "insert image error:" << res.errorMessage() << endl;
 		throw FormattedException("failed to insert image in db: %s", res.errorMessage());
 	}
+	LOG(INFO) << query.str() << endl;
+	LOG(INFO) << "inserted image " << imgId << " of size " << size << endl;
 	imageIds_.push_back(imgId);
+	BoolChanger(&this->ignoreFSNotifications_);
 	fs::remove(filePath);
 	return 0;
 }
@@ -147,14 +149,14 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 void
 RC2::FileManager::Impl::processDBNotification(string message)
 {
+	LOG(INFO) << "db notification: " << message << endl;
 	const char *msgStr = message.c_str();
 	char type = msgStr[0];
 	if (!(type == 'i' || type == 'u' || type == 'd') || message.length() < 2) {
 		LOG(ERROR) << "bad db notification received:" << message << endl;
 		return;
 	}
-	long fileId = atol(&msgStr[2]);
-	LOG(INFO) << "got notify for file " << fileId <<  "//  " << message << endl;
+	long fileId = atol(&msgStr[1]);
 	if (type == 'd') {
 		DBFileInfoPtr fobj = filesByWatchDesc_.at(fileId);
 		//stop notify watch first
@@ -174,7 +176,7 @@ RC2::FileManager::Impl::processDBNotification(string message)
 			throw runtime_error("failed to parse db notification");
 		}
 		ostringstream query;
-		query << " where id = " << fileId;
+		query << " where f.id = " << fileId;
 		if (type == 'i') {
 			if (fileWspace == wspaceId_ || fileProject == projectId_) {
 				dbFileSource_.loadFiles(query.str().c_str(), fileProject == projectId_);
@@ -261,22 +263,21 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 	for (p=buf; p < buf + numRead; ) {
 		struct inotify_event *event = (struct inotify_event*)p;
 		int evtype = event->mask & 0xffff; //events are in lower word, flags in upper
-		LOG(INFO) << "notify:" << std::hex << evtype << " for " << 
-			event->wd << endl;
+		LOG(INFO) << "notify:" << std::hex << evtype << " for " << event->wd << endl;
 		if(evtype == IN_CREATE) {
 			long newFileId=0;
 			string fname = event->name;
 			boost::smatch what;
-			if (event->name[0] == '.')
-				continue;
-			if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
-				newFileId = insertImage(fname, what[1]);
-			} else {
-				newFileId = dbFileSource_.insertDBFile(fname, event->wd != rootDir_.wd);
-			}
-			if (newFileId > 0) {
-				//need to add a watch for this file
-				watchFile(dbFileSource_.filesById_[newFileId]);
+			if (event->name[0] != '.') {
+				if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
+					newFileId = insertImage(fname, what[1]);
+				} else {
+					newFileId = dbFileSource_.insertDBFile(fname, event->wd != rootDir_.wd);
+				}
+				if (newFileId > 0) {
+					//need to add a watch for this file
+					watchFile(dbFileSource_.filesById_[newFileId]);
+				}
 			}
 		} else if (evtype == IN_CLOSE_WRITE) {
 			dbFileSource_.updateDBFile(filesByWatchDesc_[event->wd]);
@@ -336,6 +337,7 @@ void
 RC2::FileManager::setWorkingDir(std::string dir) 
 { 
 	_impl->workingDir = dir; 
+	_impl->dbFileSource_.setWorkingDir(dir);
 }
 
 void
@@ -366,6 +368,17 @@ void
 RC2::FileManager::saveRData()
 {
 	_impl->dbFileSource_.saveRData();
+}
+
+string
+RC2::FileManager::filePathForId(long fileId)
+{
+	auto & fileCache = _impl->dbFileSource_.filesById_;
+	if (fileCache.count(fileId) != 1) {
+		LOG(WARNING) << "filenameForId called with invalid id: " << fileId << endl;
+		return "";
+	}
+	return fileCache[fileId]->path;
 }
 
 void

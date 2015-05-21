@@ -20,18 +20,28 @@
 #include "common/RC2Utils.hpp"
 #include "InotifyFileWatcher.hpp"
 #include "FileManager.hpp"
+#include "RC2Logging.h"
 
 using namespace std;
 namespace fs = boost::filesystem;
-
-#undef LOG
-#define LOG(x) cerr
 
 extern Rboolean R_Visible;
 
 static string escape_quotes(const string before);
 static string formatErrorAsJson(int errorCode, string details);
 static void rc2_log_callback(int severity, const char *msg);
+
+struct ExecCompleteArgs {
+	RC2::RSession	*session;
+	string 		stime;
+	json::UnknownElement *clientExtras;
+	ExecCompleteArgs(RC2::RSession *inSession, string inTime, json::UnknownElement *inExtras) 
+		: session(inSession), stime(inTime), clientExtras(new json::UnknownElement(inExtras))
+	{}
+	~ExecCompleteArgs() {
+		if (clientExtras) delete clientExtras;
+	}
+};
 
 struct RC2::RSession::Impl {
 	event_base*						eventBase;
@@ -51,7 +61,19 @@ struct RC2::RSession::Impl {
 	bool							sourceInProgress;
 	bool							watchVariables;
 
-	Impl();
+			Impl();
+	void	addFileChangesToJson(JsonDictionary& json);
+	string	acknowledgeExecComplete(string stime, json::UnknownElement *clientExtras);
+
+	static void handleExecComplete(int fd, short event_type, void *ctx) 
+	{
+		LOG(INFO) << "handleExecComplete" << endl;
+		ExecCompleteArgs *args = reinterpret_cast<ExecCompleteArgs*>(ctx);
+		string s = args->session->_impl->acknowledgeExecComplete(args->stime, args->clientExtras);
+		LOG(INFO) << "handleExecComplete got json:" << s << endl;
+		args->session->sendJsonToClientSource(s);
+		delete args;
+	}
 };
 
 
@@ -63,9 +85,50 @@ RC2::RSession::Impl::Impl()
 	google::InitGoogleLogging("rsession");
 }
 
+void
+RC2::RSession::Impl::addFileChangesToJson(JsonDictionary& json)
+{
+	std::vector<string> add, mod, del;
+	std::vector<long> imageIds;
+	fileManager.checkWatch(imageIds);
+//	_impl->fileWatcher.stopWatch(add, mod, del);
+	mod.insert(mod.end(), add.begin(), add.end()); //merge add/modified
+	if (mod.size() > 0)
+		json.addStringArray("filesModified", mod);
+	if (del.size() > 0)
+		json.addStringArray("filesDeleted", del);
+	if (imageIds.size() > 0)
+		json.addLongArray("images", imageIds);
+}
+
+string
+RC2::RSession::Impl::acknowledgeExecComplete(string stime, json::UnknownElement *clientExtras) 
+{
+	RC2::JsonDictionary json;
+	json.addString("msg", "execComplete");
+	json.addString("startTime", stime);
+	if (clientExtras)
+		json.addObject("clientData", *clientExtras);
+	addFileChangesToJson(json);
+	return json;
+}
+
+
+
+void
+RC2::RSession::scheduleExecCompleteAcknowledgmenet(string stime, 
+	json::UnknownElement *clientExtras)
+{
+	ExecCompleteArgs *args = new ExecCompleteArgs(this, stime, clientExtras);
+	struct timeval delay = {0, 100000};
+	struct event *ev = event_new(_impl->eventBase, -1, EV_TIMEOUT, RC2::RSession::Impl::handleExecComplete, args);
+	event_add(ev, &delay);
+}
+
 RC2::RSession::RSession(RSessionCallbacks *callbacks)
 		: _impl(new Impl())
 {
+	FLAGS_stderrthreshold = 0;
 	LOG(INFO) << "RSession created" << endl;
 	_callbacks = callbacks;
 	setenv("R_HOME", "/usr/local/lib/R", 0); //will not overwrite
@@ -154,7 +217,6 @@ RC2::RSession::prepareForRunLoop()
 		this);
 	bufferevent_enable(_impl->eventBuffer, EV_READ|EV_WRITE|BEV_OPT_DEFER_CALLBACKS);
 	_impl->outBuffer = evbuffer_new();
-//	_impl->fileWatcher.setEventBase(_impl->eventBase);
 	_impl->fileManager.setEventBase(_impl->eventBase);
 }
 
@@ -202,7 +264,13 @@ RC2::RSession::handleJsonCommand(string json)
 				return;
 			}
 			_impl->sessionRecId = ((json::Number)doc["sessionRecId"]).Value();
-			handleOpenCommand(arg);
+			string dbhost(((json::String)doc[string("dbhost")]).Value());
+			string dbuser(((json::String)doc[string("dbuser")]).Value());
+			string dbname(((json::String)doc[string("dbname")]).Value());
+			ostringstream dbarg;
+			dbarg << "postgresql://" << "/" << dbuser << "@" << dbhost << "/" 
+				<< dbname < "?application_name=rsession";
+			handleOpenCommand(dbarg.str());
 		} else {
 			if (!_impl->open) {
 				LOG(ERROR) << "R not open" << endl;
@@ -222,7 +290,7 @@ RC2::RSession::handleJsonCommand(string json)
 				RInside::ParseEvalResult result = _impl->R->parseEvalR(arg, ans);
 				flushOutputBuffer();
 				if (result == RInside::ParseEvalResult::PE_SUCCESS) {
-					sendJsonToClientSource(acknowledgeExecComplete(startTimeStr));
+					scheduleExecCompleteAcknowledgmenet(startTimeStr);
 					bool sendDelta = _impl->watchVariables || ((json::Boolean)doc["watchVariables"]).Value();
 					if (sendDelta)
 						jsonStr = handleListVariablesCommand(true, doc["clientData"]);
@@ -230,7 +298,7 @@ RC2::RSession::handleJsonCommand(string json)
 					sendTextToClient("Incomplete R statement\n", true);
 				}
 			} else if (msg == "execFile") {
-				jsonStr = executeFile(arg, startTimeStr, doc["clientData"]);
+				jsonStr = executeFile(atol(arg.c_str()), startTimeStr, doc["clientData"]);
 			} else if (msg == "help") {
 				handleHelpCommand(arg, startTimeStr);
 			} else if (msg == "listVariables") {
@@ -276,7 +344,7 @@ RC2::RSession::handleOpenCommand(string arg)
 	_impl->tmpDir = std::move(std::unique_ptr<TemporaryDirectory>(new TemporaryDirectory(arg, outDir)));
 	LOG(INFO) << "wd=" << _impl->tmpDir->getPath() << endl;
 	_impl->fileManager.setWorkingDir(_impl->tmpDir->getPath());
-	_impl->fileManager.initFileManager("postgresql://rc2@127.0.0.1:9000/rc2?application_name=rsession",
+	_impl->fileManager.initFileManager("postgresql://rc2@127.0.0.1/rc2?application_name=rsession",
 		_impl->wspaceId, _impl->sessionRecId);
 	_impl->fileManager.loadRData();
 	setenv("TMPDIR", arg.c_str(), 1);
@@ -383,24 +451,26 @@ RC2::RSession::handleHelpCommand(string arg, string startTime)
 }
 
 string
-RC2::RSession::executeFile(string arg, string startTime, json::UnknownElement clientExtras)
+RC2::RSession::executeFile(long fileId, string startTime, json::UnknownElement clientExtras)
 {
 	string result;
-	fs::path p(arg);
+	string fpath = _impl->fileManager.filePathForId(fileId);
+	fs::path p(fpath);
 	clearFileChanges();
 	_impl->fileManager.resetWatch();
 //	_impl->fileWatcher.startWatch();
 	if (p.extension() == ".Rmd") {
-		result = executeRMarkdown(arg, startTime, &clientExtras);
+		result = executeRMarkdown(fpath, startTime, &clientExtras);
 	} else if (p.extension() == ".Rnw") {
-		result = executeSweave(arg, startTime, &clientExtras);
+		result = executeSweave(fpath, startTime, &clientExtras);
 	} else if (p.extension() == ".R") {
-		string cmd = "source(file=\"" + escape_quotes(arg) + "\", echo=TRUE)";
+		string cmd = "source(file=\"" + escape_quotes(fpath) + "\", echo=TRUE)";
+		LOG(INFO) << "executing:" << cmd << endl;
 		_impl->sourceInProgress = true;
 		_impl->R->parseEvalQNT(cmd);	
 		flushOutputBuffer();
 		_impl->sourceInProgress = false;
-		result = acknowledgeExecComplete(startTime, &clientExtras);
+		scheduleExecCompleteAcknowledgmenet(startTime, &clientExtras);
 	} else {
 		result = formatErrorAsJson(kError_Execfile_InvalidInput, "unsupported file type");
 	}
@@ -433,7 +503,8 @@ RC2::RSession::executeRMarkdown(string arg, string startTime, json::UnknownEleme
 	fs::path htmlfile = _impl->tmpDir->getPath();
 	htmlfile /= htmlName;
 	if (fs::exists(htmlfile)) {
-		return acknowledgeExecComplete(startTime, clientExtras);
+		scheduleExecCompleteAcknowledgmenet(startTime, clientExtras);
+		return "";
 	}
 	return formatErrorAsJson(kError_ExecFile_MarkdownFailed, "failed to generate html");
 }
@@ -456,7 +527,8 @@ RC2::RSession::executeSweave(string arg, string startTime, json::UnknownElement 
 		_impl->R->parseEval(cmd);
 	} catch (std::runtime_error &e) {
 		sendOutputBufferToClient(true);
-		return acknowledgeExecComplete(startTime, clientExtras);
+		scheduleExecCompleteAcknowledgmenet(startTime, clientExtras);
+		return "";
 	}
 	fs::path texPath(scratchPath);
 	texPath /= baseName + ".tex";
@@ -494,30 +566,15 @@ RC2::RSession::executeSweave(string arg, string startTime, json::UnknownElement 
 	_impl->ignoreOutput = false;
 	//TODO: delete scratchPath
 	flushOutputBuffer();
-	return acknowledgeExecComplete(startTime, clientExtras);
-}
-
-void
-RC2::RSession::addFileChangesToJson(JsonDictionary& json)
-{
-	std::vector<string> add, mod, del;
-	std::vector<long> imageIds;
-	_impl->fileManager.checkWatch(imageIds);
-//	_impl->fileWatcher.stopWatch(add, mod, del);
-	mod.insert(mod.end(), add.begin(), add.end()); //merge add/modified
-	if (mod.size() > 0)
-		json.addStringArray("filesModified", mod);
-	if (del.size() > 0)
-		json.addStringArray("filesDeleted", del);
-	if (imageIds.size() > 0)
-		json.addLongArray("images", imageIds);
+	scheduleExecCompleteAcknowledgmenet(startTime, clientExtras);
+	return "";
 }
 
 void
 RC2::RSession::clearFileChanges()
 {
 	RC2::JsonDictionary json;
-	addFileChangesToJson(json);
+	_impl->addFileChangesToJson(json);
 }
 
 //causes R to save any images generated and then sends the output buffer to the client
@@ -594,18 +651,6 @@ string
 RC2::RSession::getWorkingDirectory() const 
 {
 	return _impl->tmpDir->getPath(); 
-}
-
-string
-RC2::RSession::acknowledgeExecComplete(string stime, json::UnknownElement *clientExtras) 
-{
-	RC2::JsonDictionary json;
-	json.addString("msg", "execComplete");
-	json.addString("startTime", stime);
-	if (clientExtras)
-		json.addObject("clientData", *clientExtras);
-	addFileChangesToJson(json);
-	return json;
 }
 
 
