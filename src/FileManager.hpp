@@ -22,6 +22,7 @@ namespace RC2 {
 			void	saveRData();
 			
 			std::string	filePathForId(long fileId);
+			long	findOrAddFile(std::string fname);
 			
 			//for unit testing
 			void	processDBNotification(std::string message);

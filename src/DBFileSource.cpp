@@ -169,10 +169,11 @@ RC2::DBFileSource::insertDBFile(string fname, bool isProjectFile)
 
 	DBFileInfoPtr fobj(new DBFileInfo(fileId, 1, fname, isProjectFile));
 	if (stat(filePath.c_str(), &fobj->sb) == -1)
-		throw runtime_error((format("stat failed for %s") % fname).str());
+		throw runtime_error((format("stat failed for %s") % filePath).str());
 	time_t modTime = fobj->sb.st_mtime;
 	size_t newSize=0;
 	unique_ptr<char[]> data = ReadFileBlob(filePath, newSize);
+	
 
 	char *escapedNamePtr = PQescapeLiteral(_impl->db_, fname.c_str(), fname.length());
 	string escapedName = escapedNamePtr;
@@ -181,23 +182,25 @@ RC2::DBFileSource::insertDBFile(string fname, bool isProjectFile)
 	long typeId = isProjectFile ? _impl->projId_ : _impl->wspaceId_;
 	ostringstream query;
 	query << "insert into rcfile (id, version, " << idname 
-		<< ",name,filesize,lastmodified) values = ("
-		<< fileId << ", 1, " << typeId << ",'" << escapedName << "'," << newSize 
-		<< "to_timestamp(" << modTime << "))";
+		<< ",name,filesize,lastmodified) values ("
+		<< fileId << ", 1, " << typeId << "," << escapedName << "," << newSize 
+		<< ", to_timestamp(" << modTime << "))";
 	DBResult res1(_impl->db_, query.str());
 	if (!res1.commandOK()) {
+		LOG(INFO) << "insert dbfile failed: " << res1.errorMessage() << endl;
 		throw FormattedException("failed to insert file %s: %s", fname.c_str(), res1.errorMessage());
 	}
 	query.clear();
-	query.seekp(0);
-	query << "insert into rcfiledata (id, bindata) values (" << fileId << ", $1)";
-	Oid in_oid[] = {1043};
+	query.str("");
+	query << "insert into rcfiledata (id, bindata) values (" << fileId << ", $1::bytea)";
 	int pformats[] = {1};
 	int pSizes[] = {(int)newSize};
-	const char *params[] = {data.get()};
-	DBResult res2(PQexecParams(_impl->db_, query.str().c_str(), 1, in_oid, params, 
+	const char *params[1] = {data.get()};
+	DBResult res2(PQexecParams(_impl->db_, query.str().c_str(), 1, NULL, params, 
 		pSizes, pformats, 1));
 	if (!res2.commandOK()) {
+		LOG(INFO) << "executing query:" << query.str() << endl;
+		LOG(INFO) << "insert dbfiledata failed: " << res2.errorMessage() << endl;
 		throw FormattedException("failed to insert file %s: %s", fname.c_str(), res2.errorMessage());
 	}
 	DBResult commitRes(trans.commit());

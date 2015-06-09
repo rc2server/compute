@@ -58,6 +58,12 @@ RC2::JsonDictionary::addInt(std::string key, int value)
 }
 
 void
+RC2::JsonDictionary::addLong(std::string key, long value)
+{
+	_doc[key] = json::Number(value);
+}
+
+void
 RC2::JsonDictionary::addString(std::string key, std::string value)
 {
 	_doc[key] = json::String(value);

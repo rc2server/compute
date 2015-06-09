@@ -3,6 +3,8 @@
 #include <tclap/CmdLine.h>
 #include <execinfo.h>
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <unistd.h>
 #include <boost/log/utility/setup/file.hpp>
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
@@ -18,6 +20,7 @@
 #include "InputBufferManager.hpp"
 //#include "FormattedException.hpp"
 #include "common/RC2Utils.hpp"
+#include "common/ZeroInitializedStruct.hpp"
 #include "InotifyFileWatcher.hpp"
 #include "FileManager.hpp"
 #include "RC2Logging.h"
@@ -31,6 +34,12 @@ static string escape_quotes(const string before);
 static string formatErrorAsJson(int errorCode, string details);
 static void rc2_log_callback(int severity, const char *msg);
 
+inline double currentFractionalSeconds() {
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return tv.tv_sec + (round(tv.tv_usec/1000.0)/1000.0);
+}
+
 struct ExecCompleteArgs {
 	RC2::RSession	*session;
 	string 		stime;
@@ -43,7 +52,7 @@ struct ExecCompleteArgs {
 	}
 };
 
-struct RC2::RSession::Impl {
+struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	event_base*						eventBase;
 	struct bufferevent*				eventBuffer;
 	struct evbuffer*				outBuffer;
@@ -53,6 +62,7 @@ struct RC2::RSession::Impl {
 //	InotifyFileWatcher				fileWatcher;
 	unique_ptr<TemporaryDirectory>	tmpDir;
 	shared_ptr<string>				consoleOutBuffer;
+	double							consoleLastWrite;
 	int								wspaceId;
 	int								sessionRecId;
 	int								socket;
@@ -78,11 +88,11 @@ struct RC2::RSession::Impl {
 
 
 RC2::RSession::Impl::Impl()
-	: consoleOutBuffer(new string), open(false), ignoreOutput(false), 
-		sourceInProgress(false), watchVariables(false), outBuffer(nullptr)
+	: consoleOutBuffer(new string)
 {
 	FLAGS_log_dir = "/tmp";
 	google::InitGoogleLogging("rsession");
+	cerr << "is tty:" << isatty(fileno(stdin)) << endl;
 }
 
 void
@@ -134,16 +144,7 @@ RC2::RSession::RSession(RSessionCallbacks *callbacks)
 	setenv("R_HOME", "/usr/local/lib/R", 0); //will not overwrite
 	_impl->R = new RInside(0, NULL, false, true, false);
 	auto clambda = [&](const string &text, bool is_error) -> void {
-		if (_impl->ignoreOutput)
-			return;
-		if (is_error) {
-			string errstr = formatStringAsJson(text, true);
-			sendJsonToClientSource(errstr);
-		} else {
-			if (R_Visible || _impl->sourceInProgress) {
-				_impl->consoleOutBuffer->append(text);
-			}
-		}
+		consoleCallback(text, is_error);
 	};
 	_callbacks->_writeLambda = clambda;
 	_impl->R->set_callbacks(_callbacks);
@@ -160,6 +161,23 @@ RC2::RSession::~RSession()
 	if (nullptr != _impl->outBuffer)
 		evbuffer_free(_impl->outBuffer);
 	LOG(INFO) << "RSession destroyed" << endl;
+}
+
+void
+RC2::RSession::consoleCallback(const string &text, bool is_error)
+{
+//	LOG(INFO) << "write cb: " << text << "(ignore=" << _impl->ignoreOutput 
+//		<< ",vis=" << R_Visible << ",sip=" << _impl->sourceInProgress << ")" << endl;
+	if (_impl->ignoreOutput)
+		return;
+	if (is_error) {
+		string errstr = formatStringAsJson(text, true);
+		sendJsonToClientSource(errstr);
+	} else {
+		if (R_Visible || _impl->sourceInProgress) {
+			_impl->consoleOutBuffer->append(text);
+		}
+	}
 }
 
 bool
@@ -286,8 +304,9 @@ RC2::RSession::handleJsonCommand(string json)
 			} else if (msg == "execScript") {
 				LOG(INFO) << "exec:" << arg << endl;
 //				_impl->fileWatcher.startWatch();
-				SEXP ans;
+				SEXP ans=NULL;
 				RInside::ParseEvalResult result = _impl->R->parseEvalR(arg, ans);
+				LOG(INFO) << "parseEvalR returned " << (ans != NULL) << endl;
 				flushOutputBuffer();
 				if (result == RInside::ParseEvalResult::PE_SUCCESS) {
 					scheduleExecCompleteAcknowledgmenet(startTimeStr);
@@ -460,9 +479,9 @@ RC2::RSession::executeFile(long fileId, string startTime, json::UnknownElement c
 	_impl->fileManager.resetWatch();
 //	_impl->fileWatcher.startWatch();
 	if (p.extension() == ".Rmd") {
-		result = executeRMarkdown(fpath, startTime, &clientExtras);
+		result = executeRMarkdown(fpath, fileId, startTime, &clientExtras);
 	} else if (p.extension() == ".Rnw") {
-		result = executeSweave(fpath, startTime, &clientExtras);
+		result = executeSweave(fpath, fileId, startTime, &clientExtras);
 	} else if (p.extension() == ".R") {
 		string cmd = "source(file=\"" + escape_quotes(fpath) + "\", echo=TRUE)";
 		LOG(INFO) << "executing:" << cmd << endl;
@@ -478,31 +497,44 @@ RC2::RSession::executeFile(long fileId, string startTime, json::UnknownElement c
 }
 
 string
-RC2::RSession::executeRMarkdown(string arg, string startTime, json::UnknownElement *clientExtras)
+RC2::RSession::executeRMarkdown(string arg, long fileId, string startTime, json::UnknownElement *clientExtras)
 {
-	fs::path p(arg);
-	string mdname = p.stem().native() + ".md";
-	string htmlName = p.stem().native() + ".html";
-	string cmd = "knit(\"" + escape_quotes(arg) + "\"); markdownToHTML(\"" 
+	fs::path scratchPath(_impl->tmpDir->getPath());
+	scratchPath /= ".rc2md";
+	create_directories(scratchPath);
+	string cmd = "setwd('" + escape_quotes(scratchPath.string()) + "')";
+	_impl->R->parseEvalNT(cmd);
+
+	fs::path origFileName(arg);
+	string mdname = origFileName.stem().native() + ".md";
+	string htmlName = origFileName.stem().native() + ".html";
+	cmd = "knit(\"../" + escape_quotes(arg) + "\"); markdownToHTML(\"" 
 		+ escape_quotes(mdname) + "\", \"" + escape_quotes(htmlName) + "\");";
 	_impl->ignoreOutput = true;
 	_impl->R->parseEvalQNT(cmd);
 	_impl->ignoreOutput = false;
 	flushOutputBuffer();
+
+	//switch working dir back
+	cmd = "setwd('" + escape_quotes(scratchPath.parent_path().string()) + "')";
+	_impl->R->parseEvalNT(cmd);
 	
-	//delete generated .md file
-	fs::path mdfile = _impl->tmpDir->getPath();
-	mdfile /= mdname;
-	fs::remove(mdfile);
-	//delete figure directory
-	fs::path figureDir = _impl->tmpDir->getPath();
-	figureDir /= "figure";
-	if (fs::exists(figureDir))
-		fs::remove_all(figureDir);
-	//find html file
-	fs::path htmlfile = _impl->tmpDir->getPath();
-	htmlfile /= htmlName;
-	if (fs::exists(htmlfile)) {
+	//move generated html to tmpDir
+	fs::path tmpHtml = scratchPath;
+	tmpHtml /= htmlName;
+	fs::path htmlPath = _impl->tmpDir->getPath();
+	htmlPath /= htmlName;
+	fs::rename(tmpHtml, htmlPath);
+	//delete scratch dir
+	fs::remove_all(scratchPath);
+	LOG(INFO) << "should be html at " << htmlPath << endl;
+
+	if (fs::exists(htmlPath)) {
+		RC2::JsonDictionary json;
+		json.addString("msg", "showoutput");
+		json.addLong("fileId", _impl->fileManager.findOrAddFile(htmlName));
+		sendJsonToClientSource(json);
+		
 		scheduleExecCompleteAcknowledgmenet(startTime, clientExtras);
 		return "";
 	}
@@ -510,7 +542,7 @@ RC2::RSession::executeRMarkdown(string arg, string startTime, json::UnknownEleme
 }
 
 string
-RC2::RSession::executeSweave(string arg, string startTime, json::UnknownElement *clientExtras)
+RC2::RSession::executeSweave(string arg, long fileId, string startTime, json::UnknownElement *clientExtras)
 {
 	fs::path srcPath(_impl->tmpDir->getPath());
 	srcPath /= arg;

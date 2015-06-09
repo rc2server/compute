@@ -46,6 +46,7 @@ namespace RC2 {
 			virtual void	sendJsonToClientSource(string json);
 
 		protected:
+			void	consoleCallback(const string &text, bool is_error);
 			string	formatStringAsJson(const string &input, bool is_error);
 			void	clearFileChanges();
 			void	flushOutputBuffer();
@@ -58,8 +59,8 @@ namespace RC2 {
 			string	handleGetVariableCommand(string varName, string startTime);
 
 			string	executeFile(long fileId, string startTime, json::UnknownElement clientExtras);
-			string	executeRMarkdown(string arg, string startTime, json::UnknownElement *clientExtras);
-			string	executeSweave(string arg, string startTime, json::UnknownElement *clientExtras);
+			string	executeRMarkdown(string arg, long fileId, string startTime, json::UnknownElement *clientExtras);
+			string	executeSweave(string arg, long fileId, string startTime, json::UnknownElement *clientExtras);
 
 			void	scheduleExecCompleteAcknowledgmenet(string stime, 
 						json::UnknownElement *clientExtras=nullptr);

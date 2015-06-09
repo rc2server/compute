@@ -41,6 +41,7 @@ class JsonDictionary {
 			void 	addString(std::string key, std::string value);
 			void	addBool(std::string key, bool value);
 			void	addInt(std::string key, int value);
+			void	addLong(std::string key, long value);
 			void	addObject(std::string key, json::Object &value);
 			std::string	addStringArray(std::string key, std::vector<std::string> strings);
 			void	addLongArray(std::string key, std::vector<long> longs);

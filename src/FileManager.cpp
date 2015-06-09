@@ -264,29 +264,33 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 		struct inotify_event *event = (struct inotify_event*)p;
 		int evtype = event->mask & 0xffff; //events are in lower word, flags in upper
 		LOG(INFO) << "notify:" << std::hex << evtype << " for " << event->wd << endl;
-		if(evtype == IN_CREATE) {
-			long newFileId=0;
-			string fname = event->name;
-			boost::smatch what;
-			if (event->name[0] != '.') {
-				if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
-					newFileId = insertImage(fname, what[1]);
-				} else {
-					newFileId = dbFileSource_.insertDBFile(fname, event->wd != rootDir_.wd);
+		try {
+			if(evtype == IN_CREATE) {
+				long newFileId=0;
+				string fname = event->name;
+				boost::smatch what;
+				if (event->name[0] != '.') {
+					if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
+						newFileId = insertImage(fname, what[1]);
+					} else {
+						newFileId = dbFileSource_.insertDBFile(fname, event->wd != rootDir_.wd);
+					}
+					if (newFileId > 0) {
+						//need to add a watch for this file
+						watchFile(dbFileSource_.filesById_[newFileId]);
+					}
 				}
-				if (newFileId > 0) {
-					//need to add a watch for this file
-					watchFile(dbFileSource_.filesById_[newFileId]);
-				}
+			} else if (evtype == IN_CLOSE_WRITE) {
+				dbFileSource_.updateDBFile(filesByWatchDesc_[event->wd]);
+			} else if (evtype == IN_DELETE_SELF) {
+				DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
+				dbFileSource_.removeDBFile(fobj);
+				filesByWatchDesc_.erase(fobj->id);
+				//discard our records of it
+				inotify_rm_watch(inotifyFd_, event->wd);
 			}
-		} else if (evtype == IN_CLOSE_WRITE) {
-			dbFileSource_.updateDBFile(filesByWatchDesc_[event->wd]);
-		} else if (evtype == IN_DELETE_SELF) {
-			DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
-			dbFileSource_.removeDBFile(fobj);
-			filesByWatchDesc_.erase(fobj->id);
-			//discard our records of it
-			inotify_rm_watch(inotifyFd_, event->wd);
+		} catch(exception &ex) {
+			LOG(ERROR) << "exception in inotify code: " << ex.what() << endl;
 		}
 		//handle event
 		p += sizeof(struct inotify_event) + event->len;
@@ -297,7 +301,7 @@ void
 RC2::FileManager::Impl::watchFile(DBFileInfoPtr file) {
 	string fullPath = workingDir + file->path;
 	if (stat(fullPath.c_str(), &file->sb) == -1)
-		throw StatException((format("stat failed for %s") % file->name).str());
+		throw StatException((format("stat failed for %s") % fullPath.c_str()).str());
 	file->watchDescriptor = inotify_add_watch(inotifyFd_, fullPath.c_str(), 
 				IN_CLOSE_WRITE | IN_DELETE_SELF | IN_MODIFY);
 	if (file->watchDescriptor == -1)
@@ -368,6 +372,21 @@ void
 RC2::FileManager::saveRData()
 {
 	_impl->dbFileSource_.saveRData();
+}
+
+long
+RC2::FileManager::findOrAddFile(std::string fname)
+{	
+	auto & fileMap = _impl->dbFileSource_.filesById_;
+	for (auto itr = fileMap.begin(); itr != fileMap.end(); ++itr) {
+		DBFileInfoPtr ptr = itr->second;
+		if (0 == fname.compare(ptr->name)) {
+			//a match. 
+			return ptr->id;
+		}
+	}
+	//need to add the file
+	return _impl->dbFileSource_.insertDBFile(fname, false);
 }
 
 string
