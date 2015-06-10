@@ -2,8 +2,10 @@
 #include <iostream>
 #include <tclap/CmdLine.h>
 #include <execinfo.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <boost/log/utility/setup/file.hpp>
 #define BOOST_NO_CXX11_SCOPED_ENUMS
@@ -547,6 +549,7 @@ RC2::RSession::executeSweave(string arg, long fileId, string startTime, json::Un
 	fs::path srcPath(_impl->tmpDir->getPath());
 	srcPath /= arg;
 	string baseName = srcPath.stem().native();
+	string basePdfName = baseName + ".pdf";
 	fs::path scratchPath(_impl->tmpDir->getPath());
 	scratchPath /= ".rc2sw";
 	create_directories(scratchPath);
@@ -568,17 +571,40 @@ RC2::RSession::executeSweave(string arg, long fileId, string startTime, json::Un
 		//there was an error
 		LOG(WARNING) << "sweave failed" << endl;
 	} else {
-		cmd = "texi2pdf('";
-		cmd += escape_quotes(texPath.string());
-		cmd += "')";
-//		_impl->ignoreOutput = true;
-		_impl->R->parseEvalNT(cmd);
+		_impl->ignoreOutput = true;
+		pid_t parent = getpid();
+		pid_t pid = fork();
+		if (pid == -1) {
+			LOG(ERROR) << "fork() failed for texi2dvi" << endl;
+		} else if (pid > 0) {
+			int status=0;
+			LOG(INFO) << "calling waitpid:" << pid << endl;
+			waitpid(pid, &status, 0);
+			LOG(INFO) << "finished waitpid:" << status << endl;
+		} else {
+			int devnull = open("/dev/null", O_WRONLY);
+			dup2(devnull, 1);
+			dup2(devnull, 2);
+			char exe[32];
+			strncpy(exe, "/usr/bin/texi2pdf", 32);
+			char path[1024];
+			strncpy(path, texPath.string().c_str(), 1024);
+			char *args[] = {exe, path, NULL};
+			LOG(INFO) << "calling execve" << endl;
+			execve("/usr/bin/texi2pdf", args, environ);
+			LOG(INFO) << "IMPOSSIBLE" << endl;
+		}
+		_impl->ignoreOutput = false;
 		fs::path genPdfPath(scratchPath);
-		genPdfPath /= baseName + ".pdf";
+		genPdfPath /= basePdfName;
 		fs::path destPdfPath(_impl->tmpDir->getPath());
-		destPdfPath /= baseName + ".pdf";
+		destPdfPath /= basePdfName;
 		if (fs::exists(genPdfPath)) {
 			fs::copy_file(genPdfPath, destPdfPath, fs::copy_option::overwrite_if_exists);
+			RC2::JsonDictionary json;
+			json.addString("msg", "showoutput");
+			json.addLong("fileId", _impl->fileManager.findOrAddFile(basePdfName));
+			sendJsonToClientSource(json);
 		} else {
 			LOG(INFO) << "genPdfPath empty:" << genPdfPath << endl;
 			fs::path errorPath(scratchPath);
