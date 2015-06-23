@@ -250,10 +250,14 @@ void
 RC2::RSession::handleJsonStatic(struct bufferevent *bev, void *ctx)
 {
 	LOG(INFO) << "got bufferevent\n";
-	RC2::RSession *me = static_cast<RC2::RSession*>(ctx);
-	me->_impl->inputBuffer.appendData(bufferevent_get_input(bev));
-	if (me->_impl->inputBuffer.hasCompleteMessage()) {
-		me->handleJsonCommand(me->_impl->inputBuffer.popCurrentMessage());
+	try {
+		RC2::RSession *me = static_cast<RC2::RSession*>(ctx);
+		me->_impl->inputBuffer.appendData(bufferevent_get_input(bev));
+		if (me->_impl->inputBuffer.hasCompleteMessage()) {
+			me->handleJsonCommand(me->_impl->inputBuffer.popCurrentMessage());
+		}
+	} catch (exception const& e) {
+		LOG(ERROR) << "exception in handleJsonStatic:" << e.what() << endl;
 	}
 }
 
