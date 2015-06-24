@@ -263,7 +263,7 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 	for (p=buf; p < buf + numRead; ) {
 		struct inotify_event *event = (struct inotify_event*)p;
 		int evtype = event->mask & 0xffff; //events are in lower word, flags in upper
-		LOG(INFO) << "notify:" << std::hex << evtype << " for " << event->wd << endl;
+//		LOG(INFO) << "notify:" << std::hex << evtype << " for " << event->wd << endl;
 		try {
 			if(evtype == IN_CREATE) {
 				long newFileId=0;

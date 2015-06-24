@@ -249,7 +249,6 @@ RC2::RSession::startEventLoop()
 void 
 RC2::RSession::handleJsonStatic(struct bufferevent *bev, void *ctx)
 {
-	LOG(INFO) << "got bufferevent\n";
 	try {
 		RC2::RSession *me = static_cast<RC2::RSession*>(ctx);
 		me->_impl->inputBuffer.appendData(bufferevent_get_input(bev));
@@ -264,7 +263,6 @@ RC2::RSession::handleJsonStatic(struct bufferevent *bev, void *ctx)
 void
 RC2::RSession::handleJsonCommand(string json)
 {
-	LOG(INFO) << "handleJsonCommand\n";
 	try {
 		if (json.length() < 1)
 			return;
