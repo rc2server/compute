@@ -46,6 +46,7 @@ struct ExecCompleteArgs {
 	RC2::RSession	*session;
 	string 		stime;
 	json::UnknownElement *clientExtras;
+	int outputFileId;
 	ExecCompleteArgs(RC2::RSession *inSession, string inTime, json::UnknownElement *inExtras) 
 		: session(inSession), stime(inTime), clientExtras(new json::UnknownElement(inExtras))
 	{}
@@ -84,6 +85,13 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 		string s = args->session->_impl->acknowledgeExecComplete(args->stime, args->clientExtras);
 		LOG(INFO) << "handleExecComplete got json:" << s << endl;
 		args->session->sendJsonToClientSource(s);
+		if (args->outputFileId > 0) {
+			RC2::JsonDictionary json;
+			json.addString("msg", "showoutput");
+			json.addLong("fileId", args->outputFileId);
+			args->session->sendJsonToClientSource(json);
+			LOG(INFO) << "sending showoutput:" << (string)json << endl;
+		}
 		delete args;
 	}
 };
@@ -129,9 +137,10 @@ RC2::RSession::Impl::acknowledgeExecComplete(string stime, json::UnknownElement 
 
 void
 RC2::RSession::scheduleExecCompleteAcknowledgmenet(string stime, 
-	json::UnknownElement *clientExtras)
+	json::UnknownElement *clientExtras, int outputFileId)
 {
 	ExecCompleteArgs *args = new ExecCompleteArgs(this, stime, clientExtras);
+	args->outputFileId = outputFileId;
 	struct timeval delay = {0, 100000};
 	struct event *ev = event_new(_impl->eventBase, -1, EV_TIMEOUT, RC2::RSession::Impl::handleExecComplete, args);
 	event_add(ev, &delay);
@@ -332,6 +341,8 @@ RC2::RSession::handleJsonCommand(string json)
 				jsonStr = handleGetVariableCommand(arg, startTimeStr);
 			} else if (msg == "toggleVariableWatch") {
 				_impl->watchVariables = ((json::Boolean)doc["watch"]).Value();
+				if (_impl->watchVariables)
+					jsonStr = handleListVariablesCommand(false, doc["clientData"]);
 			}
 			if (jsonStr.length() > 0)
 				sendJsonToClientSource(jsonStr);
@@ -528,18 +539,15 @@ RC2::RSession::executeRMarkdown(string arg, long fileId, string startTime, json:
 	tmpHtml /= htmlName;
 	fs::path htmlPath = _impl->tmpDir->getPath();
 	htmlPath /= htmlName;
-	fs::rename(tmpHtml, htmlPath);
+	fs::copy_file(tmpHtml, htmlPath, fs::copy_option::overwrite_if_exists);
 	//delete scratch dir
 	fs::remove_all(scratchPath);
 	LOG(INFO) << "should be html at " << htmlPath << endl;
 
-	if (fs::exists(htmlPath)) {
-		RC2::JsonDictionary json;
-		json.addString("msg", "showoutput");
-		json.addLong("fileId", _impl->fileManager.findOrAddFile(htmlName));
-		sendJsonToClientSource(json);
-		
-		scheduleExecCompleteAcknowledgmenet(startTime, clientExtras);
+	boost::system::error_code ec;
+	if (fs::exists(htmlPath) && fs::file_size(htmlPath, ec) > 0) {
+		int fileId = _impl->fileManager.findOrAddFile(htmlName);
+		scheduleExecCompleteAcknowledgmenet(startTime, clientExtras, fileId);
 		return "";
 	}
 	return formatErrorAsJson(kError_ExecFile_MarkdownFailed, "failed to generate html");
@@ -548,6 +556,7 @@ RC2::RSession::executeRMarkdown(string arg, long fileId, string startTime, json:
 string
 RC2::RSession::executeSweave(string arg, long fileId, string startTime, json::UnknownElement *clientExtras)
 {
+	int fileOutputId=0;
 	fs::path srcPath(_impl->tmpDir->getPath());
 	srcPath /= arg;
 	string baseName = srcPath.stem().native();
@@ -584,29 +593,36 @@ RC2::RSession::executeSweave(string arg, long fileId, string startTime, json::Un
 			waitpid(pid, &status, 0);
 			LOG(INFO) << "finished waitpid:" << status << endl;
 		} else {
+			int oldStdErr = dup(2);
+			FILE *parentErr = fdopen(oldStdErr, "w");
 			int devnull = open("/dev/null", O_WRONLY);
 			dup2(devnull, 1);
 			dup2(devnull, 2);
+			close(0);
+			fprintf(parentErr, "closed stdin\n");
+//			LOG(INFO) << "closed stdin" << endl;
 			char exe[32];
 			strncpy(exe, "/usr/bin/texi2pdf", 32);
 			char path[1024];
 			strncpy(path, texPath.string().c_str(), 1024);
-			char *args[] = {exe, path, NULL};
-			LOG(INFO) << "calling execve" << endl;
+			char batchFlag[4];
+			strncpy(batchFlag, "-b", 4);
+			char *args[] = {exe, batchFlag, path, NULL};
+//			LOG(INFO) << "calling execve" << endl;
+			fprintf(parentErr, "calling execve\n");
 			execve("/usr/bin/texi2pdf", args, environ);
-			LOG(INFO) << "IMPOSSIBLE" << endl;
+			fprintf(parentErr, "IMPOSSIBLE\n");
+//			LOG(INFO) << "IMPOSSIBLE" << endl;
 		}
 		_impl->ignoreOutput = false;
 		fs::path genPdfPath(scratchPath);
 		genPdfPath /= basePdfName;
 		fs::path destPdfPath(_impl->tmpDir->getPath());
 		destPdfPath /= basePdfName;
-		if (fs::exists(genPdfPath)) {
+		boost::system::error_code ec;
+		if (fs::exists(genPdfPath) && fs::file_size(genPdfPath, ec) > 0) {
 			fs::copy_file(genPdfPath, destPdfPath, fs::copy_option::overwrite_if_exists);
-			RC2::JsonDictionary json;
-			json.addString("msg", "showoutput");
-			json.addLong("fileId", _impl->fileManager.findOrAddFile(basePdfName));
-			sendJsonToClientSource(json);
+			fileOutputId = _impl->fileManager.findOrAddFile(basePdfName);
 		} else {
 			LOG(INFO) << "genPdfPath empty:" << genPdfPath << endl;
 			fs::path errorPath(scratchPath);
@@ -626,7 +642,7 @@ RC2::RSession::executeSweave(string arg, long fileId, string startTime, json::Un
 	_impl->ignoreOutput = false;
 	//TODO: delete scratchPath
 	flushOutputBuffer();
-	scheduleExecCompleteAcknowledgmenet(startTime, clientExtras);
+	scheduleExecCompleteAcknowledgmenet(startTime, clientExtras, fileOutputId);
 	return "";
 }
 

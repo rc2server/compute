@@ -63,7 +63,7 @@ namespace RC2 {
 			string	executeSweave(string arg, long fileId, string startTime, json::UnknownElement *clientExtras);
 
 			void	scheduleExecCompleteAcknowledgmenet(string stime, 
-						json::UnknownElement *clientExtras=nullptr);
+						json::UnknownElement *clientExtras=nullptr, int outputFileId=0);
 			static void handleJsonStatic(struct bufferevent *bev, void *ctx);
 
 			struct Impl;
