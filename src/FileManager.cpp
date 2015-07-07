@@ -157,37 +157,51 @@ RC2::FileManager::Impl::processDBNotification(string message)
 		return;
 	}
 	long fileId = atol(&msgStr[1]);
-	if (type == 'd') {
-		DBFileInfoPtr fobj = filesByWatchDesc_.at(fileId);
-		//stop notify watch first
-		inotify_rm_watch(inotifyFd_, fobj->watchDescriptor);
-		dbFileSource_.filesById_.erase(fileId);
-		filesByWatchDesc_.erase(fileId);
-		fs::remove(workingDir + "/" + fobj->path);
-	} else {
-		//parse wspace and project ids
-		long fileWspace=0, fileProject=0;
-		istringstream ss(&msgStr[2]);
-		string wstr, pstr;
-		if (getline(ss, wstr, '/') && getline(ss, pstr, '/')) {
-			fileWspace = atol(wstr.c_str());
-			fileProject = atol(pstr.c_str());
+	try {
+		if (type == 'd') {
+			try {
+				DBFileInfoPtr fobj = dbFileSource_.filesById_.at(fileId);
+				//stop notify watch first
+				inotify_rm_watch(inotifyFd_, fobj->watchDescriptor);
+				dbFileSource_.filesById_.erase(fileId);
+				filesByWatchDesc_.erase(fileId);
+				fs::remove(workingDir + "/" + fobj->path);
+			} catch (out_of_range &ore) {
+				//we'll just ignore
+				LOG(WARNING) << "got db note to delete " << fileId << 
+					" but we dont' have a desc for it:" << ore.what() << endl;
+			} catch (exception &ee) {
+				//we'll just ignore
+				LOG(WARNING) << "XX got db note to delete " << fileId << 
+					" but we dont' have a desc for it:" << ee.what() << endl;
+			}
 		} else {
-			throw runtime_error("failed to parse db notification");
-		}
-		ostringstream query;
-		query << " where f.id = " << fileId;
-		if (type == 'i') {
-			if (fileWspace == wspaceId_ || fileProject == projectId_) {
-				dbFileSource_.loadFiles(query.str().c_str(), fileProject == projectId_);
-				watchFile(dbFileSource_.filesById_[fileId]);
+			//parse wspace and project ids
+			long fileWspace=0, fileProject=0;
+			istringstream ss(&msgStr[2]);
+			string wstr, pstr;
+			if (getline(ss, wstr, '/') && getline(ss, pstr, '/')) {
+				fileWspace = atol(wstr.c_str());
+				fileProject = atol(pstr.c_str());
+			} else {
+				throw runtime_error("failed to parse db notification");
 			}
-		} else if (type == 'u') {
-			if (dbFileSource_.filesById_.count(fileId) > 0) {
-				dbFileSource_.loadFiles(query.str().c_str(), 
-					dbFileSource_.filesById_[fileId]->projectFile);
+			ostringstream query;
+			query << " where f.id = " << fileId;
+			if (type == 'i') {
+				if (fileWspace == wspaceId_ || fileProject == projectId_) {
+					dbFileSource_.loadFiles(query.str().c_str(), fileProject == projectId_);
+					watchFile(dbFileSource_.filesById_[fileId]);
+				}
+			} else if (type == 'u') {
+				if (dbFileSource_.filesById_.count(fileId) > 0) {
+					dbFileSource_.loadFiles(query.str().c_str(), 
+						dbFileSource_.filesById_[fileId]->projectFile);
+				}
 			}
 		}
+	} catch (exception &e) {
+		LOG(ERROR) << "exception handling db notification: " << e.what() << endl;
 	}
 }
 
@@ -263,27 +277,34 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 	for (p=buf; p < buf + numRead; ) {
 		struct inotify_event *event = (struct inotify_event*)p;
 		int evtype = event->mask & 0xffff; //events are in lower word, flags in upper
-//		LOG(INFO) << "notify:" << std::hex << evtype << " for " << event->wd << endl;
+		LOG(INFO) << "notify:" << std::hex << evtype << " (" << std::hex << event->mask << ") for " << event->name << endl;
 		try {
 			if(evtype == IN_CREATE) {
-				long newFileId=0;
-				string fname = event->name;
-				boost::smatch what;
-				if (event->name[0] != '.') {
-					if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
-						newFileId = insertImage(fname, what[1]);
-					} else {
-						newFileId = dbFileSource_.insertDBFile(fname, event->wd != rootDir_.wd);
-					}
-					if (newFileId > 0) {
-						//need to add a watch for this file
-						watchFile(dbFileSource_.filesById_[newFileId]);
+				if (!(event->mask & IN_ISDIR)) { //we don't want these events, they are duplicates
+					long newFileId=0;
+					string fname = event->name;
+					boost::smatch what;
+					if (event->name[0] != '.') {
+						if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
+							newFileId = insertImage(fname, what[1]);
+						} else {
+							LOG(INFO) << "inotify create for " << fname << endl;
+							newFileId = dbFileSource_.insertDBFile(fname, event->wd != rootDir_.wd);
+							LOG(INFO) << "inserted s " << newFileId << endl;
+						}
+						if (newFileId > 0) {
+							//need to add a watch for this file
+							watchFile(dbFileSource_.filesById_[newFileId]);
+						}
 					}
 				}
 			} else if (evtype == IN_CLOSE_WRITE) {
-				dbFileSource_.updateDBFile(filesByWatchDesc_[event->wd]);
+				DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
+			LOG(INFO) << "got close write event for " << fobj->name << endl;
+				dbFileSource_.updateDBFile(fobj);
 			} else if (evtype == IN_DELETE_SELF) {
 				DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
+			LOG(INFO) << "got delete event for " << fobj->name << endl;
 				dbFileSource_.removeDBFile(fobj);
 				filesByWatchDesc_.erase(fobj->id);
 				//discard our records of it
@@ -299,15 +320,14 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 
 void 
 RC2::FileManager::Impl::watchFile(DBFileInfoPtr file) {
-	string fullPath = workingDir + file->path;
+	string fullPath = workingDir + "/" + file->path;
 	if (stat(fullPath.c_str(), &file->sb) == -1)
-		throw StatException((format("stat failed for %s") % fullPath.c_str()).str());
+		throw StatException((format("stat failed for watch %s") % fullPath.c_str()).str());
 	file->watchDescriptor = inotify_add_watch(inotifyFd_, fullPath.c_str(), 
 				IN_CLOSE_WRITE | IN_DELETE_SELF | IN_MODIFY);
 	if (file->watchDescriptor == -1)
 		throw FormattedException("inotify_add_warched failed %s", file->name.c_str());
 	filesByWatchDesc_[file->watchDescriptor] = file;
-	LOG(INFO) << "watching " << file->path << endl;
 }
 
 
@@ -376,7 +396,7 @@ RC2::FileManager::saveRData()
 
 long
 RC2::FileManager::findOrAddFile(std::string fname)
-{	
+{
 	auto & fileMap = _impl->dbFileSource_.filesById_;
 	for (auto itr = fileMap.begin(); itr != fileMap.end(); ++itr) {
 		DBFileInfoPtr ptr = itr->second;
@@ -386,6 +406,7 @@ RC2::FileManager::findOrAddFile(std::string fname)
 		}
 	}
 	//need to add the file
+	LOG(INFO) << "findOrAddFile adding file " << fname << endl;
 	return _impl->dbFileSource_.insertDBFile(fname, false);
 }
 
