@@ -163,13 +163,13 @@ long
 RC2::DBFileSource::insertDBFile(string fname, bool isProjectFile)
 {
 	string filePath = _impl->workingDir_ + "/" + (isProjectFile ? "shared/" : "") + fname;
-
+	LOG(INFO) << "insertDBFile(" << fname << ")" << endl;
 	DBTransaction trans(_impl->db_);
 	long fileId = DBLongFromQuery(_impl->db_, "select nextval('rcfile_seq'::regclass)");
 
 	DBFileInfoPtr fobj(new DBFileInfo(fileId, 1, fname, isProjectFile));
 	if (stat(filePath.c_str(), &fobj->sb) == -1)
-		throw runtime_error((format("stat failed for %s") % filePath).str());
+		throw runtime_error((format("stat failed for insert %s") % filePath).str());
 	time_t modTime = fobj->sb.st_mtime;
 	size_t newSize=0;
 	unique_ptr<char[]> data = ReadFileBlob(filePath, newSize);
@@ -221,7 +221,7 @@ RC2::DBFileSource::updateDBFile(DBFileInfoPtr fobj)
 	int newVersion = fobj->version + 1;
 	string filePath = _impl->workingDir_ + "/" + fobj->path;
 	if (stat(filePath.c_str(), &fobj->sb) == -1)
-		throw runtime_error((format("stat failed for %s") % fobj->name).str());
+		throw runtime_error((format("stat failed for update %s") % fobj->name).str());
 	time_t newMod = fobj->sb.st_mtime;
 	size_t newSize=0;
 	unique_ptr<char[]> data = ReadFileBlob(filePath, newSize);
@@ -230,18 +230,18 @@ RC2::DBFileSource::updateDBFile(DBFileInfoPtr fobj)
 	ostringstream query;
 	query << "update rcfile set version = " << newVersion << ", lastmodified = to_timestamp("
 		<< newMod << "), filesize = " << newSize << " where id = " << fobj->id;
+	LOG(INFO) << "executing " << query.str() << endl;
 	DBResult res1(_impl->db_, query.str());
 	if (!res1.commandOK()) {
 		throw FormattedException("failed to update file %ld: %s", fobj->id, res1.errorMessage());
 	}
 	query.clear();
-	query.seekp(0);
-	query << "update rcfiledata set bindata = $1 where id = " << fobj->id;
-	Oid in_oid[] = {1043};
+	query.str("");
+	query << "update rcfiledata set bindata = $1::bytea where id = " << fobj->id;
 	int pformats[] = {1};
 	int pSizes[] = {(int)newSize};
 	const char *params[] = {data.get()};
-	DBResult res2(PQexecParams(_impl->db_, query.str().c_str(), 1, in_oid, params, 
+	DBResult res2(PQexecParams(_impl->db_, query.str().c_str(), 1, NULL, params, 
 		pSizes, pformats, 1));
 	if (!res2.commandOK()) {
 		throw FormattedException("failed to update file %ld: %s", fobj->id, res2.errorMessage());
