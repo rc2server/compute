@@ -41,6 +41,7 @@ class RC2::FileManager::Impl {
 		long						wspaceId_;
 		long						projectId_;
 		long						sessionRecId_;
+		long						sessionImageBatch_;
 		DBFileSource				dbFileSource_;
 		PGconn*						dbcon_;
 		map<int, DBFileInfoPtr>		filesByWatchDesc_;
@@ -114,6 +115,7 @@ RC2::FileManager::Impl::connect(string str, long wspaceId, long sessionRecId)
 		sprintf(msg, "where projectid = %ld", projectId_);
 		dbFileSource_.loadFiles(msg, true);
 	}
+	sessionImageBatch_ = 0;
 }
 
 long
@@ -126,9 +128,14 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 	long imgId = DBLongFromQuery(dbcon_, "select nextval('sessionimage_seq'::regclass)");
 	if (imgId <= 0)
 		throw FormattedException("failed to get session image id");
+	if (sessionImageBatch_ <= 0) {
+		stringstream batchq;
+		batchq << "select max(batchid) from sessionimage where sessionid = " << sessionRecId_;
+		sessionImageBatch_ = DBLongFromQuery(dbcon_, batchq.str().c_str()) + 1;
+	}
 	stringstream query;
-	query << "insert into sessionimage (id,sessionid,name,imgdata) values (" << imgId 
-		<< "," << sessionRecId_ << ",'img" << imgId << ".png',$1::bytea)";
+	query << "insert into sessionimage (id,sessionid,batchid,name,imgdata) values (" << imgId 
+		<< "," << sessionRecId_ << "," << sessionImageBatch_ << ",'img" << imgId << ".png',$1::bytea)";
 	int pformats = 1;
 	int pSizes[] = {(int)size};
  	const char *params[] = {buffer.get()};
@@ -380,6 +387,7 @@ void
 RC2::FileManager::checkWatch(vector<long> &imageIds)
 {
 	imageIds = _impl->imageIds_;
+	_impl->sessionImageBatch_ = 0;
 }
 
 void

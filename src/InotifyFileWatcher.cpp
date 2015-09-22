@@ -41,7 +41,7 @@ struct RC2::InotifyFileWatcher::Impl
 		fo.name = fname;
 		string fullPath = dirPath + "/" + fo.name;
 		if (stat(fullPath.c_str(), &fo.sb) == -1)
-			throw StatException((format("stat failed for %s") % fo.name).str());
+			throw StatException((format("stat failed for infotifyfilewatcher %s") % fo.name).str());
 		fo.wd = inotify_add_watch(inotifyFd, fullPath.c_str(), 
 					IN_CLOSE_WRITE | IN_DELETE_SELF | IN_MODIFY);
 		if (fo.wd == -1)
