@@ -384,9 +384,10 @@ RC2::FileManager::resetWatch()
 }
 
 void
-RC2::FileManager::checkWatch(vector<long> &imageIds)
+RC2::FileManager::checkWatch(vector<long> &imageIds, long &batchId)
 {
 	imageIds = _impl->imageIds_;
+	batchId = _impl->sessionImageBatch_;
 	_impl->sessionImageBatch_ = 0;
 }
 

@@ -16,7 +16,7 @@ namespace RC2 {
 			void	setEventBase(struct event_base *evbase);
 	
 			void	resetWatch();
-			void	checkWatch(std::vector<long> &imageIds);
+			void	checkWatch(std::vector<long> &imageIds, long &batchId);
 			
 			void	loadRData();
 			void	saveRData();

@@ -110,7 +110,8 @@ RC2::RSession::Impl::addFileChangesToJson(JsonDictionary& json)
 {
 	std::vector<string> add, mod, del;
 	std::vector<long> imageIds;
-	fileManager.checkWatch(imageIds);
+	long batchId;
+	fileManager.checkWatch(imageIds, batchId);
 //	_impl->fileWatcher.stopWatch(add, mod, del);
 	mod.insert(mod.end(), add.begin(), add.end()); //merge add/modified
 	if (mod.size() > 0)
@@ -119,6 +120,8 @@ RC2::RSession::Impl::addFileChangesToJson(JsonDictionary& json)
 		json.addStringArray("filesDeleted", del);
 	if (imageIds.size() > 0)
 		json.addLongArray("images", imageIds);
+	if (batchId > 0)
+		json.addLong("imgBatch", batchId);
 }
 
 string
