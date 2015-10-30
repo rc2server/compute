@@ -19,7 +19,6 @@ class RC2::DBFileSource::Impl {
 	public:
 	PGconn *db_;
 	long wspaceId_;
-	long projId_;
 	string workingDir_;
 };
 
@@ -34,11 +33,10 @@ RC2::DBFileSource::~DBFileSource()
 }
 
 void
-RC2::DBFileSource::initializeSource(PGconn *con, long wsid, long projid)
+RC2::DBFileSource::initializeSource(PGconn *con, long wsid)
 {
 	_impl->db_ = con;
 	_impl->wspaceId_ = wsid;
-	_impl->projId_ = projid;
 }
 
 void
@@ -87,7 +85,7 @@ RC2::DBFileSource::saveRData()
 }
 
 void
-RC2::DBFileSource::loadFiles(const char *whereClause, bool isProject)
+RC2::DBFileSource::loadFiles(const char *whereClause)
 {
 	ostringstream query;
 	query << "select f.id::int4, f.version::int4, f.name, extract('epoch' from f.lastmodified)::int4, " 
@@ -115,13 +113,11 @@ RC2::DBFileSource::loadFiles(const char *whereClause, bool isProject)
 				filePtr->version = pver;
 				filePtr->name = pname;
 			} else {
-				filePtr = DBFileInfoPtr(new DBFileInfo(pid, pver, pname, isProject));
+				filePtr = DBFileInfoPtr(new DBFileInfo(pid, pver, pname));
 				filesById_.insert(map<long,DBFileInfoPtr>::value_type(pid, filePtr));
 			}
 			//write data to disk
 			fs::path filepath(_impl->workingDir_);
-			if (isProject)
-				filepath /= "shared";
 			filepath /= pname;
 			ofstream filest;
 			filest.open(filepath.string(), ios::out | ios::trunc | ios::binary);
@@ -139,13 +135,13 @@ RC2::DBFileSource::loadFiles(const char *whereClause, bool isProject)
 
 
 void
-RC2::DBFileSource::insertOrUpdateLocalFile(long fileId, long projId, long wspaceId)
+RC2::DBFileSource::insertOrUpdateLocalFile(long fileId, long wspaceId)
 {
-	if (_impl->wspaceId_ != wspaceId && projId != _impl->projId_)
+	if (_impl->wspaceId_ != wspaceId)
 		return; //skip this file
 	ostringstream where;
 	where << "where f.id = " << fileId;
-	loadFiles(where.str().c_str(), projId == _impl->projId_);
+	loadFiles(where.str().c_str());
 }
 
 void
@@ -160,14 +156,14 @@ RC2::DBFileSource::removeLocalFile(long fileId)
 }
 
 long
-RC2::DBFileSource::insertDBFile(string fname, bool isProjectFile)
+RC2::DBFileSource::insertDBFile(string fname)
 {
-	string filePath = _impl->workingDir_ + "/" + (isProjectFile ? "shared/" : "") + fname;
+	string filePath = _impl->workingDir_ + "/" + fname;
 	LOG(INFO) << "insertDBFile(" << fname << ")" << endl;
 	DBTransaction trans(_impl->db_);
 	long fileId = DBLongFromQuery(_impl->db_, "select nextval('rcfile_seq'::regclass)");
 
-	DBFileInfoPtr fobj(new DBFileInfo(fileId, 1, fname, isProjectFile));
+	DBFileInfoPtr fobj(new DBFileInfo(fileId, 1, fname));
 	if (stat(filePath.c_str(), &fobj->sb) == -1)
 		throw runtime_error((format("stat failed for insert %s") % filePath).str());
 	time_t modTime = fobj->sb.st_mtime;
@@ -178,12 +174,10 @@ RC2::DBFileSource::insertDBFile(string fname, bool isProjectFile)
 	char *escapedNamePtr = PQescapeLiteral(_impl->db_, fname.c_str(), fname.length());
 	string escapedName = escapedNamePtr;
 	PQfreemem(escapedNamePtr);
-	string idname = isProjectFile ? "projectid" : "wspaceid";
-	long typeId = isProjectFile ? _impl->projId_ : _impl->wspaceId_;
 	ostringstream query;
-	query << "insert into rcfile (id, version, " << idname 
+	query << "insert into rcfile (id, version, wspaceid"
 		<< ",name,filesize,lastmodified) values ("
-		<< fileId << ", 1, " << typeId << "," << escapedName << "," << newSize 
+		<< fileId << ", 1, " << _impl->wspaceId_ << "," << escapedName << "," << newSize 
 		<< ", to_timestamp(" << modTime << "))";
 	DBResult res1(_impl->db_, query.str());
 	if (!res1.commandOK()) {

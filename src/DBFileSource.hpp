@@ -13,13 +13,10 @@ namespace RC2 {
 		std::string	name, path;
 		int			watchDescriptor;
 		struct stat	sb;
-		bool		projectFile;
 	
-		DBFileInfo(uint32_t anId, uint32_t aVersion, std::string &aName, bool projFile=false)
-			: id((long)anId), version((long)aVersion), name(aName), projectFile(projFile)
+		DBFileInfo(uint32_t anId, uint32_t aVersion, std::string &aName)
+			: id((long)anId), version((long)aVersion), name(aName)
 		{
-			if (projectFile)
-				path = "shared/";
 			path += name;
 		}
 	
@@ -37,14 +34,14 @@ namespace RC2 {
 				DBFileSource();
 		virtual ~DBFileSource();
 	
-			void	initializeSource(PGconn *con, long wsid, long projid);
+			void	initializeSource(PGconn *con, long wsid);
 			void	setWorkingDir(std::string workingDir);
-			void	loadFiles(const char *whereClause, bool isProject);
+			void	loadFiles(const char *whereClause);
 			
-			void	insertOrUpdateLocalFile(long fileId, long projId, long wspaceId);
+			void	insertOrUpdateLocalFile(long fileId, long wspaceId);
 			void	removeLocalFile(long fileId);
 			
-			long	insertDBFile(std::string fname, bool isProjectFile);
+			long	insertDBFile(std::string fname);
 			void	updateDBFile(DBFileInfoPtr fobj);
 			void	removeDBFile(DBFileInfoPtr fobj);
 			

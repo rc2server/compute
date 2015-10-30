@@ -39,7 +39,6 @@ struct FSDirectory {
 class RC2::FileManager::Impl {
 	public:
 		long						wspaceId_;
-		long						projectId_;
 		long						sessionRecId_;
 		long						sessionImageBatch_;
 		DBFileSource				dbFileSource_;
@@ -103,18 +102,9 @@ RC2::FileManager::Impl::connect(string str, long wspaceId, long sessionRecId)
 	dbcon_ = PQconnectdb(str.c_str());
 	//TODO: error checking
 	char msg[255];
-	sprintf(msg, "select projectid from workspace where id = %ld", wspaceId);
-	projectId_ = DBLongFromQuery(dbcon_, msg);
-	dbFileSource_.initializeSource(dbcon_, wspaceId_, projectId_);
+	dbFileSource_.initializeSource(dbcon_, wspaceId_);
 	snprintf(msg, 255, "where wspaceid = %ld", wspaceId_);
-	dbFileSource_.loadFiles(msg, false);
-	if (projectId_ > 0) {
-		fs::path spath = workingDir;
-		spath /= "shared";
-		fs::create_directory(spath);
-		sprintf(msg, "where projectid = %ld", projectId_);
-		dbFileSource_.loadFiles(msg, true);
-	}
+	dbFileSource_.loadFiles(msg);
 	sessionImageBatch_ = 0;
 }
 
@@ -187,23 +177,21 @@ RC2::FileManager::Impl::processDBNotification(string message)
 			long fileWspace=0, fileProject=0;
 			istringstream ss(&msgStr[2]);
 			string wstr, pstr;
-			if (getline(ss, wstr, '/') && getline(ss, pstr, '/')) {
+			if (getline(ss, wstr, '/')) {
 				fileWspace = atol(wstr.c_str());
-				fileProject = atol(pstr.c_str());
 			} else {
 				throw runtime_error("failed to parse db notification");
 			}
 			ostringstream query;
 			query << " where f.id = " << fileId;
 			if (type == 'i') {
-				if (fileWspace == wspaceId_ || fileProject == projectId_) {
-					dbFileSource_.loadFiles(query.str().c_str(), fileProject == projectId_);
+				if (fileWspace == wspaceId_) {
+					dbFileSource_.loadFiles(query.str().c_str());
 					watchFile(dbFileSource_.filesById_[fileId]);
 				}
 			} else if (type == 'u') {
 				if (dbFileSource_.filesById_.count(fileId) > 0) {
-					dbFileSource_.loadFiles(query.str().c_str(), 
-						dbFileSource_.filesById_[fileId]->projectFile);
+					dbFileSource_.loadFiles(query.str().c_str());
 				}
 			}
 		}
@@ -296,7 +284,7 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 							newFileId = insertImage(fname, what[1]);
 						} else {
 							LOG(INFO) << "inotify create for " << fname << endl;
-							newFileId = dbFileSource_.insertDBFile(fname, event->wd != rootDir_.wd);
+							newFileId = dbFileSource_.insertDBFile(fname);
 							LOG(INFO) << "inserted s " << newFileId << endl;
 						}
 						if (newFileId > 0) {
@@ -416,7 +404,7 @@ RC2::FileManager::findOrAddFile(std::string fname)
 	}
 	//need to add the file
 	LOG(INFO) << "findOrAddFile adding file " << fname << endl;
-	return _impl->dbFileSource_.insertDBFile(fname, false);
+	return _impl->dbFileSource_.insertDBFile(fname);
 }
 
 string
