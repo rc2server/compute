@@ -255,12 +255,16 @@ RC2::RSession::prepareForRunLoop()
 void
 RC2::RSession::startEventLoop()
 {
+LOG(INFO) << "starting event loop" << endl;
+//	sleep(20);
+//LOG(INFO) << "sleep over" << endl;
 	event_base_loop(_impl->eventBase, 0);
 }
 
 void 
 RC2::RSession::handleJsonStatic(struct bufferevent *bev, void *ctx)
 {
+LOG(INFO) << "got input" << endl;
 	try {
 		RC2::RSession *me = static_cast<RC2::RSession*>(ctx);
 		me->_impl->inputBuffer.appendData(bufferevent_get_input(bev));
@@ -476,10 +480,9 @@ RC2::RSession::handleHelpCommand(string arg, string startTime)
 		for (Rcpp::CharacterVector::iterator itr=helpPaths.begin(); itr != helpPaths.end(); ++itr)
 			paths.push_back((char*)*itr);
 		JsonDictionary json;
-		json.addString("msg", "results");
-		json.addString("startTime", startTime);
-		json.addString("helpTopic", arg);
-		string jsonStr = json.addStringArray("helpPath", paths);
+		json.addString("msg", "help");
+		json.addString("topic", arg);
+		string jsonStr = json.addStringArray("paths", paths);
 		sendJsonToClientSource(jsonStr);
 	} catch (std::runtime_error &err) {
 		LOG(WARNING) << "help got error:" << err.what() << endl;
@@ -692,7 +695,7 @@ RC2::RSession::sendJsonToClientSource(string json)
 	if (json.length() < 1)
 		return;
 	if (_impl->socket > 0) { //only send if we have a valid socket
-		LOG(INFO) << "sending:" << json << endl;
+		LOG(INFO) << "sending:" << json << "(" << json.length() << " bytes)" << endl;
 		int32_t header[2];
 		header[0] = kRSessionMagicNumber;
 		header[1] = json.length();
