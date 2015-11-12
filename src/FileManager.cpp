@@ -255,7 +255,7 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 	struct bufferevent *evt = bufferevent_socket_new(eventBase_, inotifyFd_, 0);
 	bufferevent_setcb(evt, FileManager::Impl::handleInotifyEvent, NULL, NULL, fm);
 	bufferevent_enable(evt, EV_READ);
-	cerr << "setup notify handler\n";
+	LOG(INFO) << "setup setupInotify complete\n";
 }
 
 #define I_BUF_LEN (10 * (sizeof(struct inotify_event) + NAME_MAX + 1))
