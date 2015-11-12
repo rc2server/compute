@@ -306,8 +306,9 @@ RC2::RSession::handleJsonCommand(string json)
 			string dbuser(((json::String)doc[string("dbuser")]).Value());
 			string dbname(((json::String)doc[string("dbname")]).Value());
 			ostringstream dbarg;
-			dbarg << "postgresql://" << "/" << dbuser << "@" << dbhost << "/" 
-				<< dbname < "?application_name=rsession";
+			dbarg << "postgresql://" << dbuser << "@" << dbhost << "/" 
+				<< dbname << "?application_name=rsession";
+			LOG(INFO) << dbarg.str() << endl;
 			handleOpenCommand(dbarg.str());
 		} else {
 			if (!_impl->open) {
@@ -361,38 +362,26 @@ RC2::RSession::handleJsonCommand(string json)
 }
 
 void
-RC2::RSession::handleOpenCommand(string arg)
+RC2::RSession::handleOpenCommand(string connectString)
 {
-	bool outDir = arg.length() < 1;
-	if (outDir)
-		arg = "/tmp/" + RC2::GenerateUUID();
 	LOG(INFO) << "got open message: " << _impl->wspaceId << endl;
-	struct stat sb;
-	if (stat(arg.c_str(), &sb) == 0) {
-		if (!S_ISDIR(sb.st_mode)) {
-			//exists and not a directory
-			throw (FormatErrorAsJson(kError_Open_InvalidDir, "invalid working directory"));
-		}
-	} else {
-		//does not exist. try creating a tmp one
-		arg = "/tmp/" + GenerateUUID();
-		int rc = RC2::MakeDirectoryPath(arg, 0755);
-		if (rc != 0) {
-			throw (FormatErrorAsJson(kError_Open_CreateDirFailed, 
-				"failed to create working directory"));
-		}
+
+	string workDir = "/tmp/" + GenerateUUID();
+	int rc = RC2::MakeDirectoryPath(workDir, 0755);
+	if (rc != 0) {
+		throw (FormatErrorAsJson(kError_Open_CreateDirFailed, 
+			"failed to create working directory"));
 	}
-	_impl->tmpDir = std::move(std::unique_ptr<TemporaryDirectory>(new TemporaryDirectory(arg, outDir)));
+	_impl->tmpDir = std::move(std::unique_ptr<TemporaryDirectory>(new TemporaryDirectory(workDir, false)));
 	LOG(INFO) << "wd=" << _impl->tmpDir->getPath() << endl;
 	_impl->fileManager.setWorkingDir(_impl->tmpDir->getPath());
-	_impl->fileManager.initFileManager("postgresql://rc2@127.0.0.1/rc2?application_name=rsession",
-		_impl->wspaceId, _impl->sessionRecId);
+	_impl->fileManager.initFileManager(connectString.c_str(), _impl->wspaceId, _impl->sessionRecId);
 	_impl->fileManager.loadRData();
-	setenv("TMPDIR", arg.c_str(), 1);
-	setenv("TEMP", arg.c_str(), 1);
+	setenv("TMPDIR", workDir.c_str(), 1);
+	setenv("TEMP", workDir.c_str(), 1);
 	setenv("R_DEFAULT_DEVICE", "png", 1);
 	LOG(INFO) << "setting wd" << endl;
-	_impl->R->parseEvalQNT("setwd(\"" + escape_quotes(arg) + "\")");
+	_impl->R->parseEvalQNT("setwd(\"" + escape_quotes(workDir) + "\")");
 	_impl->ignoreOutput = true;
 	_impl->R->parseEvalQNT("library(rc2);");
 	_impl->R->parseEvalQNT("library(knitr)");

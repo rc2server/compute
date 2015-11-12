@@ -91,7 +91,6 @@ RC2::DBFileSource::loadFiles(const char *whereClause)
 	query << "select f.id::int4, f.version::int4, f.name, extract('epoch' from f.lastmodified)::int4, " 
 		"d.bindata from rcfile f join rcfiledata d on f.id = d.id " << whereClause;
 	DBResult res(PQexecParams(_impl->db_, query.str().c_str(), 0, NULL, NULL, NULL, NULL, 1));
-	ExecStatusType rc = PQresultStatus(res);
 	if (res.dataReturned()) {
 		int numfiles = PQntuples(res);
 		for (int i=0; i < numfiles; i++) {
