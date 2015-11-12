@@ -13,7 +13,7 @@ configure_file(test1.R test1.R COPYONLY)
 SET(TESTS
 	rserver
 	inputbuffer
-	inotifywatcher
+	dbfilesource
 	rsession
 )
 
