@@ -62,7 +62,7 @@ namespace RC2 {
 			string	executeRMarkdown(string arg, long fileId, string startTime, json::UnknownElement *clientExtras);
 			string	executeSweave(string arg, long fileId, string startTime, json::UnknownElement *clientExtras);
 
-			void	scheduleExecCompleteAcknowledgmenet(string stime, 
+			void	scheduleExecCompleteAcknowledgmenet(string stime, int queryId,
 						json::UnknownElement *clientExtras=nullptr, int outputFileId=0);
 			static void handleJsonStatic(struct bufferevent *bev, void *ctx);
 

@@ -33,7 +33,7 @@ namespace fs = boost::filesystem;
 extern Rboolean R_Visible;
 
 static string escape_quotes(const string before);
-static string formatErrorAsJson(int errorCode, string details);
+static string formatErrorAsJson(int errorCode, string details, int queryId=0);
 static void rc2_log_callback(int severity, const char *msg);
 
 inline double currentFractionalSeconds() {
@@ -47,8 +47,9 @@ struct ExecCompleteArgs {
 	string 		stime;
 	json::UnknownElement *clientExtras;
 	int outputFileId;
-	ExecCompleteArgs(RC2::RSession *inSession, string inTime, json::UnknownElement *inExtras) 
-		: session(inSession), stime(inTime), clientExtras(new json::UnknownElement(inExtras))
+	int queryId;
+	ExecCompleteArgs(RC2::RSession *inSession, string inTime, int inQueryId, json::UnknownElement *inExtras) 
+		: session(inSession), stime(inTime), queryId(inQueryId), clientExtras(new json::UnknownElement(inExtras))
 	{}
 	~ExecCompleteArgs() {
 		if (clientExtras) delete clientExtras;
@@ -69,6 +70,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	int								wspaceId;
 	int								sessionRecId;
 	int								socket;
+	int								currentQueryId;
 	bool							open;
 	bool							ignoreOutput;
 	bool							sourceInProgress;
@@ -76,13 +78,13 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 
 			Impl();
 	void	addFileChangesToJson(JsonDictionary& json);
-	string	acknowledgeExecComplete(string stime, json::UnknownElement *clientExtras);
+	string	acknowledgeExecComplete(string stime, int queryId, json::UnknownElement *clientExtras);
 
 	static void handleExecComplete(int fd, short event_type, void *ctx) 
 	{
 		LOG(INFO) << "handleExecComplete" << endl;
 		ExecCompleteArgs *args = reinterpret_cast<ExecCompleteArgs*>(ctx);
-		string s = args->session->_impl->acknowledgeExecComplete(args->stime, args->clientExtras);
+		string s = args->session->_impl->acknowledgeExecComplete(args->stime, args->queryId, args->clientExtras);
 		LOG(INFO) << "handleExecComplete got json:" << s << endl;
 		args->session->sendJsonToClientSource(s);
 		if (args->outputFileId > 0) {
@@ -125,11 +127,13 @@ RC2::RSession::Impl::addFileChangesToJson(JsonDictionary& json)
 }
 
 string
-RC2::RSession::Impl::acknowledgeExecComplete(string stime, json::UnknownElement *clientExtras) 
+RC2::RSession::Impl::acknowledgeExecComplete(string stime, int queryId, json::UnknownElement *clientExtras) 
 {
 	RC2::JsonDictionary json;
 	json.addString("msg", "execComplete");
 	json.addString("startTime", stime);
+	if (queryId > 0)
+		json.addInt("queryId", queryId);
 	if (clientExtras)
 		json.addObject("clientData", *clientExtras);
 	addFileChangesToJson(json);
@@ -139,10 +143,10 @@ RC2::RSession::Impl::acknowledgeExecComplete(string stime, json::UnknownElement 
 
 
 void
-RC2::RSession::scheduleExecCompleteAcknowledgmenet(string stime, 
+RC2::RSession::scheduleExecCompleteAcknowledgmenet(string stime, int queryId,
 	json::UnknownElement *clientExtras, int outputFileId)
 {
-	ExecCompleteArgs *args = new ExecCompleteArgs(this, stime, clientExtras);
+	ExecCompleteArgs *args = new ExecCompleteArgs(this, stime, queryId, clientExtras);
 	args->outputFileId = outputFileId;
 	struct timeval delay = {0, 100000};
 	struct event *ev = event_new(_impl->eventBase, -1, EV_TIMEOUT, RC2::RSession::Impl::handleExecComplete, args);
@@ -316,6 +320,7 @@ RC2::RSession::handleJsonCommand(string json)
 				return;
 			}
 			string startTimeStr = ((json::String)doc["startTime"]).Value();
+			_impl->currentQueryId = ((json::Number)doc[string("queryId")]).Value();
 			string jsonStr;
 			if (msg == "close") {
 				_impl->R->parseEvalQNT("save.image()");
@@ -330,7 +335,7 @@ RC2::RSession::handleJsonCommand(string json)
 				LOG(INFO) << "parseEvalR returned " << (ans != NULL) << endl;
 				flushOutputBuffer();
 				if (result == RInside::ParseEvalResult::PE_SUCCESS) {
-					scheduleExecCompleteAcknowledgmenet(startTimeStr);
+					scheduleExecCompleteAcknowledgmenet(startTimeStr, _impl->currentQueryId);
 					bool sendDelta = _impl->watchVariables || ((json::Boolean)doc["watchVariables"]).Value();
 					if (sendDelta)
 						jsonStr = handleListVariablesCommand(true, doc["clientData"]);
@@ -359,6 +364,7 @@ RC2::RSession::handleJsonCommand(string json)
 		LOG(WARNING) << "handleJsonCommand error: " << error.what() << endl;
 		sendJsonToClientSource(error.what());
 	}
+	_impl->currentQueryId = 0;
 }
 
 void
@@ -499,9 +505,9 @@ RC2::RSession::executeFile(long fileId, string startTime, json::UnknownElement c
 		_impl->R->parseEvalQNT(cmd);	
 		flushOutputBuffer();
 		_impl->sourceInProgress = false;
-		scheduleExecCompleteAcknowledgmenet(startTime, &clientExtras);
+		scheduleExecCompleteAcknowledgmenet(startTime, _impl->currentQueryId, &clientExtras);
 	} else {
-		result = formatErrorAsJson(kError_Execfile_InvalidInput, "unsupported file type");
+		result = formatErrorAsJson(kError_Execfile_InvalidInput, "unsupported file type", _impl->currentQueryId);
 	}
 	return result;
 }
@@ -542,10 +548,10 @@ RC2::RSession::executeRMarkdown(string arg, long fileId, string startTime, json:
 	boost::system::error_code ec;
 	if (fs::exists(htmlPath) && fs::file_size(htmlPath, ec) > 0) {
 		int fileId = _impl->fileManager.findOrAddFile(htmlName);
-		scheduleExecCompleteAcknowledgmenet(startTime, clientExtras, fileId);
+		scheduleExecCompleteAcknowledgmenet(startTime, _impl->currentQueryId, clientExtras, fileId);
 		return "";
 	}
-	return formatErrorAsJson(kError_ExecFile_MarkdownFailed, "failed to generate html");
+	return formatErrorAsJson(kError_ExecFile_MarkdownFailed, "failed to generate html", _impl->currentQueryId);
 }
 
 string
@@ -568,7 +574,7 @@ RC2::RSession::executeSweave(string arg, long fileId, string startTime, json::Un
 		_impl->R->parseEval(cmd);
 	} catch (std::runtime_error &e) {
 		sendOutputBufferToClient(true);
-		scheduleExecCompleteAcknowledgmenet(startTime, clientExtras);
+		scheduleExecCompleteAcknowledgmenet(startTime, _impl->currentQueryId, clientExtras);
 		return "";
 	}
 	fs::path texPath(scratchPath);
@@ -637,7 +643,7 @@ RC2::RSession::executeSweave(string arg, long fileId, string startTime, json::Un
 	_impl->ignoreOutput = false;
 	//TODO: delete scratchPath
 	flushOutputBuffer();
-	scheduleExecCompleteAcknowledgmenet(startTime, clientExtras, fileOutputId);
+	scheduleExecCompleteAcknowledgmenet(startTime, _impl->currentQueryId, clientExtras, fileOutputId);
 	return "";
 }
 
@@ -715,6 +721,8 @@ RC2::RSession::formatStringAsJson(const string &input, bool is_error)
 	json.addString("msg", "results");
 	json.addBool(is_error ? "stderr" : "stdout", true);
 	json.addString("string", output);
+	if (_impl->currentQueryId > 0)
+		json.addInt("queryId", _impl->currentQueryId);
 	return json;
 }
 
@@ -744,12 +752,14 @@ escape_quotes(const string before)
 }
 
 static string
-formatErrorAsJson(int errorCode, string details)
+formatErrorAsJson(int errorCode, string details, int queryId)
 {
 	RC2::JsonDictionary json;
 	json.addString("msg", "error");
 	json.addInt("errorCode", errorCode);
 	json.addString("errorDetails", details);
+	if (queryId > 0)
+		json.addInt("queryId", queryId);
 	return json;
 }
 
