@@ -326,10 +326,10 @@ RC2::RSession::handleJsonCommand(string json)
 				_impl->R->parseEvalQNT("save.image()");
 				event_base_loopbreak(_impl->eventBase);
 			} else if (msg == "clearFileChanges") {
-//				_impl->fileWatcher.startWatch(); //clears cache
+				_impl->fileManager.resetWatch(); //clears cache
 			} else if (msg == "execScript") {
 				LOG(INFO) << "exec:" << arg << endl;
-//				_impl->fileWatcher.startWatch();
+				_impl->fileManager.resetWatch();
 				SEXP ans=NULL;
 				RInside::ParseEvalResult result = _impl->R->parseEvalR(arg, ans);
 				LOG(INFO) << "parseEvalR returned " << (ans != NULL) << endl;

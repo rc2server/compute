@@ -118,10 +118,12 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 	long imgId = DBLongFromQuery(dbcon_, "select nextval('sessionimage_seq'::regclass)");
 	if (imgId <= 0)
 		throw FormattedException("failed to get session image id");
+	LOG(INFO) << "do we query batch id: " << sessionImageBatch_ << endl;
 	if (sessionImageBatch_ <= 0) {
 		stringstream batchq;
 		batchq << "select max(batchid) from sessionimage where sessionid = " << sessionRecId_;
 		sessionImageBatch_ = DBLongFromQuery(dbcon_, batchq.str().c_str()) + 1;
+		LOG(INFO) << "starting batch id is " << sessionImageBatch_ << endl;
 	}
 	stringstream query;
 	query << "insert into sessionimage (id,sessionid,batchid,name,imgdata) values (" << imgId 
@@ -368,6 +370,10 @@ RC2::FileManager::setEventBase(struct event_base *eb)
 void
 RC2::FileManager::resetWatch()
 {
+	if (_impl->imageIds_.size() > 0) {
+		_impl->sessionImageBatch_++;
+		LOG(INFO) << "incrementing batch_id:" << _impl->sessionImageBatch_ << endl;
+	}
 	_impl->imageIds_.erase(_impl->imageIds_.begin(), _impl->imageIds_.end());
 }
 
@@ -376,7 +382,7 @@ RC2::FileManager::checkWatch(vector<long> &imageIds, long &batchId)
 {
 	imageIds = _impl->imageIds_;
 	batchId = _impl->sessionImageBatch_;
-	_impl->sessionImageBatch_ = 0;
+//	_impl->sessionImageBatch_ = 0;
 }
 
 void
