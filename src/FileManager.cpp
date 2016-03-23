@@ -80,6 +80,21 @@ class RC2::FileManager::Impl {
 			FileManager *watcher = reinterpret_cast<FileManager*>(ctx);
 			watcher->_impl->handleDBNotifications();
 		}
+		
+		static void handleIgnoreFSNotesOff(int fd, short event_type, void *ctx)
+		{
+			EventCallbackWrapper *wrapper = reinterpret_cast<EventCallbackWrapper*>(ctx);
+			wrapper->impl->ignoreFSNotifications_ = false;
+			event_del(wrapper->event);
+			delete wrapper;
+		}
+		
+		void ignoreFSNotifications();
+
+	struct EventCallbackWrapper {
+		struct event *event;
+		RC2::FileManager::Impl *impl;
+	};
 
 	class StatException : public runtime_error {
 		using runtime_error::runtime_error;
@@ -140,7 +155,7 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 	LOG(INFO) << query.str() << endl;
 	LOG(INFO) << "inserted image " << imgId << " of size " << size << endl;
 	imageIds_.push_back(imgId);
-	BoolChanger(&this->ignoreFSNotifications_);
+	ignoreFSNotifications();
 	fs::remove(filePath);
 	return 0;
 }
@@ -188,11 +203,13 @@ RC2::FileManager::Impl::processDBNotification(string message)
 			query << " where f.id = " << fileId;
 			if (type == 'i') {
 				if (fileWspace == wspaceId_) {
+					ignoreFSNotifications();
 					dbFileSource_.loadFiles(query.str().c_str());
 					watchFile(dbFileSource_.filesById_[fileId]);
 				}
 			} else if (type == 'u') {
 				if (dbFileSource_.filesById_.count(fileId) > 0) {
+					ignoreFSNotifications();
 					dbFileSource_.loadFiles(query.str().c_str());
 				}
 			}
@@ -205,7 +222,7 @@ RC2::FileManager::Impl::processDBNotification(string message)
 void
 RC2::FileManager::Impl::handleDBNotifications()
 {
-	BoolChanger(&this->ignoreFSNotifications_);
+	ignoreFSNotifications();
 	PGnotify *notify;
 	PQconsumeInput(dbcon_);
 	while((notify = PQnotifies(dbcon_)) != NULL) {
@@ -234,6 +251,23 @@ RC2::FileManager::Impl::readFileBlob(DBFileInfoPtr fobj, size_t &size)
 	return ReadFileBlob(filePath, size);
 }
 
+//this should be called to turn ignoreFSNotes on. It schedules a low priority event
+// to turn it off. That way any higher priority events can be processed before turing this flag off
+void
+RC2::FileManager::Impl::ignoreFSNotifications() 
+{
+	if (ignoreFSNotifications_) { return; } //already set
+	ignoreFSNotifications_ = true;
+	struct timeval timeout = {0,5000}; //5 milliseconds
+	struct EventCallbackWrapper *wrapper = new EventCallbackWrapper();
+	wrapper->impl = this;
+	struct event *evt = event_new(eventBase_, -1, 
+		EV_TIMEOUT, RC2::FileManager::Impl::handleIgnoreFSNotesOff, wrapper);
+	wrapper->event = evt;
+	event_priority_set(evt, 2); //so inotify events handled first
+	event_add(evt, &timeout);
+}
+
 #pragma mark -
 
 void
@@ -255,6 +289,7 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 	}
 	
 	struct bufferevent *evt = bufferevent_socket_new(eventBase_, inotifyFd_, 0);
+	bufferevent_priority_set(evt, 0); //high priority
 	bufferevent_setcb(evt, FileManager::Impl::handleInotifyEvent, NULL, NULL, fm);
 	bufferevent_enable(evt, EV_READ);
 	LOG(INFO) << "setup setupInotify complete\n";
@@ -265,7 +300,7 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 void
 RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 {
-	BoolChanger(&this->ignoreDBNotifications_);
+	ignoreFSNotifications();
 	if (ignoreFSNotifications_)
 		return;
 	char buf[I_BUF_LEN];
@@ -351,6 +386,7 @@ RC2::FileManager::initFileManager(string connectString, int wspaceId, int sessio
 	DBResult listenRes(_impl->dbcon_, "listen rcfile");
 	struct event *evt = event_new(_impl->eventBase_, PQsocket(_impl->dbcon_), 
 		EV_READ|EV_PERSIST, RC2::FileManager::Impl::handleDBNotify, this);
+	event_priority_set(evt, 2); //so inotify events handled first
 	event_add(evt, NULL);
 }
 

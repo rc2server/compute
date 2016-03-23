@@ -240,6 +240,8 @@ RC2::RSession::prepareForRunLoop()
 	event_config_require_features(config, EV_FEATURE_FDS);
 	_impl->eventBase = event_base_new_with_config(config);
 	event_config_free(config);
+	//0=high, 1=normal, 2=low, 3=lowlow. default is num/2, so we need 4 to make default=1
+	event_base_priority_init(_impl->eventBase, 4); 
 	evutil_make_socket_nonblocking(_impl->socket);
 	_impl->eventBuffer = bufferevent_socket_new(_impl->eventBase, _impl->socket, 0);
 	if (_impl->eventBuffer == nullptr) {
