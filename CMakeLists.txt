@@ -55,18 +55,21 @@ set(CPP-NETLIB_LIBRARY_DIR "${binary_dir}/libs/network/src")
 set(CPP-NETLIB_LIBRARIES "cppnetlib-uri" "cppnetlib-client-connections")
 link_directories(${CPP-NETLIB_LIBRARY_DIR})
 
-
+#R installed from sources uses /usr/local/lib/R/library while it uses /usr/local/lib/R/site-library if installed via rpm
 include_directories (${CMAKE_CURRENT_SOURCE_DIR} 
 	${CMAKE_ROOT}
 	${CPPNET-LIB_INCLUDE_DIR}
 	/usr/include
 	/usr/include/postgresql
+	/usr/local/lib/R/library/RInside/include
+	/usr/local/lib/R/library/Rcpp/include
 	/usr/local/lib/R/site-library/RInside/include
 	/usr/local/lib/R/site-library/Rcpp/include
 	/usr/local/lib/R/include)
 
 link_directories (
 	/usr/local/lib/R/site-library/RInside/lib
+	/usr/local/lib/R/library/RInside/libs
 	/usr/local/lib/R/lib
 )
 
@@ -79,4 +82,4 @@ add_executable(rsession src/RSession-main.cpp)
 add_executable(rserver src/RServer-main.cpp)
 
 target_link_libraries(rserver src common ${Compute_Libs})
-target_link_libraries(rsession src common pthread ${Compute_Libs} R RInside ${NETLIB_LIBRARIES})
+target_link_libraries(rsession src common pthread ${Compute_Libs} R -l:RInside.so ${NETLIB_LIBRARIES})
