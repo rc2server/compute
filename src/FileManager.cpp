@@ -116,6 +116,13 @@ RC2::FileManager::Impl::connect(string str, long wspaceId, long sessionRecId)
 	sessionRecId_ = sessionRecId;
 	dbcon_ = PQconnectdb(str.c_str());
 	//TODO: error checking
+	if (NULL == dbcon_) {
+		LOG(ERROR) << "PQconnectdb returned NULL" << endl;
+		abort();
+	} else if (PQstatus(dbcon_) != CONNECTION_OK) {
+		LOG(ERROR) << "failed to connect to database: " << PQerrorMessage(dbcon_) << endl;
+		abort();
+	}
 	char msg[255];
 	dbFileSource_.initializeSource(dbcon_, wspaceId_);
 	snprintf(msg, 255, "where wspaceid = %ld", wspaceId_);

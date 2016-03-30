@@ -50,7 +50,7 @@ RC2::DBFileSource::loadRData()
 {
 	string filepath = _impl->workingDir_ + "/.RData";
 	ostringstream query;
-	query << "select bindata from workspacedata where id = " << _impl->wspaceId_;
+	query << "select bindata from rcworkspacedata where id = " << _impl->wspaceId_;
 	DBResult res(PQexecParams(_impl->db_, query.str().c_str(), 0, NULL, NULL, NULL, NULL, 1));
 	ExecStatusType rc = PQresultStatus(res);
 	if (res.dataReturned()) {
@@ -72,15 +72,14 @@ RC2::DBFileSource::saveRData()
 		return;
 	unique_ptr<char[]> data = ReadFileBlob(filePath, newSize);
 	ostringstream query;
-	query << "update workspacedata set bindata = $1 where id = " << _impl->wspaceId_;
-	Oid in_oid[] = {1043};
+	query << "update rcworkspacedata set bindata = $1::bytea where id = " << _impl->wspaceId_;
 	int pformats[] = {1};
 	int pSizes[] = {(int)newSize};
 	const char *params[] = {data.get()};
-	DBResult res(PQexecParams(_impl->db_, query.str().c_str(), 1, in_oid, params, 
+	DBResult res(PQexecParams(_impl->db_, query.str().c_str(), 1, NULL, params, 
 		pSizes, pformats, 1));
 	if (!res.commandOK()) {
-		throw FormattedException("failed to update workspacedata %ld: %s", _impl->wspaceId_, res.errorMessage());
+		throw FormattedException("failed to update rcworkspacedata %ld: %s", _impl->wspaceId_, res.errorMessage());
 	}
 }
 
