@@ -129,6 +129,7 @@ RC2::RSession::Impl::addFileChangesToJson(JsonDictionary& json)
 string
 RC2::RSession::Impl::acknowledgeExecComplete(string stime, int queryId, json::UnknownElement *clientExtras) 
 {
+	LOG(INFO) << "exedc complete posting" << endl;
 	RC2::JsonDictionary json;
 	json.addString("msg", "execComplete");
 	json.addString("startTime", stime);
@@ -314,6 +315,12 @@ RC2::RSession::handleJsonCommand(string json)
 			ostringstream dbarg;
 			dbarg << "postgresql://" << dbuser << "@" << dbhost << "/" 
 				<< dbname << "?application_name=rsession";
+			//if no password, will throw exception we ignore
+			try {
+				string dbpass(((json::String)doc[string("dbpass")]).Value());
+				dbarg << "&password=" << dbpass;
+			}catch (...) {
+			}
 			LOG(INFO) << dbarg.str() << endl;
 			handleOpenCommand(dbarg.str());
 		} else {
@@ -373,7 +380,10 @@ void
 RC2::RSession::handleOpenCommand(string connectString)
 {
 	LOG(INFO) << "got open message: " << _impl->wspaceId << endl;
-
+	if (NULL ==  _impl->eventBase) {
+		LOG(ERROR) << "handleOpenCommand called before prepareForRunLoop()" << endl;
+		abort();
+	}
 	string workDir = "/tmp/" + GenerateUUID();
 	int rc = RC2::MakeDirectoryPath(workDir, 0755);
 	if (rc != 0) {

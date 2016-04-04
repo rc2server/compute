@@ -35,7 +35,7 @@ namespace RC2 {
 			bool 	parseArguments(int argc, char *argv[]);
 			void	prepareForRunLoop();
 			void	installExitHandler(void(*)(short flags));
-			void	startEventLoop();
+			virtual void	startEventLoop();
 
 			RSessionCallbacks* getCallbacks() const { return _callbacks; }
 			void setCallbacks(RSessionCallbacks *cbs) { _callbacks = cbs; }
