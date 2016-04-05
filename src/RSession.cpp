@@ -434,7 +434,6 @@ RC2::RSession::handleListVariablesCommand(bool delta, JsonCommand& command)
 	if (delta)
 		rArg = "delta=TRUE";
 	string cmd("rc2.listVariables(" + rArg + ")");
-	JsonDictionary json;
 	_impl->ignoreOutput = true;
 	try {
 		Rcpp::CharacterVector rResults = _impl->R->parseEval(cmd);

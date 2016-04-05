@@ -3,7 +3,6 @@
 #include <string>
 #include <memory>
 #include <stdlib.h>
-#include "json/elements.h"
 
 namespace RC2 {
 
@@ -28,26 +27,6 @@ class TemporaryDirectory {
 		std::string		_path;
 		bool			_eraseOnDeath;
 
-};
-
-class JsonDictionary {
-	public:
-					JsonDictionary();
-	virtual			~JsonDictionary();
-	
-					operator std::string () const;
-			std::string	string() const;
-	
-			void 	addString(std::string key, std::string value);
-			void	addBool(std::string key, bool value);
-			void	addInt(std::string key, int value);
-			void	addLong(std::string key, long value);
-			void	addObject(std::string key, json::Object &value);
-			std::string	addStringArray(std::string key, std::vector<std::string> strings);
-			void	addLongArray(std::string key, std::vector<long> longs);
-	
-	private:
-		json::Object	_doc;
 };
 
 };

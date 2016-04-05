@@ -4,7 +4,6 @@
 #include <memory>
 #include <stdint.h>
 #include <functional>
-#include <json/elements.h>
 #include <boost/noncopyable.hpp>
 #include "JsonCommand.hpp"
 

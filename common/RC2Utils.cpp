@@ -10,8 +10,6 @@ typedef char* uuid_string_t;
 #include <cerrno>
 #include <fstream>
 #include <boost/filesystem.hpp>
-#include "json/reader.h"
-#include "json/writer.h"
 
 RC2::TemporaryDirectory::TemporaryDirectory()
 {
@@ -37,80 +35,6 @@ RC2::TemporaryDirectory::~TemporaryDirectory()
 		boost::filesystem::remove_all(_path);
 }
 
-RC2::JsonDictionary::JsonDictionary()
-{
-}
-
-RC2::JsonDictionary::~JsonDictionary()
-{
-}
-
-void
-RC2::JsonDictionary::addBool(std::string key, bool val)
-{
-	_doc[key] = json::Boolean(val);
-}
-
-void
-RC2::JsonDictionary::addInt(std::string key, int value)
-{
-	_doc[key] = json::Number(value);
-}
-
-void
-RC2::JsonDictionary::addLong(std::string key, long value)
-{
-	_doc[key] = json::Number(value);
-}
-
-void
-RC2::JsonDictionary::addString(std::string key, std::string value)
-{
-	_doc[key] = json::String(value);
-}
-
-void
-RC2::JsonDictionary::addObject(std::string key, json::Object &value)
-{
-	_doc[key] = value;
-}
-
-//rapidjson is fucked up w/o a copy syntax. so the array added to doc is dealloc'd
-// when this method returns.
-std::string
-RC2::JsonDictionary::addStringArray(std::string key, std::vector<std::string> strings)
-{
-	json::Array array;
-	for (std::vector<std::string>::const_iterator i = strings.begin(); i != strings.end(); ++i) {
-		array.Insert(json::String(*i));
-	}
-	_doc[key] = array;
-	return string();
-}
-
-void
-RC2::JsonDictionary::addLongArray(std::string key, std::vector<long> longs)
-{
-	json::Array array;
-	for (auto itr = longs.begin(); itr != longs.end(); ++itr) {
-		array.Insert(json::Number(*itr));
-	}
-	_doc[key] = array;
-}
-
-std::string
-RC2::JsonDictionary::string() const
-{
-	std::stringstream stream;
-	json::Writer::Write(_doc, stream, false);
-	return stream.str();
-}
-
-RC2::JsonDictionary::operator std::string () const
-{
-	return string();
-}
-
 std::string
 RC2::SlurpFile(const char *filename)
 {
@@ -125,16 +49,6 @@ RC2::SlurpFile(const char *filename)
 		return (contents);
 	}
 	throw(errno);
-}
-
-std::runtime_error 
-RC2::FormatErrorAsJson(int errorCode, std::string details)
-{
-	RC2::JsonDictionary json;
-	json.addString("msg", "error");
-	json.addInt("errorCode", errorCode);
-	json.addString("errorDetails", details);
-	return std::runtime_error(json);
 }
 
 std::unique_ptr<char[]>
