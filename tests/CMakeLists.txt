@@ -19,6 +19,6 @@ SET(TESTS
 
 FOREACH(test ${TESTS})
 	add_executable(${test}-t ${test}-t.cpp)
-	target_link_libraries(${test}-t src event common R -l:RInside.so ${Compute_Libs} ${GTEST_BOTH_LIBRARIES} pthread)
+	target_link_libraries(${test}-t src event common R -l:RInside.so ${Compute_Libs} ${GTEST_BOTH_LIBRARIES} pthread -lm)
 	add_test(${test} ${test}-t)
 ENDFOREACH()

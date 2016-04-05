@@ -2,35 +2,48 @@
 #include <string>
 #include <iostream>
 #include <queue>
+#include <event2/event.h>
 #include <glog/logging.h>
 #include "common/RC2Utils.hpp"
+#include "json.hpp"
 #include "../src/RSession.hpp"
 #include "../src/RSessionCallbacks.hpp"
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 
+using json = nlohmann::json;
 using namespace std;
 namespace fs = boost::filesystem;
 
 namespace RC2 {
 
-string
-stringForJsonKey(json::Object &obj, string key) {
-	return ((json::String)obj[key]).Value();
-}
-
-int
-intValueFromVariableArray(json::Array &array, string key, string value) {
-	for (auto itr=array.Begin(); itr != array.End(); ++itr) {
-		json::Object obj = (*itr);
-		string val = ((json::String)obj[key]).Value();
-		if (val == value) {
-			json::Array valArray(obj["value"]);
-			return ((json::Number)valArray[0]).Value();
+	map<string,int64_t> mapArayToMapMap(json jarray) {
+		map<string,int64_t> outMap;
+		for(auto& element : jarray) {
+			outMap[element["name"]] =  element["value"][0];
 		}
+		return outMap;
 	}
-	return -1;
-}
+	
+	static void myevent_logger(int severity, const char *msg) {
+		string val(msg);
+// 		stderr << val << endl;
+	}
+	
+// int
+// intValueFromVariableArray(json &array, string key, string value) {
+// 	for (auto itr=array.begin(); itr != array.end(); ++itr) {
+// 		auto val = *itr;
+// 		if (!val.is_null() && val == value)
+// 		
+// 		string val = ((json::String)obj[key]).Value();
+// 		if (val == value) {
+// 			json::Array valArray(obj["value"]);
+// 			return ((json::Number)valArray[0]).Value();
+// 		}
+// 	}
+// 	return -1;
+// }
 
 
 class TestingSession : public RSession {
@@ -41,15 +54,24 @@ class TestingSession : public RSession {
 		bool fileExists(string filename);
 		void copyFileToWorkingDirectory(string srcPath);
 		void removeAllWorkingFiles();
+		virtual void startEventLoop();
 		
 		void doJson(std::string json);
+		void stopLoopWhenEmpty() { event_base_loopexit((struct event_base*)getEventBase(), NULL); }
 		
 		inline void emptyMessages() { while (!_messages.empty()) _messages.pop(); }
 		
-		json::Object popMessage();
+		json2 popMessage();
 		
 		queue<string> _messages;
 };
+
+void
+TestingSession::startEventLoop()
+{
+	LOG(INFO) << "starting testing event loop" << endl;
+	event_base_loop((struct event_base*)getEventBase(), EVLOOP_NONBLOCK);
+}
 
 void
 TestingSession::sendJsonToClientSource(std::string json) {
@@ -87,20 +109,11 @@ TestingSession::removeAllWorkingFiles()
 	}
 }
 
-json::Object
+json2
 TestingSession::popMessage() {
-	string json = _messages.front();
-	json::Object doc;
-	try {
-		std::istringstream ist(json);
-		json::Reader::Read(doc, ist);
-		_messages.pop();
-	} catch (json::Reader::ParseException &pe) {
-		cerr << "parse exception:" << pe.what() << endl;
-	} catch (std::exception &ex) {
-		cerr << "unknown exception parsing:" << ex.what() << endl;
-	}
-	return doc;
+	string str = _messages.front();
+	json2 j = json2::parse(str);
+	return j;
 }
 
 void
@@ -122,7 +135,9 @@ namespace testing {
 //				);
 				callbacks = new RSessionCallbacks();
 				session = new TestingSession(callbacks);
-				session->doJson("{\"msg\":\"open\", \"argument\": \"\", \"wspaceId\":154}");
+				event_set_log_callback(myevent_logger);
+				session->prepareForRunLoop();
+				session->doJson("{\"msg\":\"open\", \"argument\": \"\", \"wspaceId\":1, \"sessionRecId\":1, \"dbhost\":\"localhost\", \"dbuser\":\"rc2\", \"dbname\":\"rc2test\", \"dbpass\":\"rc2\"}");
 				cerr << "SetupTestCase session open\n";
 			}
 		
@@ -150,10 +165,15 @@ namespace testing {
 	TEST_F(SessionTest, basicScript)
 	{
 		session->doJson("{\"msg\":\"execScript\", \"argument\":\"2*2\"}");
-		ASSERT_EQ(session->_messages.size(), 2);
-		json::Object results1 = session->popMessage();
-		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "results");
-		ASSERT_TRUE(stringForJsonKey(results1, "string") == "[1] 4\n");
+		session->startEventLoop();
+		struct timespec tm = {0, 5000};
+		nanosleep(&tm, NULL);
+		session->startEventLoop();
+		//		session->stopLoopWhenEmpty();
+		ASSERT_EQ(session->_messages.size(), 1); //no execComplete 'cause now after timer and no run loopin tests
+		json results1 = session->popMessage();
+		ASSERT_TRUE(results1["msg"] == "results");
+		ASSERT_TRUE(results1["string"] == "[1] 4\n");
 	}
 
 	TEST_F(SessionTest, execFiles)
@@ -161,9 +181,9 @@ namespace testing {
 		session->copyFileToWorkingDirectory("test1.R");
 		session->doJson("{\"msg\":\"execFile\", \"argument\":\"test1.R\"}");
 		ASSERT_EQ(session->_messages.size(), 2);
-		json::Object results1 = session->popMessage();
-		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "results");
-		ASSERT_TRUE(stringForJsonKey(results1, "string") == "\n> x <- 4\n\n> x * x\n[1] 16\n");
+		json results = session->popMessage();
+		ASSERT_TRUE(results["msg"] == "results");
+		ASSERT_TRUE(results["string"] == "\n> x <- 4\n\n> x * x\n[1] 16\n");
 	}
 
 	TEST_F(SessionTest, execRMD)
@@ -171,8 +191,8 @@ namespace testing {
 		session->copyFileToWorkingDirectory("test1.Rmd");
 		session->doJson("{\"msg\":\"execFile\", \"argument\":\"test1.Rmd\"}");
 		ASSERT_EQ(session->_messages.size(), 1);
-		json::Object results1 = session->popMessage();
-		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "execComplete");
+		json results = session->popMessage();
+		ASSERT_TRUE(results["msg"] == "execComplete");
 		ASSERT_TRUE(session->fileExists("test1.html"));
 	}
 
@@ -181,8 +201,8 @@ namespace testing {
 		session->copyFileToWorkingDirectory("test1.Rnw");
 		session->doJson("{\"msg\":\"execFile\", \"argument\":\"test1.Rnw\"}");
 		ASSERT_EQ(session->_messages.size(), 1);
-		json::Object results1 = session->popMessage();
-		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "execComplete");
+		json results = session->popMessage();
+		ASSERT_TRUE(results["msg"] == "execComplete");
 		ASSERT_TRUE(session->fileExists("test1.pdf"));
 	}
 
@@ -190,18 +210,19 @@ namespace testing {
 	{
 		session->doJson("{\"msg\":\"execScript\", \"argument\":\"plot(rnorm(11))\"}");
 		ASSERT_EQ(session->_messages.size(), 1);
-		json::Object results1 = session->popMessage();
-		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "execComplete");
+		json results = session->popMessage();
+		ASSERT_TRUE(results["msg"] == "execComplete");
 		ASSERT_TRUE(session->fileExists("rc2img001.png"));
 	}
 
 	TEST_F(SessionTest, singleHelp)
 	{
+		session->emptyMessages();
 		session->doJson("{\"msg\":\"help\", \"argument\":\"lm\"}");
 		ASSERT_EQ(session->_messages.size(), 1);
-		json::Object results1 = session->popMessage();
-		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "results");
-		ASSERT_TRUE(stringForJsonKey(results1, "helpTopic") == "lm");
+		json results = session->popMessage();
+		ASSERT_TRUE(results["msg"] == "help");
+		ASSERT_TRUE(results["topic"] == "lm");
 	}
 
 /*	TEST_F(SessionTest, multipleHelp)
@@ -220,13 +241,9 @@ namespace testing {
 		session->emptyMessages();
 		session->doJson("{\"msg\":\"getVariable\", \"argument\":\"testVar\"}");
 		ASSERT_EQ(session->_messages.size(), 1);
-		json::Object results1 = session->popMessage();
-		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "variablevalue");
-		json::Object valObj = results1["value"];
-		json::Array valArray = valObj["value"];
-		int firstVal = (static_cast<json::Number>(valArray[0])).Value();
-		cerr << "firstVal=" << firstVal << endl;
-		ASSERT_TRUE(firstVal == 22);
+		json results = session->popMessage();
+		ASSERT_TRUE(results["msg"] == "variablevalue");
+		ASSERT_TRUE(results["value"]["value"][0] == 22);
 	}
 
 	TEST_F(SessionTest, listVariables)
@@ -236,29 +253,11 @@ namespace testing {
 		session->emptyMessages();
 		session->doJson("{\"msg\":\"listVariables\", \"argument\":\"\", \"watch\":true}");
 		ASSERT_EQ(session->_messages.size(), 1);
-		json::Object results1 = session->popMessage();
-		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "variableupdate");
-		json::Object valObj = results1["variables"];
-		json::Array valArray = valObj["values"];
-		int val = intValueFromVariableArray(valArray, "name", "x");
-		ASSERT_EQ(val, 22);
-		val = intValueFromVariableArray(valArray, "name", "y");
-		ASSERT_EQ(val, 11);
-		
-		//check that delta changes are being sent
-		session->emptyMessages();
-		ASSERT_EQ(session->_messages.size(), 0);
-		session->doJson("{\"msg\":\"execScript\", \"argument\":\"x<-x + y\"}");
-		ASSERT_EQ(session->_messages.size(), 2);
-		results1 = session->popMessage();
-		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "execComplete");
-		results1 = session->popMessage();
-		ASSERT_TRUE(stringForJsonKey(results1, "msg") == "variableupdate");
-		ASSERT_TRUE(((json::Boolean)results1["delta"]).Value());
-		valObj = results1["variables"];
-		valArray = valObj["values"];
-		val = intValueFromVariableArray(valArray, "name", "x");
-		ASSERT_EQ(val, 33);
+		json results = session->popMessage();
+		auto elems = mapArayToMapMap(results["variables"]["values"]);
+		ASSERT_TRUE(results["msg"] == "variableupdate");
+		ASSERT_EQ(elems["x"], 22);
+		ASSERT_EQ(elems["y"], 11);
 	}
 
 };
