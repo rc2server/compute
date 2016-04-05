@@ -25,7 +25,7 @@ add_definitions(-std=c++11)
 SET(CMAKE_CXX_FLAGS "-std=c++11 -DBOOST_LOG_DYN_LINK")
 #following fixes compile error because somehow -rdynamic is getting set as a linker flag
 SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
-SET(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "-Wl,--no-export-dynamic")
+SET(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "-Wl,--no-export-dynamic -lstdc++")
 
 SET(Compute_Libs
 	event
@@ -59,6 +59,7 @@ link_directories(${CPP-NETLIB_LIBRARY_DIR})
 include_directories (${CMAKE_CURRENT_SOURCE_DIR} 
 	${CMAKE_ROOT}
 	${CPPNET-LIB_INCLUDE_DIR}
+	${CMAKE_SOURCE_DIR}/vendor
 	/usr/include
 	/usr/include/postgresql
 	/usr/local/lib/R/library/RInside/include
@@ -82,4 +83,4 @@ add_executable(rsession src/RSession-main.cpp)
 add_executable(rserver src/RServer-main.cpp)
 
 target_link_libraries(rserver src common ${Compute_Libs})
-target_link_libraries(rsession src common pthread ${Compute_Libs} R -l:RInside.so ${NETLIB_LIBRARIES})
+target_link_libraries(rsession src common pthread ${Compute_Libs} R -l:RInside.so ${NETLIB_LIBRARIES} -lm)

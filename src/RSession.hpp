@@ -6,6 +6,7 @@
 #include <functional>
 #include <json/elements.h>
 #include <boost/noncopyable.hpp>
+#include "JsonCommand.hpp"
 
 using std::string;
 
@@ -53,19 +54,23 @@ namespace RC2 {
 			void	sendOutputBufferToClient(bool is_error);
 			void	sendTextToClient(string text, bool is_error=false);
 			void	handleJsonCommand(string json);
-			void	handleOpenCommand(string arg);
-			void	handleHelpCommand(string arg, string startTime);
-			string	handleListVariablesCommand(bool delta, json::UnknownElement clientExtras);
-			string	handleGetVariableCommand(string varName, string startTime);
+			void	handleOpenCommand(JsonCommand& command);
+			void	handleHelpCommand(JsonCommand& command);
+			void	handleListVariablesCommand(bool delta, JsonCommand& command);
+			void	handleGetVariableCommand(JsonCommand& command);
 
-			string	executeFile(long fileId, string startTime, json::UnknownElement clientExtras);
-			string	executeRMarkdown(string arg, long fileId, string startTime, json::UnknownElement *clientExtras);
-			string	executeSweave(string arg, long fileId, string startTime, json::UnknownElement *clientExtras);
+			void	handleExecuteScript(JsonCommand& command);
+			void	executeFile(JsonCommand& command);
+			void	executeRMarkdown(string filePath, long fileId, JsonCommand& command);
+			void	executeSweave(string filePath, long fileId, JsonCommand& command);
 
-			void	scheduleExecCompleteAcknowledgmenet(string stime, int queryId,
-						json::UnknownElement *clientExtras=nullptr, int outputFileId=0);
+			void	scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int queryId, int outputFileId=0);
 			static void handleJsonStatic(struct bufferevent *bev, void *ctx);
 
+			//this is likely needed for subclasses (like in a unit test)
+			//caller will have to cast to event_base*
+			struct event_base*	getEventBase() const;
+			
 			struct Impl;
 			std::unique_ptr<Impl>		_impl;
 			RSessionCallbacks*		 	_callbacks;

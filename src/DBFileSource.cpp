@@ -37,6 +37,12 @@ RC2::DBFileSource::initializeSource(PGconn *con, long wsid)
 {
 	_impl->db_ = con;
 	_impl->wspaceId_ = wsid;
+	//verify workspace exists in database
+	ostringstream query;
+	query << "select id,name from rcworkspace where id = " << wsid;
+	DBResult res(PQexec(con, query.str().c_str()));
+	if (!res.dataReturned() || PQntuples(res) < 1)
+		throw std::runtime_error((format("invalid workspace id: %1%") % wsid).str());
 }
 
 void
