@@ -49,11 +49,13 @@ struct ExecCompleteArgs {
 	RC2::RSession *session;
 	RC2::JsonCommand command;
 	int outputFileId;
+	string outputFileName;
 	int queryId;
-	ExecCompleteArgs(RC2::RSession *inSession, RC2::JsonCommand inCommand, int inQueryId) 
-		: session(inSession), queryId(inQueryId), command(inCommand)
+	ExecCompleteArgs(RC2::RSession *inSession, RC2::JsonCommand inCommand, int inQueryId, int outputId=0, string outputName="") 
+		: session(inSession), queryId(inQueryId), command(inCommand), outputFileId(outputId), outputFileName(outputName)
 	{}
 };
+
 
 struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	struct event_base*				eventBase;
@@ -75,7 +77,9 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	bool							watchVariables;
 
 			Impl();
-	void	addFileChangesToJson(json2& json);
+			Impl(const Impl &copy) = delete;
+			Impl& operator=(const Impl&) = delete;
+			void	addFileChangesToJson(json2& json);
 	string	acknowledgeExecComplete(JsonCommand &command, int queryId);
 
 	static void handleExecComplete(int fd, short event_type, void *ctx) 
@@ -85,12 +89,31 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 		LOG(INFO) << "handleExecComplete got json:" << s << endl;
 		args->session->sendJsonToClientSource(s);
 		if (args->outputFileId > 0) {
-			json2 results = { {"msg", "showoutput"}, {"fileId", args->outputFileId} };
+			json2 results = { {"msg", "showoutput"}, {"fileId", args->outputFileId}, {"fileName", args->outputFileName} };
 			args->session->sendJsonToClientSource(results.dump());
 			LOG(INFO) << "sending showoutput:" << results << endl;
 		}
 		delete args;
 	}
+
+	class NotifySuspender {
+		Impl& _impl;
+	public:
+		NotifySuspender(Impl &impl)
+		:_impl(impl)
+		{
+			_impl.ignoreOutput = true;
+//			_impl.fileManager.suspendNotifyEvents();
+		}
+		
+		~NotifySuspender()
+		{
+			_impl.ignoreOutput = false;
+//			_impl.fileManager.resumeNotifyEvents();
+		}
+		
+	};
+	
 };
 
 
@@ -139,10 +162,9 @@ RC2::RSession::Impl::acknowledgeExecComplete(JsonCommand& command, int queryId)
 
 void
 RC2::RSession::scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int queryId,
-	int outputFileId)
+	int outputFileId, string outputFileName)
 {
-	ExecCompleteArgs *args = new ExecCompleteArgs(this, command, queryId);
-	args->outputFileId = outputFileId;
+	ExecCompleteArgs *args = new ExecCompleteArgs(this, command, queryId, outputFileId, outputFileName);
 	struct timeval delay = {0, 1};
 	struct event *ev = event_new(_impl->eventBase, -1, 0, 	RC2::RSession::Impl::handleExecComplete, args);
 	event_priority_set(ev, 0);
@@ -372,7 +394,7 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		string dbname(cmd.valueForKey("dbname"));
 		ostringstream connectString;
 		connectString << "postgresql://" << dbuser << "@" << dbhost << "/" 
-			<< dbname << "?application_name=rsession";
+			<< dbname << "?application_name=rsession&sslmode=disable";
 		string dbpass(cmd.valueForKey("dbpass"));
 		if (dbpass.length() > 0)
 			connectString << "&password=" << dbpass;
@@ -540,35 +562,39 @@ RC2::RSession::executeRMarkdown(string filePath, long fileId, JsonCommand& comma
 	create_directories(scratchPath);
 	string rcmd = "setwd('" + escape_quotes(scratchPath.string()) + "')";
 	_impl->R->parseEvalNT(rcmd);
-
+	bool fileGenerated = false;
 	fs::path origFileName(filePath);
 	string mdname = origFileName.stem().native() + ".md";
 	string htmlName = origFileName.stem().native() + ".html";
 	rcmd = "knit(\"../" + escape_quotes(filePath) + "\"); markdownToHTML(\"" 
 		+ escape_quotes(mdname) + "\", \"" + escape_quotes(htmlName) + "\");";
-	_impl->ignoreOutput = true;
-	_impl->R->parseEvalQNT(rcmd);
-	_impl->ignoreOutput = false;
-	flushOutputBuffer();
 
+	{
+		Impl::NotifySuspender suspender(*_impl);
+		_impl->R->parseEvalQNT(rcmd);
+		flushOutputBuffer();
+	}
 	//switch working dir back
-	rcmd = "setwd('" + escape_quotes(scratchPath.parent_path().string()) + "')";
-	_impl->R->parseEvalNT(rcmd);
+		rcmd = "setwd('" + escape_quotes(scratchPath.parent_path().string()) + "')";
+		_impl->R->parseEvalNT(rcmd);
+		
+		//move generated html to tmpDir
+		fs::path tmpHtml = scratchPath;
+		tmpHtml /= htmlName;
+		fs::path htmlPath = _impl->tmpDir->getPath();
+		htmlPath /= htmlName;
+		fs::copy_file(tmpHtml, htmlPath, fs::copy_option::overwrite_if_exists);
+		//delete scratch dir
+		fs::remove_all(scratchPath);
+		LOG(INFO) << "should be html at " << htmlPath << endl;
+		boost::system::error_code ec;
+		fileGenerated = fs::exists(htmlPath) && fs::file_size(htmlPath, ec) > 0;
+//	}
 	
-	//move generated html to tmpDir
-	fs::path tmpHtml = scratchPath;
-	tmpHtml /= htmlName;
-	fs::path htmlPath = _impl->tmpDir->getPath();
-	htmlPath /= htmlName;
-	fs::copy_file(tmpHtml, htmlPath, fs::copy_option::overwrite_if_exists);
-	//delete scratch dir
-	fs::remove_all(scratchPath);
-	LOG(INFO) << "should be html at " << htmlPath << endl;
-
-	boost::system::error_code ec;
-	if (fs::exists(htmlPath) && fs::file_size(htmlPath, ec) > 0) {
+	if (fileGenerated) {
+		Impl::NotifySuspender suspender(*_impl);
 		int fileId = _impl->fileManager.findOrAddFile(htmlName);
-		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId, fileId);
+		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId, fileId, htmlName);
 	} else {
 		formatErrorAsJson(kError_ExecFile_MarkdownFailed, "failed to generate html", _impl->currentQueryId);
 	}
@@ -660,7 +686,7 @@ RC2::RSession::executeSweave(string filePath, long fileId, JsonCommand& command)
 	_impl->ignoreOutput = false;
 	//TODO: delete scratchPath
 	flushOutputBuffer();
-	scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId, fileOutputId);
+	scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId, fileOutputId, basePdfName);
 }
 
 void

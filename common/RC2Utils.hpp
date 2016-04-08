@@ -29,4 +29,17 @@ class TemporaryDirectory {
 
 };
 
+struct BooleanWatcher {
+	BooleanWatcher(bool* ptr)
+	:_ptr(ptr)
+	{
+		*_ptr = true;
+	}
+	~BooleanWatcher() { 
+		*_ptr = false;
+	}
+private:
+	bool* _ptr;
+};
+
 };

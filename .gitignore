@@ -4,3 +4,4 @@ build
 *.so
 *.o
 *.a
+.kdev4

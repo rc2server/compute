@@ -40,7 +40,7 @@ class TestingSession : public RSession {
 		
 		bool fileExists(string filename);
 		void copyFileToWorkingDirectory(string srcPath);
-		void removeAllWorkingFiles();
+// 		void removeAllWorkingFiles();
 		
 		void doJson(std::string json);
 		
@@ -49,6 +49,7 @@ class TestingSession : public RSession {
 		json2 popMessage();
 		
 		void startCountdown(int count);
+		void executeDelayedJson(string msg);
 		
 		event_base* cheatBase() { return getEventBase(); }
 		queue<string> _messages;
@@ -60,6 +61,26 @@ void TestingSession::startCountdown ( int count )
 {
 	countDown = count; 
 	countingDown = true;
+}
+
+void TestingSession::executeDelayedJson ( string msg )
+{
+	struct DelayJson {
+		TestingSession *session;
+		string msg;
+	};
+	DelayJson *arg = new DelayJson();
+	arg->session = this;
+	arg->msg = msg;
+	struct timeval delay = {0, 1};
+	event_callback_fn closure = [](int f, short fl, void* arg) { 
+		DelayJson *msg = (DelayJson*)arg;
+		msg->session->doJson(msg->msg); 
+		delete msg;
+	};
+	struct event *ev = event_new(getEventBase(), -1, 0, closure, arg);
+	event_priority_set(ev, 0);
+	event_add(ev, &delay);
 }
 
 
@@ -96,18 +117,19 @@ TestingSession::copyFileToWorkingDirectory(string srcPath)
 	fs::copy_file(src, dest, fs::copy_option::overwrite_if_exists);
 }
 
-void
-TestingSession::removeAllWorkingFiles()
-{
-	fs::path wd(getWorkingDirectory());
-	for (fs::directory_iterator end_itr, itr(wd); itr != end_itr; ++itr) {
-		remove_all(itr->path());
-	}
-}
-
+// void
+// TestingSession::removeAllWorkingFiles()
+// {
+// 	fs::path wd(getWorkingDirectory());
+// 	for (fs::directory_iterator end_itr, itr(wd); itr != end_itr; ++itr) {
+// 		remove_all(itr->path());
+// 	}
+// }
+// 
 json2
 TestingSession::popMessage() {
 	string str = _messages.front();
+	_messages.pop();
 	json2 j = json2::parse(str);
 	return j;
 }
@@ -152,7 +174,6 @@ namespace testing {
 			}
 			
 			virtual void TearDown() {
-				session->removeAllWorkingFiles();
 			}
 	}; 
 
@@ -177,8 +198,14 @@ namespace testing {
 
 	TEST_F(SessionTest, execFiles)
 	{
-		session->copyFileToWorkingDirectory("test1.R");
-		session->doJson("{\"msg\":\"execFile\", \"argument\":\"test1.R\"}");
+// 		std::thread t([]() {
+// 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+// 			session->doJson("{\"msg\":\"execFile\", \"argument\":\"3\"}");
+// 		});
+// 		t.detach();
+		session->executeDelayedJson("{\"msg\":\"execFile\", \"argument\":\"3\"}");
+		session->startCountdown(2);
+		session->startEventLoop();
 		ASSERT_EQ(session->_messages.size(), 2);
 		json results = session->popMessage();
 		ASSERT_TRUE(results["msg"] == "results");
@@ -187,22 +214,26 @@ namespace testing {
 
 	TEST_F(SessionTest, execRMD)
 	{
-		session->copyFileToWorkingDirectory("test1.Rmd");
-		session->doJson("{\"msg\":\"execFile\", \"argument\":\"test1.Rmd\"}");
-		ASSERT_EQ(session->_messages.size(), 1);
-		json results = session->popMessage();
-		ASSERT_TRUE(results["msg"] == "execComplete");
-		ASSERT_TRUE(session->fileExists("test1.html"));
+		session->executeDelayedJson("{\"msg\":\"execFile\", \"argument\":\"4\"}");
+		session->startCountdown(2);
+		session->startEventLoop();
+		ASSERT_EQ(session->_messages.size(), 2);
+		json results1 = session->popMessage();
+		json results2 = session->popMessage();
+		ASSERT_TRUE(results2["msg"] == "showoutput");
+		ASSERT_TRUE(session->fileExists(results2["fileName"]));
 	}
 
 	TEST_F(SessionTest, execSweave)
 	{
-		session->copyFileToWorkingDirectory("test1.Rnw");
-		session->doJson("{\"msg\":\"execFile\", \"argument\":\"test1.Rnw\"}");
-		ASSERT_EQ(session->_messages.size(), 1);
-		json results = session->popMessage();
-		ASSERT_TRUE(results["msg"] == "execComplete");
-		ASSERT_TRUE(session->fileExists("test1.pdf"));
+		session->executeDelayedJson("{\"msg\":\"execFile\", \"argument\":\"5\"}");
+		session->startCountdown(2);
+		session->startEventLoop();
+		ASSERT_EQ(session->_messages.size(), 2);
+		json results1 = session->popMessage();
+		json results2 = session->popMessage();
+		ASSERT_TRUE(results2["msg"] == "showoutput");
+		ASSERT_TRUE(session->fileExists(results2["fileName"]));
 	}
 
 	TEST_F(SessionTest, genImages)

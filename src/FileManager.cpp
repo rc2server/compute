@@ -54,11 +54,13 @@ class RC2::FileManager::Impl {
 		long						sessionImageBatch_;
 		DBFileSource				dbFileSource_;
 		PGconn*						dbcon_;
+		set<string>					manuallyAddedFiles_;
 		map<int, DBFileInfoPtr>		filesByWatchDesc_;
 		PendingImageMap				pendingImagesByWatchDesc_;
 		vector<long>				imageIds_;
 		string						workingDir;
 		struct event_base*			eventBase_;
+		struct bufferevent*			inotifyEvent_;
 		int							inotifyFd_;
 		FSDirectory					rootDir_;
 		boost::regex				imgRegex_;
@@ -327,6 +329,7 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 	bufferevent_priority_set(evt, 0); //high priority
 	bufferevent_setcb(evt, FileManager::Impl::handleInotifyEvent, NULL, NULL, fm);
 	bufferevent_enable(evt, EV_READ);
+	inotifyEvent_ = evt;
 }
 
 #define I_BUF_LEN (10 * (sizeof(struct inotify_event) + NAME_MAX + 1))
@@ -354,8 +357,8 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 						if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
 							startImageWatch(fname, what[1], event);
 //							newFileId = insertImage(fname, what[1]);
-						} else {
-							LOG(INFO) << "inotify create for " << fname << endl;
+						} else if (manuallyAddedFiles_.find(fname) == manuallyAddedFiles_.end()) {
+							LOG(INFO) << "inotify create for " << fname << endl << manuallyAddedFiles_.size() << endl;
 							newFileId = dbFileSource_.insertDBFile(fname);
 							LOG(INFO) << "inserted s " << newFileId << endl;
 						}
@@ -432,6 +435,20 @@ RC2::FileManager::initFileManager(string connectString, int wspaceId, int sessio
 	event_add(evt, NULL);
 }
 
+void RC2::FileManager::suspendNotifyEvents()
+{
+	if (bufferevent_get_enabled(_impl->inotifyEvent_) != 0)
+		throw std::runtime_error("notify events already suspended");
+	bufferevent_disable(_impl->inotifyEvent_, EV_READ);
+}
+
+void RC2::FileManager::resumeNotifyEvents()
+{
+	if (bufferevent_get_enabled(_impl->inotifyEvent_) == 0)
+		throw std::runtime_error("notify events already enabled");
+	bufferevent_disable(_impl->inotifyEvent_, EV_READ);
+}
+
 void
 RC2::FileManager::setWorkingDir(std::string dir) 
 { 
@@ -453,6 +470,7 @@ RC2::FileManager::resetWatch()
 		LOG(INFO) << "incrementing batch_id:" << _impl->sessionImageBatch_ << endl;
 	}
 	_impl->imageIds_.erase(_impl->imageIds_.begin(), _impl->imageIds_.end());
+	_impl->manuallyAddedFiles_.clear();
 }
 
 void
@@ -488,7 +506,9 @@ RC2::FileManager::findOrAddFile(std::string fname)
 	}
 	//need to add the file
 	LOG(INFO) << "findOrAddFile adding file " << fname << endl;
-	return _impl->dbFileSource_.insertDBFile(fname);
+	long fid = _impl->dbFileSource_.insertDBFile(fname);
+	_impl->manuallyAddedFiles_.insert(fname);
+	return fid;
 }
 
 string

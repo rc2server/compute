@@ -64,7 +64,7 @@ namespace RC2 {
 			void	executeRMarkdown(string filePath, long fileId, JsonCommand& command);
 			void	executeSweave(string filePath, long fileId, JsonCommand& command);
 
-			void	scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int queryId, int outputFileId=0);
+			void	scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int queryId, int outputFileId=0, string outputFileName="");
 			static void handleJsonStatic(struct bufferevent *bev, void *ctx);
 
 			//this is likely needed for subclasses (like in a unit test)

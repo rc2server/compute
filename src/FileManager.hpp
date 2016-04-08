@@ -24,12 +24,14 @@ namespace RC2 {
 			std::string	filePathForId(long fileId);
 			long	findOrAddFile(std::string fname);
 			
+			void	suspendNotifyEvents();
+			void	resumeNotifyEvents();
+			
 			//for unit testing
 			void	processDBNotification(std::string message);
 		private:
 			class Impl;
 			std::unique_ptr<Impl>		_impl;
 	};
-
 
 };
