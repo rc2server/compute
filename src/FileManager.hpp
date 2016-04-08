@@ -18,7 +18,7 @@ namespace RC2 {
 			void	resetWatch();
 			void	checkWatch(std::vector<long> &imageIds, long &batchId);
 			
-			void	loadRData();
+			bool	loadRData();
 			void	saveRData();
 			
 			std::string	filePathForId(long fileId);

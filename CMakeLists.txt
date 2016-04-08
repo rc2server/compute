@@ -29,6 +29,7 @@ SET(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "-Wl,--no-export-dynamic -lstdc++")
 
 SET(Compute_Libs
 	event
+	event_pthreads
 	boost_filesystem
 	boost_regex
 	boost_system

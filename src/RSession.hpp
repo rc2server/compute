@@ -36,6 +36,7 @@ namespace RC2 {
 			void	prepareForRunLoop();
 			void	installExitHandler(void(*)(short flags));
 			virtual void	startEventLoop();
+			virtual void	stopEventLoop();
 
 			RSessionCallbacks* getCallbacks() const { return _callbacks; }
 			void setCallbacks(RSessionCallbacks *cbs) { _callbacks = cbs; }

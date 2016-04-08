@@ -10,11 +10,11 @@ namespace RC2 {
 	};
 	
 	class JsonCommand {
-		json2::reference _cmd;
+		json2::value_type _cmd;
 		CommandType _type;
 	public:
 		
-		JsonCommand(json2::reference cmd)
+		JsonCommand(json2::value_type cmd)
 			: _cmd(cmd)
 			{
 				std::string cmdStr = cmd["msg"];
@@ -30,17 +30,15 @@ namespace RC2 {
 			}
 			
 			CommandType type() const { return _type; }
-			json2::reference raw() const { return _cmd; }
-			std::string argument() const { return _cmd["argument"]; }
+			json2::value_type raw() const { return _cmd; }
+			std::string argument() const { return _cmd.value("argument", ""); }
 			std::string startTimeStr() const {
-				if ( _cmd["startTime"].is_null()) return "";
-				return _cmd["startTime"]; 
+				return _cmd.value("startTime", ""); 
 			}
 			bool watchVariables() const { 
-				if (_cmd["watchVariables"].is_null()) return false;
-				return _cmd["watchVariables"]; 
+				return _cmd.value("watchVariables", false); 
 			}
-			json2::reference clientData() const { return _cmd["clientData"]; }
+			json2::value_type clientData() const { return _cmd.value("clientData", ""); }
 			json2::string_t valueForKey(std::string key) {
 				if (_cmd[key].is_null()) return "";
 				try { 

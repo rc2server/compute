@@ -45,7 +45,7 @@ namespace RC2 {
 			void	updateDBFile(DBFileInfoPtr fobj);
 			void	removeDBFile(DBFileInfoPtr fobj);
 			
-			void	loadRData();
+			bool	loadRData();
 			void	saveRData();
 			
 		std::map<long, DBFileInfoPtr>	filesById_;

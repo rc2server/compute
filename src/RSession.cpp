@@ -80,7 +80,6 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 
 	static void handleExecComplete(int fd, short event_type, void *ctx) 
 	{
-		LOG(INFO) << "handleExecComplete" << endl;
 		ExecCompleteArgs *args = reinterpret_cast<ExecCompleteArgs*>(ctx);
 		string s = args->session->_impl->acknowledgeExecComplete(args->command, args->queryId);
 		LOG(INFO) << "handleExecComplete got json:" << s << endl;
@@ -144,17 +143,16 @@ RC2::RSession::scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int que
 {
 	ExecCompleteArgs *args = new ExecCompleteArgs(this, command, queryId);
 	args->outputFileId = outputFileId;
-	struct timeval delay = {0, 100000};
-	struct event *ev = event_new(_impl->eventBase, -1, EV_TIMEOUT, RC2::RSession::Impl::handleExecComplete, args);
-	event_add(ev, &delay);
-	LOG(INFO) << "scheduled exce complete" << endl;
+	struct timeval delay = {0, 1};
+	struct event *ev = event_new(_impl->eventBase, -1, 0, 	RC2::RSession::Impl::handleExecComplete, args);
+	event_priority_set(ev, 0);
+ 	event_add(ev, &delay);
 }
 
 RC2::RSession::RSession(RSessionCallbacks *callbacks)
 		: _impl(new Impl())
 {
 	FLAGS_stderrthreshold = 0;
-	LOG(INFO) << "RSession created" << endl;
 	_callbacks = callbacks;
 	setenv("R_HOME", "/usr/local/lib/R", 0); //will not overwrite
 	_impl->R = new RInside(0, NULL, false, true, false);
@@ -168,7 +166,6 @@ RC2::RSession::RSession(RSessionCallbacks *callbacks)
 RC2::RSession::~RSession()
 {
 	if (_impl->R) {
-		_impl->R->parseEvalQNT("save.image()");
 		_impl->fileManager.saveRData();
 		delete _impl->R;
 		_impl->R = nullptr;
@@ -239,18 +236,21 @@ RC2::RSession::prepareForRunLoop()
 	event_config_free(config);
 	//0=high, 1=normal, 2=low, 3=lowlow. default is num/2, so we need 4 to make default=1
 	event_base_priority_init(_impl->eventBase, 4); 
-	evutil_make_socket_nonblocking(_impl->socket);
-	_impl->eventBuffer = bufferevent_socket_new(_impl->eventBase, _impl->socket, 0);
-	if (_impl->eventBuffer == nullptr) {
-		LOG(ERROR) << "failed to create bufferevent socket" << endl;
-		return;
+	//only listen on socket if we have a valid network socket (won't for unit testing)
+	if (_impl->socket > 0) {
+		evutil_make_socket_nonblocking(_impl->socket);
+		_impl->eventBuffer = bufferevent_socket_new(_impl->eventBase, _impl->socket, 0);
+		if (_impl->eventBuffer == nullptr) {
+			LOG(ERROR) << "failed to create bufferevent socket" << endl;
+			return;
+		}
+		bufferevent_setcb(_impl->eventBuffer,
+			RSession::handleJsonStatic,
+			nullptr,
+			nullptr,
+			this);
+		bufferevent_enable(_impl->eventBuffer, EV_READ|EV_WRITE|BEV_OPT_DEFER_CALLBACKS);
 	}
-	bufferevent_setcb(_impl->eventBuffer,
-		RSession::handleJsonStatic,
-		nullptr,
-		nullptr,
-		this);
-	bufferevent_enable(_impl->eventBuffer, EV_READ|EV_WRITE|BEV_OPT_DEFER_CALLBACKS);
 	_impl->outBuffer = evbuffer_new();
 	_impl->fileManager.setEventBase(_impl->eventBase);
 }
@@ -258,10 +258,20 @@ RC2::RSession::prepareForRunLoop()
 void
 RC2::RSession::startEventLoop()
 {
-LOG(INFO) << "starting event loop" << endl;
+	//commented out lines for when trying to attach via gdb
+//LOG(INFO) << "starting event loop" << endl;
 //	sleep(20);
 //LOG(INFO) << "sleep over" << endl;
 	event_base_loop(_impl->eventBase, 0);
+}
+
+void 
+RC2::RSession::stopEventLoop()
+{
+	if (_impl->eventBuffer != NULL) {
+		bufferevent_free(_impl->eventBuffer);
+	}
+	event_base_loopbreak(_impl->eventBase);
 }
 
 void 
@@ -312,7 +322,6 @@ RC2::RSession::handleJsonCommand(string json)
 
 			switch(command.type()) {
 				case CommandType::Close:
-				_impl->R->parseEvalQNT("save.image()");
 				event_base_loopbreak(_impl->eventBase);
 				break;
 				case CommandType::ClearFileChanges:
@@ -356,7 +365,6 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		return;
 	}
 	_impl->wspaceId = cmd.raw()["wspaceId"];
-	LOG(INFO) << "got open message: " << _impl->wspaceId << endl;
 	try {
 		_impl->sessionRecId = cmd.raw()["sessionRecId"];
 		string dbhost(cmd.valueForKey("dbhost"));
@@ -383,11 +391,10 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		LOG(INFO) << "wd=" << _impl->tmpDir->getPath() << endl;
 		_impl->fileManager.setWorkingDir(_impl->tmpDir->getPath());
 		_impl->fileManager.initFileManager(connectString.str().c_str(), _impl->wspaceId, _impl->sessionRecId);
-		_impl->fileManager.loadRData();
+		bool haveRData = _impl->fileManager.loadRData();
 		setenv("TMPDIR", workDir.c_str(), 1);
 		setenv("TEMP", workDir.c_str(), 1);
 		setenv("R_DEFAULT_DEVICE", "png", 1);
-		LOG(INFO) << "setting wd" << endl;
 		_impl->R->parseEvalQNT("setwd(\"" + escape_quotes(workDir) + "\")");
 		_impl->ignoreOutput = true;
 		_impl->R->parseEvalQNT("library(rc2);");
@@ -396,7 +403,8 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		_impl->R->parseEvalQNT("library(tools)");
 		_impl->R->parseEvalQNT("rm(argv)"); //RInside creates this even though we passed NULL
 		_impl->R->parseEvalQNT("options(device = \"rc2.pngdev\", bitmapType = \"cairo\")");
-		_impl->R->parseEvalQNT("load(\".RData\")");
+		if (haveRData)
+			_impl->R->parseEvalQNT("load(\".RData\")");
 		_impl->ignoreOutput = false;
 		json2 response =  { {"msg", "openresponse"}, {"success", true} };
 		sendJsonToClientSource(response.dump());
@@ -405,8 +413,6 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		json2 error = { {"msg", "openresponse"}, {"success", false}, {"errorMessage", err.what()} };
 		sendJsonToClientSource(error.dump());
 	}
-	LOG(INFO) << "open done" << endl;
-//	_impl->fileWatcher.initializeWatcher(_impl->tmpDir->getPath());
 }
 
 void

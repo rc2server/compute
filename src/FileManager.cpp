@@ -36,6 +36,17 @@ struct FSDirectory {
 	struct stat sb;
 };
 
+struct PendingImage {
+	string fileName;
+	string imgNumStr;
+	int wd;
+	PendingImage(string fname, string iname, int desc)
+		:fileName(fname), imgNumStr(iname), wd(desc)
+		{}
+};
+
+using PendingImageMap = map<int,PendingImage>;
+
 class RC2::FileManager::Impl {
 	public:
 		long						wspaceId_;
@@ -44,6 +55,7 @@ class RC2::FileManager::Impl {
 		DBFileSource				dbFileSource_;
 		PGconn*						dbcon_;
 		map<int, DBFileInfoPtr>		filesByWatchDesc_;
+		PendingImageMap				pendingImagesByWatchDesc_;
 		vector<long>				imageIds_;
 		string						workingDir;
 		struct event_base*			eventBase_;
@@ -66,6 +78,8 @@ class RC2::FileManager::Impl {
 
 		void	setupInotify(FileManager *fm);
 		void 	watchFile(DBFileInfoPtr file);
+		void	startImageWatch(string fname, string imgNum, inotify_event *event);
+		void	stopImageWatch(int wd);
 		void	handleInotifyEvent(struct bufferevent *bev);
 		static void handleInotifyEvent(struct bufferevent *bev, void *ctx)
 		{
@@ -133,19 +147,20 @@ RC2::FileManager::Impl::connect(string str, long wspaceId, long sessionRecId)
 long
 RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 {
-	LOG(INFO) << "found image " << imgNumStr << endl;
 	string filePath = workingDir + "/" + fname;
 	size_t size;
 	unique_ptr<char[]> buffer = ReadFileBlob(filePath, size);
+	if (size < 1) {
+		LOG(INFO) << "got image with no data" << endl;
+		return 0;
+	}
 	long imgId = DBLongFromQuery(dbcon_, "select nextval('sessionimage_seq'::regclass)");
 	if (imgId <= 0)
 		throw FormattedException("failed to get session image id");
-	LOG(INFO) << "do we query batch id: " << sessionImageBatch_ << endl;
 	if (sessionImageBatch_ <= 0) {
 		stringstream batchq;
 		batchq << "select max(batchid) from sessionimage where sessionid = " << sessionRecId_;
 		sessionImageBatch_ = DBLongFromQuery(dbcon_, batchq.str().c_str()) + 1;
-		LOG(INFO) << "starting batch id is " << sessionImageBatch_ << endl;
 	}
 	stringstream query;
 	query << "insert into sessionimage (id,sessionid,batchid,name,imgdata) values (" << imgId 
@@ -159,12 +174,26 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 		LOG(ERROR) << "insert image error:" << res.errorMessage() << endl;
 		throw FormattedException("failed to insert image in db: %s", res.errorMessage());
 	}
-	LOG(INFO) << query.str() << endl;
-	LOG(INFO) << "inserted image " << imgId << " of size " << size << endl;
+//	LOG(INFO) << "inserted image " << imgId << " of size " << size << endl;
 	imageIds_.push_back(imgId);
 	ignoreFSNotifications();
 	fs::remove(filePath);
 	return 0;
+}
+
+void RC2::FileManager::Impl::startImageWatch ( string fname, string imgNum, inotify_event* event )
+{
+	string fullPath = workingDir + "/" + fname;
+	int wd = inotify_add_watch(inotifyFd_, fullPath.c_str(), IN_CLOSE_WRITE | IN_CLOSE_NOWRITE);
+	if (wd == -1)
+		throw FormattedException("inotify_add_warched failed %s", fname.c_str());
+	pendingImagesByWatchDesc_.insert(std::make_pair(wd, PendingImage(fname, imgNum, wd)));
+}
+
+void RC2::FileManager::Impl::stopImageWatch ( int wd )
+{
+	inotify_rm_watch(inotifyFd_, wd);
+	pendingImagesByWatchDesc_.erase(wd);
 }
 
 void
@@ -287,7 +316,6 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 	if (rootDir_.wd == -1)
 		throw FormattedException("inotify_add_watched failed");
 	stat(workingDir.c_str(), &rootDir_.sb);
-	//TODO - watch shared directory
 	for (auto itr=dbFileSource_.filesById_.begin(); itr != dbFileSource_.filesById_.end(); ++itr) {
 		try {
 			watchFile(itr->second);
@@ -299,7 +327,6 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 	bufferevent_priority_set(evt, 0); //high priority
 	bufferevent_setcb(evt, FileManager::Impl::handleInotifyEvent, NULL, NULL, fm);
 	bufferevent_enable(evt, EV_READ);
-	LOG(INFO) << "setup setupInotify complete\n";
 }
 
 #define I_BUF_LEN (10 * (sizeof(struct inotify_event) + NAME_MAX + 1))
@@ -307,9 +334,9 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 void
 RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 {
-	ignoreFSNotifications();
 	if (ignoreFSNotifications_)
 		return;
+	ignoreFSNotifications();
 	char buf[I_BUF_LEN];
 	size_t numRead = bufferevent_read(bev, buf, I_BUF_LEN);
 	char *p;
@@ -325,7 +352,8 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 					boost::smatch what;
 					if (event->name[0] != '.') {
 						if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
-							newFileId = insertImage(fname, what[1]);
+							startImageWatch(fname, what[1], event);
+//							newFileId = insertImage(fname, what[1]);
 						} else {
 							LOG(INFO) << "inotify create for " << fname << endl;
 							newFileId = dbFileSource_.insertDBFile(fname);
@@ -338,10 +366,17 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 					}
 				}
 			} else if (evtype == IN_CLOSE_WRITE) {
-				DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
-			LOG(INFO) << "got close write event for " << fobj->name << endl;
-				dbFileSource_.updateDBFile(fobj);
+				auto imgItr = pendingImagesByWatchDesc_.find(event->wd);
+				if (imgItr != pendingImagesByWatchDesc_.end()) {
+					insertImage(imgItr->second.fileName, imgItr->second.imgNumStr);
+					stopImageWatch(event->wd);
+				} else {
+					DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
+					LOG(INFO) << "got close write event for " << fobj->name << endl;
+					dbFileSource_.updateDBFile(fobj);
+				}
 			} else if (evtype == IN_DELETE_SELF) {
+
 				DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
 			LOG(INFO) << "got delete event for " << fobj->name << endl;
 				dbFileSource_.removeDBFile(fobj);
@@ -428,10 +463,10 @@ RC2::FileManager::checkWatch(vector<long> &imageIds, long &batchId)
 //	_impl->sessionImageBatch_ = 0;
 }
 
-void
+bool
 RC2::FileManager::loadRData()
 {
-	_impl->dbFileSource_.loadRData();
+	return _impl->dbFileSource_.loadRData();
 }
 
 void

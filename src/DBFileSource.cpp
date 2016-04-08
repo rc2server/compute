@@ -51,7 +51,7 @@ RC2::DBFileSource::setWorkingDir(string workingDir)
 	_impl->workingDir_ = workingDir;
 }
 
-void
+bool
 RC2::DBFileSource::loadRData()
 {
 	string filepath = _impl->workingDir_ + "/.RData";
@@ -61,12 +61,16 @@ RC2::DBFileSource::loadRData()
 	ExecStatusType rc = PQresultStatus(res);
 	if (res.dataReturned()) {
 		int datalen = PQgetlength(res, 0, 4);
-		char *data = PQgetvalue(res, 0, 1);
-		ofstream rdata;
-		rdata.open(filepath, ios::out | ios::trunc | ios::binary);
-		rdata.write(data, datalen);
-		rdata.close();
+		if (datalen > 0) {
+			char *data = PQgetvalue(res, 0, 1);
+			ofstream rdata;
+			rdata.open(filepath, ios::out | ios::trunc | ios::binary);
+			rdata.write(data, datalen);
+			rdata.close();
+			return true;
+		}
 	}
+	return false;
 }
 
 void

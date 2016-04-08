@@ -2,7 +2,9 @@
 #include <string>
 #include <iostream>
 #include <queue>
+#include <thread>
 #include <event2/event.h>
+#include <event2/thread.h>
 #include <glog/logging.h>
 #include "common/RC2Utils.hpp"
 #include "json.hpp"
@@ -30,21 +32,6 @@ namespace RC2 {
 // 		stderr << val << endl;
 	}
 	
-// int
-// intValueFromVariableArray(json &array, string key, string value) {
-// 	for (auto itr=array.begin(); itr != array.end(); ++itr) {
-// 		auto val = *itr;
-// 		if (!val.is_null() && val == value)
-// 		
-// 		string val = ((json::String)obj[key]).Value();
-// 		if (val == value) {
-// 			json::Array valArray(obj["value"]);
-// 			return ((json::Number)valArray[0]).Value();
-// 		}
-// 	}
-// 	return -1;
-// }
-
 
 class TestingSession : public RSession {
 	public:
@@ -54,29 +41,38 @@ class TestingSession : public RSession {
 		bool fileExists(string filename);
 		void copyFileToWorkingDirectory(string srcPath);
 		void removeAllWorkingFiles();
-		virtual void startEventLoop();
 		
 		void doJson(std::string json);
-		void stopLoopWhenEmpty() { event_base_loopexit((struct event_base*)getEventBase(), NULL); }
 		
 		inline void emptyMessages() { while (!_messages.empty()) _messages.pop(); }
 		
 		json2 popMessage();
 		
+		void startCountdown(int count);
+		
+		event_base* cheatBase() { return getEventBase(); }
 		queue<string> _messages;
+		bool countingDown;
+		int countDown;
 };
 
-void
-TestingSession::startEventLoop()
+void TestingSession::startCountdown ( int count )
 {
-	LOG(INFO) << "starting testing event loop" << endl;
-	event_base_loop((struct event_base*)getEventBase(), EVLOOP_NONBLOCK);
+	countDown = count; 
+	countingDown = true;
 }
 
+
 void
-TestingSession::sendJsonToClientSource(std::string json) {
-	_messages.push(json);
-	cerr << json << endl;
+TestingSession::sendJsonToClientSource(std::string jsonStr) {
+	_messages.push(jsonStr);
+	cerr <<"t-json:" <<  jsonStr << " (" << countDown << ")" << endl;
+	if (countingDown) {
+		countDown--;
+		if (countDown <= 0) {
+			stopEventLoop();
+		}
+	}
 }
 
 bool
@@ -133,6 +129,7 @@ namespace testing {
 //				boost::log::core::get()->set_filter(
 //					boost::log::trivial::severity >= (boost::log::trivial::info)
 //				);
+				evthread_use_pthreads();
 				callbacks = new RSessionCallbacks();
 				session = new TestingSession(callbacks);
 				event_set_log_callback(myevent_logger);
@@ -164,13 +161,15 @@ namespace testing {
 
 	TEST_F(SessionTest, basicScript)
 	{
-		session->doJson("{\"msg\":\"execScript\", \"argument\":\"2*2\"}");
+		//need to delay action until after startEventLoop()
+		std::thread t([]() {
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			session->doJson("{\"msg\":\"execScript\", \"argument\":\"2*2\"}");
+		});
+		t.detach();
+		session->startCountdown(2);
 		session->startEventLoop();
-		struct timespec tm = {0, 5000};
-		nanosleep(&tm, NULL);
-		session->startEventLoop();
-		//		session->stopLoopWhenEmpty();
-		ASSERT_EQ(session->_messages.size(), 1); //no execComplete 'cause now after timer and no run loopin tests
+		ASSERT_EQ(session->_messages.size(), 2);
 		json results1 = session->popMessage();
 		ASSERT_TRUE(results1["msg"] == "results");
 		ASSERT_TRUE(results1["string"] == "[1] 4\n");
@@ -208,11 +207,22 @@ namespace testing {
 
 	TEST_F(SessionTest, genImages)
 	{
-		session->doJson("{\"msg\":\"execScript\", \"argument\":\"plot(rnorm(11))\"}");
+		//need to delay action until after startEventLoop()
+		std::thread t([]() {
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			session->doJson("{\"msg\":\"execScript\", \"argument\":\"plot(rnorm(21))\"}");
+//			session->doJson("{\"msg\":\"execScript\", \"argument\":\"xz <- matrix(1:10, ncol=5);write(t(xz), file=\\\"mjl.data\\\")\"}");
+			
+		});
+		t.detach();
+		session->startCountdown(1);
+		session->startEventLoop();
 		ASSERT_EQ(session->_messages.size(), 1);
 		json results = session->popMessage();
 		ASSERT_TRUE(results["msg"] == "execComplete");
-		ASSERT_TRUE(session->fileExists("rc2img001.png"));
+		ASSERT_TRUE(results["images"].is_array());
+		ASSERT_EQ(results["images"].size(), 1);
+		//should really make sure image is valid? How do we do that?
 	}
 
 	TEST_F(SessionTest, singleHelp)
