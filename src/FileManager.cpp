@@ -82,6 +82,7 @@ class RC2::FileManager::Impl {
 		void 	watchFile(DBFileInfoPtr file);
 		void	startImageWatch(string fname, string imgNum, inotify_event *event);
 		void	stopImageWatch(int wd);
+		void	cleanupImageWatch();
 		void	handleInotifyEvent(struct bufferevent *bev);
 		static void handleInotifyEvent(struct bufferevent *bev, void *ctx)
 		{
@@ -197,6 +198,25 @@ void RC2::FileManager::Impl::stopImageWatch ( int wd )
 	inotify_rm_watch(inotifyFd_, wd);
 	pendingImagesByWatchDesc_.erase(wd);
 }
+
+void RC2::FileManager::Impl::cleanupImageWatch()
+{
+	for(auto it = pendingImagesByWatchDesc_.begin(); it != pendingImagesByWatchDesc_.end(); ++it) {
+		LOG(INFO) << "cleaning up image " << it->second.fileName << endl;
+		//check to see if image exists on disk with file size > 0
+		fs::path imgPath(workingDir);
+		imgPath /= it->second.fileName;
+		auto size = fs::file_size(imgPath);
+		if (size !=  static_cast<uintmax_t>(-1)) {
+			insertImage(it->second.fileName, it->second.imgNumStr);
+			//have to manually stopImageWatch so itr isn't mutated while looping
+			inotify_rm_watch(inotifyFd_, it->second.wd);
+		}
+	}
+	//clear set
+	pendingImagesByWatchDesc_.erase(pendingImagesByWatchDesc_.begin(), pendingImagesByWatchDesc_.end());
+}
+
 
 void
 RC2::FileManager::Impl::processDBNotification(string message)
@@ -479,6 +499,11 @@ RC2::FileManager::checkWatch(vector<long> &imageIds, long &batchId)
 	imageIds = _impl->imageIds_;
 	batchId = _impl->sessionImageBatch_;
 //	_impl->sessionImageBatch_ = 0;
+}
+
+void RC2::FileManager::cleanupImageWatch()
+{
+	_impl->cleanupImageWatch();
 }
 
 bool

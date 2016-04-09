@@ -38,7 +38,12 @@ namespace RC2 {
 			bool watchVariables() const { 
 				return _cmd.value("watchVariables", false); 
 			}
-			json2::value_type clientData() const { return _cmd.value("clientData", ""); }
+			json2::value_type clientData() const { 
+				if (_cmd.find("clientData") == _cmd.end()) 
+					return json2::parse("{}");
+				return _cmd["clientData"]; 
+				
+			}
 			json2::string_t valueForKey(std::string key) {
 				if (_cmd[key].is_null()) return "";
 				try { 

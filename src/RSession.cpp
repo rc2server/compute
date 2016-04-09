@@ -147,6 +147,7 @@ string
 RC2::RSession::Impl::acknowledgeExecComplete(JsonCommand& command, int queryId) 
 {
 	LOG(INFO) << "exec complete posting" << endl;
+	fileManager.cleanupImageWatch();
 	json2 results;
 	results["msg"] = "execComplete";
 	results["startTime"] = command.startTimeStr();

@@ -217,7 +217,7 @@ namespace testing {
 		session->executeDelayedJson("{\"msg\":\"execFile\", \"argument\":\"4\"}");
 		session->startCountdown(2);
 		session->startEventLoop();
-		ASSERT_EQ(session->_messages.size(), 2);
+		ASSERT_EQ(session->_messages.size(), 1);
 		json results1 = session->popMessage();
 		json results2 = session->popMessage();
 		ASSERT_TRUE(results2["msg"] == "showoutput");
@@ -238,14 +238,15 @@ namespace testing {
 
 	TEST_F(SessionTest, genImages)
 	{
+		session->executeDelayedJson("{\"msg\":\"execScript\", \"argument\":\"plot(rnorm(21))\"}");
 		//need to delay action until after startEventLoop()
-		std::thread t([]() {
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));
-			session->doJson("{\"msg\":\"execScript\", \"argument\":\"plot(rnorm(21))\"}");
+//		std::thread t([]() {
+//			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//			session->doJson("{\"msg\":\"execScript\", \"argument\":\"plot(rnorm(21))\"}");
 //			session->doJson("{\"msg\":\"execScript\", \"argument\":\"xz <- matrix(1:10, ncol=5);write(t(xz), file=\\\"mjl.data\\\")\"}");
 			
-		});
-		t.detach();
+//		});
+//		t.detach();
 		session->startCountdown(1);
 		session->startEventLoop();
 		ASSERT_EQ(session->_messages.size(), 1);
