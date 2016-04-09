@@ -79,7 +79,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 			Impl();
 			Impl(const Impl &copy) = delete;
 			Impl& operator=(const Impl&) = delete;
-			void	addFileChangesToJson(json2& json);
+			void	addImagesToJson(json2& json);
 	string	acknowledgeExecComplete(JsonCommand &command, int queryId);
 
 	static void handleExecComplete(int fd, short event_type, void *ctx) 
@@ -126,17 +126,11 @@ RC2::RSession::Impl::Impl()
 }
 
 void
-RC2::RSession::Impl::addFileChangesToJson(json2& json)
+RC2::RSession::Impl::addImagesToJson(json2& json)
 {
-	std::vector<string> add, mod, del;
 	std::vector<long> imageIds;
 	long batchId;
 	fileManager.checkWatch(imageIds, batchId);
-	mod.insert(mod.end(), add.begin(), add.end()); //merge add/modified
-	if (mod.size() > 0)
-		json["filesModified"] = mod;
-	if (del.size() > 0)
-		json["filesDeleted"] = del;
 	if (imageIds.size() > 0)
 		json["images"] = imageIds;
 	if (batchId > 0)
@@ -155,7 +149,7 @@ RC2::RSession::Impl::acknowledgeExecComplete(JsonCommand& command, int queryId)
 		results["queryId"] = queryId;
 	if (!command.clientData().is_null())
 		results["clientData"] = command.clientData();
-	addFileChangesToJson(results);
+	addImagesToJson(results);
 	return results.dump();
 }
 
@@ -694,7 +688,7 @@ void
 RC2::RSession::clearFileChanges()
 {
 	json2 ignoredJson;
-	_impl->addFileChangesToJson(ignoredJson);
+	_impl->addImagesToJson(ignoredJson);
 }
 
 //causes R to save any images generated and then sends the output buffer to the client
