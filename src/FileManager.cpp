@@ -106,6 +106,13 @@ class RC2::FileManager::Impl {
 			delete wrapper;
 		}
 		
+		inline void fileInfoForDBPtr(DBFileInfoPtr ptr, FileInfo& info) 
+		{
+			info.id = ptr->id;
+			info.version = ptr->version;
+			info.name = ptr->name;
+		}
+		
 		void ignoreFSNotifications();
 
 	struct EventCallbackWrapper {
@@ -518,22 +525,23 @@ RC2::FileManager::saveRData()
 	_impl->dbFileSource_.saveRData();
 }
 
-long
-RC2::FileManager::findOrAddFile(std::string fname)
+void
+RC2::FileManager::findOrAddFile(std::string fname, FileInfo &info)
 {
 	auto & fileMap = _impl->dbFileSource_.filesById_;
 	for (auto itr = fileMap.begin(); itr != fileMap.end(); ++itr) {
 		DBFileInfoPtr ptr = itr->second;
 		if (0 == fname.compare(ptr->name)) {
 			//a match. 
-			return ptr->id;
+			_impl->fileInfoForDBPtr(ptr, info);
+			return;
 		}
 	}
 	//need to add the file
 	LOG(INFO) << "findOrAddFile adding file " << fname << endl;
 	long fid = _impl->dbFileSource_.insertDBFile(fname);
 	_impl->manuallyAddedFiles_.insert(fname);
-	return fid;
+	_impl->fileInfoForDBPtr(_impl->dbFileSource_.filesById_[fid], info);
 }
 
 string

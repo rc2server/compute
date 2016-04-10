@@ -25,6 +25,7 @@ namespace RC2 {
 
 	class RSessionCallbacks;
 	class InputBufferManager;
+	struct FileInfo;
 
 	class RSession : private boost::noncopyable {
 
@@ -64,7 +65,7 @@ namespace RC2 {
 			void	executeRMarkdown(string filePath, long fileId, JsonCommand& command);
 			void	executeSweave(string filePath, long fileId, JsonCommand& command);
 
-			void	scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int queryId, int outputFileId=0, string outputFileName="");
+			void	scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int queryId, FileInfo *info=nullptr);
 			static void handleJsonStatic(struct bufferevent *bev, void *ctx);
 
 			//this is likely needed for subclasses (like in a unit test)

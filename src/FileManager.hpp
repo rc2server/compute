@@ -6,6 +6,18 @@
 
 namespace RC2 {
 
+	struct FileInfo {
+		long id;
+		long version;
+		std::string name;
+		FileInfo()
+			: id(0), version(0), name("")
+			{}
+		FileInfo(long anId, long aVersion, std::string aName)
+			: id(anId), version(aVersion), name(aName)
+			{}
+	};
+	
 	class FileManager {
 		public:
 			FileManager();
@@ -23,7 +35,7 @@ namespace RC2 {
 			void	saveRData();
 			
 			std::string	filePathForId(long fileId);
-			long	findOrAddFile(std::string fname);
+			void	findOrAddFile(std::string fname, FileInfo &info);
 			
 			void	suspendNotifyEvents();
 			void	resumeNotifyEvents();

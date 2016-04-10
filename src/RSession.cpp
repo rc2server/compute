@@ -48,11 +48,10 @@ inline double currentFractionalSeconds() {
 struct ExecCompleteArgs {
 	RC2::RSession *session;
 	RC2::JsonCommand command;
-	int outputFileId;
-	string outputFileName;
+	RC2::FileInfo finfo;
 	int queryId;
-	ExecCompleteArgs(RC2::RSession *inSession, RC2::JsonCommand inCommand, int inQueryId, int outputId=0, string outputName="") 
-		: session(inSession), queryId(inQueryId), command(inCommand), outputFileId(outputId), outputFileName(outputName)
+	ExecCompleteArgs(RC2::RSession *inSession, RC2::JsonCommand inCommand, int inQueryId, RC2::FileInfo &info) 
+		: session(inSession), queryId(inQueryId), command(inCommand), finfo(info)
 	{}
 };
 
@@ -80,16 +79,20 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 			Impl(const Impl &copy) = delete;
 			Impl& operator=(const Impl&) = delete;
 			void	addImagesToJson(json2& json);
-	string	acknowledgeExecComplete(JsonCommand &command, int queryId);
+	string	acknowledgeExecComplete(JsonCommand &command, int queryId, bool expectShowOutput);
 
 	static void handleExecComplete(int fd, short event_type, void *ctx) 
 	{
 		ExecCompleteArgs *args = reinterpret_cast<ExecCompleteArgs*>(ctx);
-		string s = args->session->_impl->acknowledgeExecComplete(args->command, args->queryId);
+		string s = args->session->_impl->acknowledgeExecComplete(args->command, args->queryId, args->finfo.id > 0);
 		LOG(INFO) << "handleExecComplete got json:" << s << endl;
 		args->session->sendJsonToClientSource(s);
-		if (args->outputFileId > 0) {
-			json2 results = { {"msg", "showoutput"}, {"fileId", args->outputFileId}, {"fileName", args->outputFileName} };
+		if (args->finfo.id > 0) {
+			json2 results = { 
+				{"msg", "showoutput"}, 
+				{"fileId", args->finfo.id}, 
+				{"fileName", args->finfo.name}, 
+				{"fileVersion", args->finfo.version} };
 			args->session->sendJsonToClientSource(results.dump());
 			LOG(INFO) << "sending showoutput:" << results << endl;
 		}
@@ -138,7 +141,7 @@ RC2::RSession::Impl::addImagesToJson(json2& json)
 }
 
 string
-RC2::RSession::Impl::acknowledgeExecComplete(JsonCommand& command, int queryId) 
+RC2::RSession::Impl::acknowledgeExecComplete(JsonCommand& command, int queryId, bool expectShowOutput) 
 {
 	LOG(INFO) << "exec complete posting" << endl;
 	fileManager.cleanupImageWatch();
@@ -149,6 +152,7 @@ RC2::RSession::Impl::acknowledgeExecComplete(JsonCommand& command, int queryId)
 		results["queryId"] = queryId;
 	if (!command.clientData().is_null())
 		results["clientData"] = command.clientData();
+	results["expectShowOutput"] = expectShowOutput;
 	addImagesToJson(results);
 	return results.dump();
 }
@@ -157,9 +161,9 @@ RC2::RSession::Impl::acknowledgeExecComplete(JsonCommand& command, int queryId)
 
 void
 RC2::RSession::scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int queryId,
-	int outputFileId, string outputFileName)
+	FileInfo* info)
 {
-	ExecCompleteArgs *args = new ExecCompleteArgs(this, command, queryId, outputFileId, outputFileName);
+	ExecCompleteArgs *args = new ExecCompleteArgs(this, command, queryId, *info);
 	struct timeval delay = {0, 1};
 	struct event *ev = event_new(_impl->eventBase, -1, 0, 	RC2::RSession::Impl::handleExecComplete, args);
 	event_priority_set(ev, 0);
@@ -588,8 +592,9 @@ RC2::RSession::executeRMarkdown(string filePath, long fileId, JsonCommand& comma
 	
 	if (fileGenerated) {
 		Impl::NotifySuspender suspender(*_impl);
-		int fileId = _impl->fileManager.findOrAddFile(htmlName);
-		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId, fileId, htmlName);
+		FileInfo finfo;
+		_impl->fileManager.findOrAddFile(htmlName, finfo);
+		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId, &finfo);
 	} else {
 		formatErrorAsJson(kError_ExecFile_MarkdownFailed, "failed to generate html", _impl->currentQueryId);
 	}
@@ -598,7 +603,7 @@ RC2::RSession::executeRMarkdown(string filePath, long fileId, JsonCommand& comma
 void
 RC2::RSession::executeSweave(string filePath, long fileId, JsonCommand& command)
 {
-	int fileOutputId=0;
+	FileInfo finfo;
 	fs::path srcPath(_impl->tmpDir->getPath());
 	srcPath /= filePath;
 	string baseName = srcPath.stem().native();
@@ -661,7 +666,7 @@ RC2::RSession::executeSweave(string filePath, long fileId, JsonCommand& command)
 		boost::system::error_code ec;
 		if (fs::exists(genPdfPath) && fs::file_size(genPdfPath, ec) > 0) {
 			fs::copy_file(genPdfPath, destPdfPath, fs::copy_option::overwrite_if_exists);
-			fileOutputId = _impl->fileManager.findOrAddFile(basePdfName);
+			_impl->fileManager.findOrAddFile(basePdfName, finfo);
 		} else {
 			LOG(INFO) << "genPdfPath empty:" << genPdfPath << endl;
 			fs::path errorPath(scratchPath);
@@ -681,7 +686,7 @@ RC2::RSession::executeSweave(string filePath, long fileId, JsonCommand& command)
 	_impl->ignoreOutput = false;
 	//TODO: delete scratchPath
 	flushOutputBuffer();
-	scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId, fileOutputId, basePdfName);
+	scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId, &finfo);
 }
 
 void
