@@ -94,11 +94,11 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 				{"fileName", args->finfo.name}, 
 				{"fileVersion", args->finfo.version} };
 			args->session->sendJsonToClientSource(results.dump());
-			LOG(INFO) << "sending showoutput:" << results << endl;
 		}
 		delete args;
 	}
 
+	
 	class NotifySuspender {
 		Impl& _impl;
 	public:
@@ -419,8 +419,7 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		_impl->R->parseEvalQNT("setwd(\"" + escape_quotes(workDir) + "\")");
 		_impl->ignoreOutput = true;
 		_impl->R->parseEvalQNT("library(rc2);");
-		_impl->R->parseEvalQNT("library(knitr)");
-		_impl->R->parseEvalQNT("library(markdown)");
+		_impl->R->parseEvalQNT("library(rmarkdown)");
 		_impl->R->parseEvalQNT("library(tools)");
 		_impl->R->parseEvalQNT("rm(argv)"); //RInside creates this even though we passed NULL
 		_impl->R->parseEvalQNT("options(device = \"rc2.pngdev\", bitmapType = \"cairo\")");
@@ -559,35 +558,31 @@ RC2::RSession::executeRMarkdown(string filePath, long fileId, JsonCommand& comma
 	fs::path scratchPath(_impl->tmpDir->getPath());
 	scratchPath /= ".rc2md";
 	create_directories(scratchPath);
-	string rcmd = "setwd('" + escape_quotes(scratchPath.string()) + "')";
-	_impl->R->parseEvalNT(rcmd);
+	string scratchPathStr = escape_quotes(scratchPath.string());
 	bool fileGenerated = false;
 	fs::path origFileName(filePath);
-	string mdname = origFileName.stem().native() + ".md";
 	string htmlName = origFileName.stem().native() + ".html";
-	rcmd = "knit(\"../" + escape_quotes(filePath) + "\"); markdownToHTML(\"" 
-		+ escape_quotes(mdname) + "\", \"" + escape_quotes(htmlName) + "\");";
-
+	string rcmd = "render(\"../" + escape_quotes(filePath) + "\", html_document(), intermediates_dir = \"" + scratchPathStr + "\")";
+	LOG(INFO) << "executing: " << rcmd << endl;
 	{
 		Impl::NotifySuspender suspender(*_impl);
 		_impl->R->parseEvalQNT(rcmd);
 		flushOutputBuffer();
 	}
-	//switch working dir back
-		rcmd = "setwd('" + escape_quotes(scratchPath.parent_path().string()) + "')";
-		_impl->R->parseEvalNT(rcmd);
 		
 		//move generated html to tmpDir
-		fs::path tmpHtml = scratchPath;
-		tmpHtml /= htmlName;
-		fs::path htmlPath = _impl->tmpDir->getPath();
-		htmlPath /= htmlName;
-		fs::copy_file(tmpHtml, htmlPath, fs::copy_option::overwrite_if_exists);
+//		fs::path tmpHtml = scratchPath;
+//		tmpHtml /= htmlName;
+	fs::path htmlPath = _impl->tmpDir->getPath();
+	htmlPath /= htmlName;
+//		LOG(INFO) << "copying:" << tmpHtml << " to " << htmlPath << endl;
+//		fs::copy_file(tmpHtml, htmlPath, fs::copy_option::overwrite_if_exists);
+//		LOG(INFO) << "copy worked" << endl;
 		//delete scratch dir
-		fs::remove_all(scratchPath);
-		LOG(INFO) << "should be html at " << htmlPath << endl;
-		boost::system::error_code ec;
-		fileGenerated = fs::exists(htmlPath) && fs::file_size(htmlPath, ec) > 0;
+	fs::remove_all(scratchPath);
+	LOG(INFO) << "should be html at " << htmlPath << endl;
+	boost::system::error_code ec;
+	fileGenerated = fs::exists(htmlPath) && fs::file_size(htmlPath, ec) > 0;
 //	}
 	
 	if (fileGenerated) {
