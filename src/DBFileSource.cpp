@@ -16,7 +16,7 @@ using boost::format;
 namespace fs = boost::filesystem;
 
 class RC2::DBFileSource::Impl {
-	public:
+public:
 	PGconn *db_;
 	long wspaceId_;
 	string workingDir_;
@@ -268,3 +268,4 @@ RC2::DBFileSource::removeDBFile(DBFileInfoPtr fobj)
 			<< res.errorMessage() << endl;
 	}
 }
+

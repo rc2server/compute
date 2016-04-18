@@ -268,11 +268,13 @@ RC2::FileManager::Impl::processDBNotification(string message)
 			query << " where f.id = " << fileId;
 			if (type == 'i') {
 				if (fileWspace == wspaceId_) {
+					LOG(INFO) << "got insert for " << fileId << endl;
 					ignoreFSNotifications();
 					dbFileSource_.loadFiles(query.str().c_str());
 					watchFile(dbFileSource_.filesById_[fileId]);
 				}
 			} else if (type == 'u') {
+				LOG(INFO) << "got update for " << fileId << endl;
 				if (dbFileSource_.filesById_.count(fileId) > 0) {
 					ignoreFSNotifications();
 					dbFileSource_.loadFiles(query.str().c_str());
@@ -373,7 +375,7 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 	for (p=buf; p < buf + numRead; ) {
 		struct inotify_event *event = (struct inotify_event*)p;
 		int evtype = event->mask & 0xffff; //events are in lower word, flags in upper
-		LOG(INFO) << "notify:" << std::hex << evtype << " (" << std::hex << event->mask << ") for " << event->name << endl;
+		LOG(INFO) << "notify:" << std::hex << event->mask << endl;
 		try {
 			if(evtype == IN_CREATE) {
 				if (!(event->mask & IN_ISDIR)) { //we don't want these events, they are duplicates
@@ -413,6 +415,12 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 				filesByWatchDesc_.erase(fobj->id);
 				//discard our records of it
 				inotify_rm_watch(inotifyFd_, event->wd);
+			} else if (evtype == IN_OPEN) {
+				DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
+				LOG(INFO) << "got open for " << fobj->name << endl;
+			} else if (evtype == IN_MODIFY) {
+				DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
+				LOG(INFO) << "got write for " << fobj->name << endl;
 			}
 		} catch(exception &ex) {
 			LOG(ERROR) << "exception in inotify code: " << ex.what() << endl;
@@ -428,7 +436,7 @@ RC2::FileManager::Impl::watchFile(DBFileInfoPtr file) {
 	if (stat(fullPath.c_str(), &file->sb) == -1)
 		throw StatException((format("stat failed for watch %s") % fullPath.c_str()).str());
 	file->watchDescriptor = inotify_add_watch(inotifyFd_, fullPath.c_str(), 
-				IN_CLOSE_WRITE | IN_DELETE_SELF | IN_MODIFY);
+				IN_OPEN | IN_CLOSE_WRITE | IN_DELETE_SELF | IN_MODIFY);
 	if (file->watchDescriptor == -1)
 		throw FormattedException("inotify_add_warched failed %s", file->name.c_str());
 	filesByWatchDesc_[file->watchDescriptor] = file;
@@ -538,11 +546,24 @@ RC2::FileManager::findOrAddFile(std::string fname, FileInfo &info)
 		}
 	}
 	//need to add the file
-	LOG(INFO) << "findOrAddFile adding file " << fname << endl;
 	long fid = _impl->dbFileSource_.insertDBFile(fname);
 	_impl->manuallyAddedFiles_.insert(fname);
 	_impl->fileInfoForDBPtr(_impl->dbFileSource_.filesById_[fid], info);
 }
+
+bool 
+RC2::FileManager::fileInfoForId (long fileId, FileInfo& info)
+{
+	auto & fileCache = _impl->dbFileSource_.filesById_;
+	if (fileCache.count(fileId) != 1)
+		return false;
+	auto dbptr = fileCache[fileId];
+	info.id = dbptr->id;
+	info.version = dbptr->version;
+	info.name = dbptr->name;
+	return true;
+}
+
 
 string
 RC2::FileManager::filePathForId(long fileId)

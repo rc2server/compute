@@ -11,9 +11,9 @@ typedef char* uuid_string_t;
 #include <fstream>
 #include <boost/filesystem.hpp>
 
-RC2::TemporaryDirectory::TemporaryDirectory()
+RC2::TemporaryDirectory::TemporaryDirectory(bool erase)
 {
-	_eraseOnDeath = true;
+	_eraseOnDeath = erase;
 	std::string uuid = GenerateUUID();
 	_path = "/tmp/" + uuid;
 	if (mkdir(_path.c_str(), 0700) != 0) {

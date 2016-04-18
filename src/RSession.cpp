@@ -50,7 +50,8 @@ struct ExecCompleteArgs {
 	RC2::JsonCommand command;
 	RC2::FileInfo finfo;
 	int queryId;
-	ExecCompleteArgs(RC2::RSession *inSession, RC2::JsonCommand inCommand, int inQueryId, RC2::FileInfo &info) 
+	//object ptr points to does not have to exist past this call. just to allow null value
+	ExecCompleteArgs(RC2::RSession *inSession, RC2::JsonCommand inCommand, int inQueryId, RC2::FileInfo *info) 
 		: session(inSession), queryId(inQueryId), command(inCommand), finfo(info)
 	{}
 };
@@ -88,6 +89,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 		LOG(INFO) << "handleExecComplete got json:" << s << endl;
 		args->session->sendJsonToClientSource(s);
 		if (args->finfo.id > 0) {
+			args->session->_impl->fileManager.fileInfoForId(args->finfo.id, args->finfo);
 			json2 results = { 
 				{"msg", "showoutput"}, 
 				{"fileId", args->finfo.id}, 
@@ -163,7 +165,7 @@ void
 RC2::RSession::scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int queryId,
 	FileInfo* info)
 {
-	ExecCompleteArgs *args = new ExecCompleteArgs(this, command, queryId, *info);
+	ExecCompleteArgs *args = new ExecCompleteArgs(this, command, queryId, info);
 	struct timeval delay = {0, 1};
 	struct event *ev = event_new(_impl->eventBase, -1, 0, 	RC2::RSession::Impl::handleExecComplete, args);
 	event_priority_set(ev, 0);
@@ -199,8 +201,7 @@ RC2::RSession::~RSession()
 void
 RC2::RSession::consoleCallback(const string &text, bool is_error)
 {
-//	LOG(INFO) << "write cb: " << text << "(ignore=" << _impl->ignoreOutput 
-//		<< ",vis=" << R_Visible << ",sip=" << _impl->sourceInProgress << ")" << endl;
+//	LOG(INFO) << "write cb: " << text <<  "(ignore=" << _impl->ignoreOutput << ",vis=" << R_Visible << ",sip=" << _impl->sourceInProgress << ")" << endl;
 	if (_impl->ignoreOutput)
 		return;
 	if (is_error) {
@@ -437,7 +438,7 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 
 void
 RC2::RSession::handleExecuteScript(JsonCommand& command) {
-	LOG(INFO) << "exec:" << command.argument() << endl;
+	LOG(INFO) << "exec:" << command.argument() << "in " << _impl->tmpDir->getPath() << endl;
 	_impl->fileManager.resetWatch();
 	SEXP ans=NULL;
 	RInside::ParseEvalResult result = _impl->R->parseEvalR(command.argument(), ans);
@@ -531,6 +532,13 @@ RC2::RSession::handleHelpCommand(JsonCommand& command)
 void
 RC2::RSession::executeFile(JsonCommand& command) {
 	long fileId = atol(command.argument().c_str());
+// 	if (_impl->fileManager.saveInProgress(fileId)) {
+// 		LOG(INFO) << "delaying execute" << endl;
+// 		_impl->fileManager.addSaveCallback(fileId, [&]() {
+// 			this->executeFile(command);
+// 		});
+// 		return;
+// 	}
 	string fpath = _impl->fileManager.filePathForId(fileId);
 	fs::path p(fpath);
 	clearFileChanges();
@@ -548,43 +556,42 @@ RC2::RSession::executeFile(JsonCommand& command) {
 		_impl->sourceInProgress = false;
 		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId);
 	} else {
-		sendJsonToClientSource(formatErrorAsJson(kError_Execfile_InvalidInput, "unsupported file type", _impl->currentQueryId));
+		string errMsg = "unsupported file type:" + fpath;
+		sendJsonToClientSource(formatErrorAsJson(kError_Execfile_InvalidInput, errMsg, _impl->currentQueryId));
 	}
 }
 
 void
-RC2::RSession::executeRMarkdown(string filePath, long fileId, JsonCommand& command)
+RC2::RSession::executeRMarkdown(string fileName, long fileId, JsonCommand& command)
 {
-	fs::path scratchPath(_impl->tmpDir->getPath());
-	scratchPath /= ".rc2md";
-	create_directories(scratchPath);
-	string scratchPathStr = escape_quotes(scratchPath.string());
+	TemporaryDirectory tmp;
 	bool fileGenerated = false;
-	fs::path origFileName(filePath);
+
+	fs::path origFileName(fileName);
 	string htmlName = origFileName.stem().native() + ".html";
-	string rcmd = "render(\"../" + escape_quotes(filePath) + "\", html_document(), intermediates_dir = \"" + scratchPathStr + "\")";
-	LOG(INFO) << "executing: " << rcmd << endl;
-	{
-		Impl::NotifySuspender suspender(*_impl);
-		_impl->R->parseEvalQNT(rcmd);
-		flushOutputBuffer();
-	}
-		
-		//move generated html to tmpDir
-//		fs::path tmpHtml = scratchPath;
-//		tmpHtml /= htmlName;
 	fs::path htmlPath = _impl->tmpDir->getPath();
 	htmlPath /= htmlName;
-//		LOG(INFO) << "copying:" << tmpHtml << " to " << htmlPath << endl;
-//		fs::copy_file(tmpHtml, htmlPath, fs::copy_option::overwrite_if_exists);
-//		LOG(INFO) << "copy worked" << endl;
-		//delete scratch dir
-	fs::remove_all(scratchPath);
-	LOG(INFO) << "should be html at " << htmlPath << endl;
+	fs::path srcPath(_impl->tmpDir->getPath());
+	srcPath /= fileName;
+	fs::path destPath(tmp.getPath());
+	destPath /= fileName;
+	fs::path tmpHtmlPath(tmp.getPath());
+	tmpHtmlPath /= htmlName;
+
+	fs::copy_file(srcPath, destPath, fs::copy_option::overwrite_if_exists);
+	string rcmd = "setwd('" + tmp.getPath() + "');render(\"" + escape_quotes(fileName) + "\", output_format=html_document()); setwd('" + _impl->tmpDir->getPath() + "')";
+	fs::path opath(_impl->tmpDir->getPath());
+	opath /= origFileName;
+	{
+		Impl::NotifySuspender suspender(*_impl);
+		LOG(INFO) << "executing: " << rcmd << endl;
+		_impl->R->parseEvalQNT(rcmd);
+		flushOutputBuffer();
+		fs::copy_file(tmpHtmlPath, htmlPath, fs::copy_option::overwrite_if_exists);
+	}
+		
 	boost::system::error_code ec;
 	fileGenerated = fs::exists(htmlPath) && fs::file_size(htmlPath, ec) > 0;
-//	}
-	
 	if (fileGenerated) {
 		Impl::NotifySuspender suspender(*_impl);
 		FileInfo finfo;

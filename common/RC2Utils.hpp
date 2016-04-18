@@ -17,7 +17,7 @@ int MakeDirectoryPath(std::string s, mode_t mode);
 
 class TemporaryDirectory {
 	public:
-					TemporaryDirectory();
+					TemporaryDirectory(bool erase=true);
 					TemporaryDirectory(std::string path, bool erase=false);
 		virtual		~TemporaryDirectory();
 		

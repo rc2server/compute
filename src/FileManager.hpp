@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <vector>
+#include <functional>
 #include <event2/event.h>
 
 namespace RC2 {
@@ -16,6 +17,13 @@ namespace RC2 {
 		FileInfo(long anId, long aVersion, std::string aName)
 			: id(anId), version(aVersion), name(aName)
 			{}
+		FileInfo(const FileInfo* ptr) {
+			if (ptr) {
+				id = ptr->id;
+				version = ptr->version;
+				name = ptr->name;
+			}
+		}
 	};
 	
 	class FileManager {
@@ -36,6 +44,7 @@ namespace RC2 {
 			
 			std::string	filePathForId(long fileId);
 			void	findOrAddFile(std::string fname, FileInfo &info);
+			bool	fileInfoForId(long fileId, FileInfo &info);
 			
 			void	suspendNotifyEvents();
 			void	resumeNotifyEvents();
