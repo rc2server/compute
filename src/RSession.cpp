@@ -366,7 +366,7 @@ RC2::RSession::handleJsonCommand(string json)
 				handleGetVariableCommand(command);
 				break;
 				case CommandType::ToggleWatch:
-				_impl->watchVariables = command.raw().value("toggleVariableWatch", false);
+				_impl->watchVariables = command.raw().value("watch", false);
 				if (_impl->watchVariables)
 					handleListVariablesCommand(false, command);
 				break;
