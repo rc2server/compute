@@ -25,7 +25,6 @@ RC2::InputBufferManager::appendData(struct evbuffer *inBuffer)
 		cerr << "failed to append buffer" << endl;
 	}
 	size_t dataSize = evbuffer_get_length(_buffer);
-	cerr << "input " << dataSize << " bytes" << endl;
 	if (dataSize > 8) {
 		char dataHead[8];
 		evbuffer_copyout(_buffer, dataHead, 8);
@@ -40,7 +39,6 @@ RC2::InputBufferManager::appendData(struct evbuffer *inBuffer)
 			std::unique_ptr<char[]> buff(new char[dataSize]);
 			evbuffer_remove(_buffer, buff.get(), dataSize);
 			_currentJson += string(&buff.get()[8], jsonSize);
-			cerr << "inbuff:" << _currentJson << endl;
 		}
 	}
 }

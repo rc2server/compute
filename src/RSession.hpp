@@ -55,6 +55,7 @@ namespace RC2 {
 			void	sendOutputBufferToClient(bool is_error);
 			void	sendTextToClient(string text, bool is_error=false);
 			void	handleJsonCommand(string json);
+			void	handleCommand(JsonCommand& command);
 			void	handleOpenCommand(JsonCommand& command);
 			void	handleHelpCommand(JsonCommand& command);
 			void	handleListVariablesCommand(bool delta, JsonCommand& command);
@@ -66,6 +67,7 @@ namespace RC2 {
 			void	executeSweave(string filePath, long fileId, JsonCommand& command);
 
 			void	scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int queryId, FileInfo *info=nullptr);
+			void	scheduleDelayedCommand(string json);
 			static void handleJsonStatic(struct bufferevent *bev, void *ctx);
 
 			//this is likely needed for subclasses (like in a unit test)

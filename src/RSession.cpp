@@ -56,6 +56,13 @@ struct ExecCompleteArgs {
 	{}
 };
 
+struct DelayCommandArgs {
+	RC2::RSession *session;
+	string json;
+	DelayCommandArgs(RC2::RSession *inSession, string inJson)
+		: session(inSession), json(inJson)
+	{}
+};
 
 struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	struct event_base*				eventBase;
@@ -99,7 +106,14 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 		}
 		delete args;
 	}
-
+	
+	static void handleDelayedCommand(int fd, short event_type, void *ctx) 
+	{
+		DelayCommandArgs *args = reinterpret_cast<DelayCommandArgs*>(ctx);
+		args->session->handleJsonCommand(args->json);
+		delete args;
+	}
+	
 	
 	class NotifySuspender {
 		Impl& _impl;
@@ -160,7 +174,6 @@ RC2::RSession::Impl::acknowledgeExecComplete(JsonCommand& command, int queryId, 
 }
 
 
-
 void
 RC2::RSession::scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int queryId,
 	FileInfo* info)
@@ -170,6 +183,16 @@ RC2::RSession::scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int que
 	struct event *ev = event_new(_impl->eventBase, -1, 0, 	RC2::RSession::Impl::handleExecComplete, args);
 	event_priority_set(ev, 0);
  	event_add(ev, &delay);
+}
+
+void
+RC2::RSession::scheduleDelayedCommand(string json)
+{
+	DelayCommandArgs *args = new DelayCommandArgs(this, json);
+	struct timeval delay = {0, 1};
+	struct event *ev = event_new(_impl->eventBase, -1, 0, 	RC2::RSession::Impl::handleDelayedCommand, args);
+	event_priority_set(ev, 0);
+	event_add(ev, &delay);
 }
 
 RC2::RSession::RSession(RSessionCallbacks *callbacks)
@@ -299,7 +322,6 @@ RC2::RSession::stopEventLoop()
 void 
 RC2::RSession::handleJsonStatic(struct bufferevent *bev, void *ctx)
 {
-LOG(INFO) << "got input" << endl;
 	try {
 		RC2::RSession *me = static_cast<RC2::RSession*>(ctx);
 		me->_impl->inputBuffer.appendData(bufferevent_get_input(bev));
@@ -308,6 +330,46 @@ LOG(INFO) << "got input" << endl;
 		}
 	} catch (exception const& e) {
 		LOG(ERROR) << "exception in handleJsonStatic:" << e.what() << endl;
+	}
+}
+
+void
+RC2::RSession::handleCommand(JsonCommand& command)
+{
+	if (!_impl->open) {
+		LOG(ERROR) << "R not open" << endl;
+		return;
+	}
+	_impl->currentQueryId = command.raw().value("queryId", 0);
+	
+	switch(command.type()) {
+		case CommandType::Close:
+			event_base_loopbreak(_impl->eventBase);
+			break;
+		case CommandType::ClearFileChanges:
+			_impl->fileManager.resetWatch(); //clears cache
+			break;
+		case CommandType::ExecScript:
+			handleExecuteScript(command);
+			break;
+		case CommandType::ExecFile:
+			executeFile(command);
+			break;
+		case CommandType::Help:
+			handleHelpCommand(command);
+			break;
+		case CommandType::ListVariables:
+//			_impl->watchVariables = command.raw().value("watch", false);
+			handleListVariablesCommand(command.raw().value("delta", false), command);
+			break;
+		case CommandType::GetVariable:
+			handleGetVariableCommand(command);
+			break;
+		case CommandType::ToggleWatch:
+			_impl->watchVariables = command.raw().value("watch", false);
+			if (_impl->watchVariables)
+				handleListVariablesCommand(false, command);
+			break;
 	}
 }
 
@@ -336,41 +398,7 @@ RC2::RSession::handleJsonCommand(string json)
 			}
 			handleOpenCommand(command);
 		} else {
-			if (!_impl->open) {
-				LOG(ERROR) << "R not open" << endl;
-				return;
-			}
-			_impl->currentQueryId = command.raw().value("queryId", 0);
-
-			switch(command.type()) {
-				case CommandType::Close:
-				event_base_loopbreak(_impl->eventBase);
-				break;
-				case CommandType::ClearFileChanges:
-				_impl->fileManager.resetWatch(); //clears cache
-				break;
-				case CommandType::ExecScript:
-				handleExecuteScript(command);
-				break;
-				case CommandType::ExecFile:
-				executeFile(command);
-				break;
-				case CommandType::Help:
-				handleHelpCommand(command);
-				break;
-				case CommandType::ListVariables:
-				_impl->watchVariables = command.raw().value("watch", false);
-				handleListVariablesCommand(true, command);
-				break;
-				case CommandType::GetVariable:
-				handleGetVariableCommand(command);
-				break;
-				case CommandType::ToggleWatch:
-				_impl->watchVariables = command.raw().value("watch", false);
-				if (_impl->watchVariables)
-					handleListVariablesCommand(false, command);
-				break;
-			}
+			handleCommand(command);
 		}
 	} catch (std::runtime_error error) {
 		LOG(WARNING) << "handleJsonCommand error: " << error.what() << endl;
@@ -424,8 +452,10 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		_impl->R->parseEvalQNT("library(tools)");
 		_impl->R->parseEvalQNT("rm(argv)"); //RInside creates this even though we passed NULL
 		_impl->R->parseEvalQNT("options(device = \"rc2.pngdev\", bitmapType = \"cairo\")");
-		if (haveRData)
+		if (haveRData) {
+			LOG(INFO) << "loading .RData" << endl;
 			_impl->R->parseEvalQNT("load(\".RData\")");
+		}
 		_impl->ignoreOutput = false;
 		json2 response =  { {"msg", "openresponse"}, {"success", true} };
 		sendJsonToClientSource(response.dump());
@@ -438,7 +468,7 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 
 void
 RC2::RSession::handleExecuteScript(JsonCommand& command) {
-	LOG(INFO) << "exec:" << command.argument() << "in " << _impl->tmpDir->getPath() << endl;
+	LOG(INFO) << "exec:" << command.argument() << " in " << _impl->tmpDir->getPath() << endl;
 	_impl->fileManager.resetWatch();
 	SEXP ans=NULL;
 	RInside::ParseEvalResult result = _impl->R->parseEvalR(command.argument(), ans);
@@ -448,7 +478,7 @@ RC2::RSession::handleExecuteScript(JsonCommand& command) {
 		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId);
 		bool sendDelta = _impl->watchVariables || command.watchVariables();
 		if (sendDelta)
-			handleListVariablesCommand(true, command);
+			scheduleDelayedCommand("{\"msg\":\"listVariables\", \"delta\":true}");
 	} else if (result == RInside::ParseEvalResult::PE_INCOMPLETE) {
 		sendTextToClient("Incomplete R statement\n", true);
 	}
