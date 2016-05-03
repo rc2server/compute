@@ -92,10 +92,12 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	static void handleExecComplete(int fd, short event_type, void *ctx) 
 	{
 		ExecCompleteArgs *args = reinterpret_cast<ExecCompleteArgs*>(ctx);
-		string s = args->session->_impl->acknowledgeExecComplete(args->command, args->queryId, args->finfo.id > 0);
+		bool gotFileInfo = args->finfo.id > 0;
+		LOG(INFO) << "got ack with file " << gotFileInfo << endl;
+		string s = args->session->_impl->acknowledgeExecComplete(args->command, args->queryId, gotFileInfo);
 		LOG(INFO) << "handleExecComplete got json:" << s << endl;
 		args->session->sendJsonToClientSource(s);
-		if (args->finfo.id > 0) {
+		if (gotFileInfo) {
 			args->session->_impl->fileManager.fileInfoForId(args->finfo.id, args->finfo);
 			json2 results = { 
 				{"msg", "showoutput"}, 

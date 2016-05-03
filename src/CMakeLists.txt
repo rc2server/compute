@@ -3,6 +3,7 @@ project (rcompute-src)
 
 add_library (src InputBufferManager.cpp 
 					InotifyFileWatcher.cpp
+					EnvironmentWatcher.cpp
 					FileManager.cpp
 					DBFileSource.cpp
 					RServer.cpp 

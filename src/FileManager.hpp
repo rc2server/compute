@@ -17,7 +17,9 @@ namespace RC2 {
 		FileInfo(long anId, long aVersion, std::string aName)
 			: id(anId), version(aVersion), name(aName)
 			{}
-		FileInfo(const FileInfo* ptr) {
+		FileInfo(const FileInfo* ptr) 
+			: id(0), version(0), name("")
+		{
 			if (ptr) {
 				id = ptr->id;
 				version = ptr->version;
