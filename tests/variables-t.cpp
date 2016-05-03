@@ -4,8 +4,10 @@
 #include <queue>
 #include <thread>
 #include <glog/logging.h>
+#include <Rcpp.h>
 #include "common/RC2Utils.hpp"
 #include "testlib/TestingSession.hpp"
+#include "src/EnvironmentWatcher.hpp"
 
 using json = nlohmann::json;
 using namespace std;
@@ -41,6 +43,65 @@ namespace testing {
 		ASSERT_EQ(elems["y"], 11);
 	}
 
+	TEST_F(VarTest, basicWatcher)
+	{
+		EnvironmentWatcher watcher(Rcpp::Environment::global_env());
+		//number
+		session->execScript("x <- 20");
+		session->emptyMessages();
+		json xjson = watcher.toJson("x");
+		ASSERT_EQ(xjson["type"], "d");
+		ASSERT_EQ(xjson["value"][0], 20);
+		//boolean
+		session->execScript("b <- c(TRUE,FALSE)");
+		json bjson = watcher.toJson("b");
+		ASSERT_EQ(bjson["type"], "b");
+		json vals = bjson["value"];
+		ASSERT_TRUE(vals.is_array());
+		bool val1 = vals[0];
+		ASSERT_EQ(val1, true);
+		ASSERT_EQ(vals[1], false);
+		//strings
+		session->execScript("ss <- c(\\\"foo\\\",\\\"bar\\\")");
+		json sjson = watcher.toJson("ss");
+		ASSERT_EQ(sjson["type"], "s");
+		ASSERT_TRUE(sjson["value"].is_array());
+		ASSERT_EQ(sjson["value"][0], "foo");
+		ASSERT_EQ(sjson["value"][1], "bar");
+		//complex
+		session->execScript("cpx <- complex(real=c(1.345, -0.134), imaginary = c(0.485, -1.212))");
+		json cjson = watcher.toJson("cpx");
+		ASSERT_EQ(cjson["type"], "c");
+		ASSERT_TRUE(cjson["value"].is_array());
+		ASSERT_EQ(cjson["value"][0], "1.345+0.485i");
+		ASSERT_EQ(cjson["value"][1], "-0.134-1.212i");
+		//factor
+		session->execScript("f <- factor(c(1,1,3,4,2,5), labels = letters[1:5])");
+		json fjson = watcher.toJson("f");
+		ASSERT_EQ(fjson["type"], "f");
+		ASSERT_EQ(fjson["levels"][0], "a");
+		ASSERT_EQ(fjson["levels"][1], "b");
+		ASSERT_EQ(fjson["levels"][2], "c");
+		ASSERT_EQ(fjson["levels"][3], "d");
+		ASSERT_EQ(fjson["levels"][4], "e");
+		ASSERT_EQ(fjson["value"][0], 1);
+		ASSERT_EQ(fjson["value"][1], 1);
+		ASSERT_EQ(fjson["value"][2], 3);
+		ASSERT_EQ(fjson["value"][3], 4);
+		ASSERT_EQ(fjson["value"][4], 2);
+		ASSERT_EQ(fjson["value"][5], 5);
+		//POSIXct
+		session->execScript("ctd <- as.POSIXct(\\\"2016-05-04 11:11:11 GMT\\\")");
+		json djson = watcher.toJson("ctd");
+		ASSERT_EQ(djson["class"], "POSIXct");
+		ASSERT_EQ(djson["value"], 1462385471);
+		//function
+		session->execScript("hlp <- help");
+		json funjson = watcher.toJson("hlp");
+		ASSERT_EQ(funjson["class"], "function");
+		string prefix("function (topic)");
+		string body = funjson["body"];
+		ASSERT_TRUE(!body.compare(0, prefix.size(), prefix));
+	}
 };
-
 

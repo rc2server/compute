@@ -1,17 +1,10 @@
-#include <gtest/gtest.h>
-#include <string>
 #include <iostream>
-#include <queue>
 #include <thread>
-#include <event2/event.h>
-#include <event2/thread.h>
 #include <glog/logging.h>
 #include "common/RC2Utils.hpp"
-#include "json.hpp"
-#include "../src/RSession.hpp"
-#include "../src/RSessionCallbacks.hpp"
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
+#include "TestingSession.hpp"
 
 using json = nlohmann::json;
 using namespace std;
@@ -32,30 +25,6 @@ namespace RC2 {
 // 		stderr << val << endl;
 	}
 	
-
-class TestingSession : public RSession {
-	public:
-		using RSession::RSession;
-		virtual void	sendJsonToClientSource(std::string json);
-		
-		bool fileExists(string filename);
-		void copyFileToWorkingDirectory(string srcPath);
-// 		void removeAllWorkingFiles();
-		
-		void doJson(std::string json);
-		
-		inline void emptyMessages() { while (!_messages.empty()) _messages.pop(); }
-		
-		json2 popMessage();
-		
-		void startCountdown(int count);
-		void executeDelayedJson(string msg);
-		
-		event_base* cheatBase() { return getEventBase(); }
-		queue<string> _messages;
-		bool countingDown;
-		int countDown;
-};
 
 void TestingSession::startCountdown ( int count )
 {
@@ -130,4 +99,17 @@ TestingSession::doJson(std::string json) {
 	handleJsonCommand(json);
 }
 
+void 
+TestingSession::execScript ( string rcode )
+{
+	string json = "{\"msg\":\"execScript\", \"argument\": \"" + rcode + "\"}";
+	handleJsonCommand(json);
+}
+
+};
+
+namespace testing {
+	RSessionCallbacks* BaseSessionTest::callbacks = NULL;
+	TestingSession* BaseSessionTest::session = NULL;
+	
 };

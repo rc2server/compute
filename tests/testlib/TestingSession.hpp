@@ -1,3 +1,4 @@
+#pragma once
 #include <gtest/gtest.h>
 #include <string>
 #include <queue>
@@ -24,6 +25,7 @@ namespace RC2 {
 		void copyFileToWorkingDirectory(string srcPath);
 		
 		void doJson(std::string json);
+		void execScript(std::string rcode);
 		
 		inline void emptyMessages() { while (!_messages.empty()) _messages.pop(); }
 		
@@ -76,8 +78,5 @@ namespace testing {
 		
 		virtual void pureVirtual() = 0;
 	}; 
-	
-	RSessionCallbacks* BaseSessionTest::callbacks = NULL;
-	TestingSession* BaseSessionTest::session = NULL;
 	
 };

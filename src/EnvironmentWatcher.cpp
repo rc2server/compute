@@ -109,6 +109,7 @@ RC2::EnvironmentWatcher::valueToJson ( RObject& robj, json& jobj, bool includeLi
 		case SPECIALSXP: //7
 		case BUILTINSXP: //8
 			setFunctionData(robj, jobj);
+			break;
 		default:
 			setPrimitiveData(robj, jobj);
 			break;
@@ -231,7 +232,7 @@ RC2::EnvironmentWatcher::setFunctionData ( RObject& robj, json& jobj )
 	jobj[kNotAVector] = true;
 	jobj[kPrimitive] = false;
 	try {
-		Rcpp::Environment env("package:rc");
+		Rcpp::Environment env("package:rc2");
 		Rcpp::Function fun(env["rc2.defineFunction"]);
 		RObject val = fun(robj);
 		json lines;
@@ -300,7 +301,12 @@ RC2::EnvironmentWatcher::setPrimitiveData ( RObject& robj, json& jobj )
 		case LGLSXP: //10
 			jobj[kClass] = "logical";
 			jobj[kType] = "b";
-			jobj[kValue] = Rcpp::LogicalVector(robj);
+			{ //logicalvector gets stored in json as ints, not bools. Convert manually
+				Rcpp::LogicalVector logics(robj);
+				std::vector<bool> vals;
+				std::for_each(logics.begin(), logics.end(), [&](int aVal) { vals.push_back(aVal == 0 ? false : true); });
+				jobj[kValue] = vals;
+			}
 			break;
 		case INTSXP: //13
 			jobj[kClass] = "integer vector";
