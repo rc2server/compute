@@ -75,7 +75,24 @@ namespace testing {
 		ASSERT_TRUE(cjson["value"].is_array());
 		ASSERT_EQ(cjson["value"][0], "1.345+0.485i");
 		ASSERT_EQ(cjson["value"][1], "-0.134-1.212i");
-		//factor
+		//POSIXct
+		session->execScript("ctd <- as.POSIXct(\\\"2016-05-04 11:11:11 GMT\\\")");
+		json djson = watcher.toJson("ctd");
+		ASSERT_EQ(djson["class"], "POSIXct");
+		ASSERT_EQ(djson["value"], 1462385471);
+		//function
+		session->execScript("hlp <- help");
+		json funjson = watcher.toJson("hlp");
+		ASSERT_EQ(funjson["class"], "function");
+		string prefix("function (topic)");
+		string body = funjson["body"];
+		ASSERT_TRUE(!body.compare(0, prefix.size(), prefix));
+		
+		//TODO: Date, POSIXlt, matrix, array, list, s3, s4
+	}
+	
+	TEST_F(VarTest, factorTest) {
+		EnvironmentWatcher watcher(Rcpp::Environment::global_env());
 		session->execScript("f <- factor(c(1,1,3,4,2,5), labels = letters[1:5])");
 		json fjson = watcher.toJson("f");
 		ASSERT_EQ(fjson["type"], "f");
@@ -90,18 +107,25 @@ namespace testing {
 		ASSERT_EQ(fjson["value"][3], 4);
 		ASSERT_EQ(fjson["value"][4], 2);
 		ASSERT_EQ(fjson["value"][5], 5);
-		//POSIXct
-		session->execScript("ctd <- as.POSIXct(\\\"2016-05-04 11:11:11 GMT\\\")");
-		json djson = watcher.toJson("ctd");
-		ASSERT_EQ(djson["class"], "POSIXct");
-		ASSERT_EQ(djson["value"], 1462385471);
-		//function
-		session->execScript("hlp <- help");
-		json funjson = watcher.toJson("hlp");
-		ASSERT_EQ(funjson["class"], "function");
-		string prefix("function (topic)");
-		string body = funjson["body"];
-		ASSERT_TRUE(!body.compare(0, prefix.size(), prefix));
+	}
+
+	TEST_F(VarTest, dframeTest) {
+		EnvironmentWatcher watcher(Rcpp::Environment::global_env());
+		session->execScript("df <- women");
+		json df = watcher.toJson("df");
+		ASSERT_EQ(df["nrow"], 15);
+		ASSERT_EQ(df["ncol"], 2);
+		ASSERT_EQ(df["types"][0], "d");
+		ASSERT_EQ(df["types"][1], "d");
+		ASSERT_EQ(df["cols"][0], "height");
+		ASSERT_EQ(df["cols"][1], "weight");
+		ASSERT_EQ(df["row.names"][0], "1");
+		ASSERT_EQ(df["row.names"][14], "15");
+		ASSERT_EQ(df["rows"][0][0], 58.0);
+		ASSERT_EQ(df["rows"][0][1], 115.0);
+		ASSERT_EQ(df["rows"][14][0], 72.0);
+		ASSERT_EQ(df["rows"][14][1], 164.0);
+		
 	}
 };
 

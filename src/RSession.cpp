@@ -143,7 +143,6 @@ RC2::RSession::Impl::Impl()
 {
 	FLAGS_log_dir = "/tmp";
 	google::InitGoogleLogging("rsession");
-	cerr << "is tty:" << isatty(fileno(stdin)) << endl;
 }
 
 void
@@ -253,7 +252,9 @@ RC2::RSession::parseArguments(int argc, char *argv[])
 		cmdLine.parse(argc, argv);
 		_impl->socket = portArg.getValue();
 		bool verbose = switchArg.getValue();
-
+		if (verbose) {
+			setenv("GLOG_minloglevel", "1", 1);
+		}
 //		logging::core::get()->set_filter
 //		(
 //			logging::trivial::severity >= (verbose ? logging::trivial::info : logging::trivial::warning)
