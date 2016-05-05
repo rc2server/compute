@@ -13,6 +13,17 @@ const char *kValue = "value";
 const char *kName = "name";
 const char *kType = "type";
 
+namespace RC2 {
+void get_var_names(std::vector<Variable> &vars, std::vector<std::string> &names) {
+	for_each(vars.begin(), vars.end(), [&](Variable& aVar) { 
+		names.push_back(aVar.first); 
+	});
+}
+
+bool compareVariablesByName(Variable& v1, Variable& v2) {
+	return v1.first < v2.first;
+}
+} //namespace RC2
 
 inline bool isOrderedFactor(Rcpp::StringVector& classNames, RObject& robj) {
 	return classNames.length() > 1 && classNames[0] == "ordered" && classNames[1] == "factor";
@@ -58,8 +69,11 @@ RC2::EnvironmentWatcher::captureEnvironment()
 {
 	_lastVars.clear();
 	Rcpp::StringVector names(_env.ls(false));
+	//reorder values for easier comparison
+	std::sort(names.begin(), names.end());
 	std::for_each(names.begin(), names.end(), [&](const char* aName) { 
-		_lastVars[aName] = _env.get(aName);
+		std::string name(aName);
+		_lastVars.push_back(Variable(name, _env.get(name)));
 	});
 }
 
@@ -86,8 +100,39 @@ RC2::EnvironmentWatcher::toJson()
 json::value_type 
 RC2::EnvironmentWatcher::jsonDelta()
 {
-	json results;
+	std::vector<Variable> added;
+	std::vector<Variable> removed;
 	
+	//get new variables
+	Rcpp::StringVector names(_env.ls(false));
+	std::vector<Variable> newVars;
+	std::for_each(names.begin(), names.end(), [&](const char *aName) {
+		newVars.push_back(Variable(aName, _env.get(aName))); 
+	});
+	std::sort(newVars.begin(), newVars.end(), compareVariablesByName);
+
+	//sort old variables
+	std::sort(_lastVars.begin(), _lastVars.end(), compareVariablesByName);
+
+	//figure out what was removed
+	std::set_difference(_lastVars.begin(), _lastVars.end(), 
+						newVars.begin(), newVars.end(),
+						std::back_inserter(removed), compareVariablesByName);
+	//figure out what was added
+	std::set_difference(newVars.begin(), newVars.end(),
+						_lastVars.begin(), _lastVars.end(), 
+						std::back_inserter(added));
+	//craft into json
+	std::vector<std::string> removedNames;
+	get_var_names(removed, removedNames);
+	json results, jsonAdded;
+	results["removed"] = removedNames;
+	std::for_each(added.begin(), added.end(), [&](Variable aVar) {
+		json varValue;
+		valueToJson(aVar.second, varValue, false);
+		jsonAdded[aVar.first] = varValue;
+	});
+	results["assigned"] = jsonAdded;
 	return results;
 }
 

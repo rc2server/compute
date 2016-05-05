@@ -125,7 +125,23 @@ namespace testing {
 		ASSERT_EQ(df["rows"][0][1], 115.0);
 		ASSERT_EQ(df["rows"][14][0], 72.0);
 		ASSERT_EQ(df["rows"][14][1], 164.0);
-		
+	}
+
+	TEST_F(VarTest, simpleDelta) {
+		EnvironmentWatcher watcher(Rcpp::Environment::global_env());
+		session->execScript("x <- 2; y <- 4");
+		watcher.captureEnvironment();
+		session->execScript("x <- y / 4");
+		json delta = watcher.jsonDelta();
+		ASSERT_EQ(delta["assigned"].size(), 1);
+		ASSERT_EQ(delta["removed"].size(), 0);
+		ASSERT_EQ(delta["assigned"]["x"]["type"], "d");
+		watcher.captureEnvironment();
+		session->execScript("rm(y)");
+		delta = watcher.jsonDelta();
+		ASSERT_EQ(delta["assigned"].size(), 0);
+		ASSERT_EQ(delta["removed"].size(), 1);
+		ASSERT_EQ(delta["removed"][0], "y");
 	}
 };
 

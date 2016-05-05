@@ -9,6 +9,7 @@ using json = nlohmann::json;
 using Rcpp::RObject;
 
 namespace RC2 {
+	typedef std::pair<std::string, RObject> Variable;
 	
 class EnvironmentWatcher : private boost::noncopyable {
 public:
@@ -23,7 +24,7 @@ public:
 	
 protected:
 	Rcpp::Environment _env;
-	std:: map< std::string, SEXP> _lastVars;
+	std::vector<Variable> _lastVars;
 	
 	void valueToJson(RObject& robj, json& jobj, bool includeListChildren);
 	//returns array
