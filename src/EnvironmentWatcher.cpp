@@ -92,7 +92,7 @@ RC2::EnvironmentWatcher::toJson()
 	json results;
 	Rcpp::StringVector names(_env.ls(false));
 	std::for_each(names.begin(), names.end(), [&](const char* aName) { 
-		results.push_back(toJson(aName));
+		results[aName] = toJson(aName);
 	});
 	return results;
 }

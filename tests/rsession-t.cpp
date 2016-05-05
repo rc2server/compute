@@ -118,6 +118,26 @@ namespace testing {
 	}
 */
 
+	TEST_F(SessionTest, watchVariables)
+	{
+		//need to delay action until after startEventLoop()
+		std::thread t([]() {
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			session->doJson("{\"msg\":\"execScript\", \"argument\":\"x <- 2\"}");
+			session->doJson("{\"msg\":\"toggleVariableWatch\", \"watch\":true}");
+			session->emptyMessages();
+			session->doJson("{\"msg\":\"execScript\", \"argument\":\"x <- 4\"}");
+		});
+		t.detach();
+		session->startCountdown(4);
+		session->startEventLoop();
+		ASSERT_EQ(session->_messages.size(), 3);
+		session->popMessage(); //execComplete for execScript
+		json results1 = session->popMessage();
+		ASSERT_TRUE(results1["msg"] == "variableupdate");
+		ASSERT_TRUE((bool)results1["delta"]);
+		ASSERT_EQ(results1["variables"]["assigned"]["x"]["value"][0], 4);
+	}
 };
 
 

@@ -55,7 +55,7 @@ void TestingSession::executeDelayedJson ( string msg )
 
 void
 TestingSession::sendJsonToClientSource(std::string jsonStr) {
-	_messages.push(jsonStr);
+	_messages.push(jsonStr + "\n");
 	LOG(INFO) <<"t-json:" <<  jsonStr << " (" << countDown << ")" << endl;
 	if (countingDown) {
 		countDown--;

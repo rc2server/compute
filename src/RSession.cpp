@@ -27,6 +27,7 @@
 #include "common/ZeroInitializedStruct.hpp"
 #include "InotifyFileWatcher.hpp"
 #include "FileManager.hpp"
+#include "EnvironmentWatcher.hpp"
 #include "RC2Logging.h"
 
 using namespace std;
@@ -72,6 +73,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	RInside*						R;
 	FileManager						fileManager;
 	unique_ptr<TemporaryDirectory>	tmpDir;
+	unique_ptr<EnvironmentWatcher>	envWatcher;
 	shared_ptr<string>				consoleOutBuffer;
 	double							consoleLastWrite;
 	int								wspaceId;
@@ -301,6 +303,7 @@ RC2::RSession::prepareForRunLoop()
 	}
 	_impl->outBuffer = evbuffer_new();
 	_impl->fileManager.setEventBase(_impl->eventBase);
+	_impl->envWatcher.reset(new EnvironmentWatcher(Rcpp::Environment::global_env()));
 }
 
 void
@@ -362,7 +365,6 @@ RC2::RSession::handleCommand(JsonCommand& command)
 			handleHelpCommand(command);
 			break;
 		case CommandType::ListVariables:
-//			_impl->watchVariables = command.raw().value("watch", false);
 			handleListVariablesCommand(command.raw().value("delta", false), command);
 			break;
 		case CommandType::GetVariable:
@@ -472,6 +474,11 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 void
 RC2::RSession::handleExecuteScript(JsonCommand& command) {
 	LOG(INFO) << "exec:" << command.argument() << " in " << _impl->tmpDir->getPath() << endl;
+	bool sendDelta = _impl->watchVariables || command.watchVariables();
+	if (sendDelta) {
+		LOG(INFO) << " watching for changes" << endl;
+		_impl->envWatcher->captureEnvironment();
+	}
 	_impl->fileManager.resetWatch();
 	SEXP ans=NULL;
 	RInside::ParseEvalResult result = _impl->R->parseEvalR(command.argument(), ans);
@@ -479,9 +486,10 @@ RC2::RSession::handleExecuteScript(JsonCommand& command) {
 	flushOutputBuffer();
 	if (result == RInside::ParseEvalResult::PE_SUCCESS) {
 		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId);
-		bool sendDelta = _impl->watchVariables || command.watchVariables();
-		if (sendDelta)
+		if (sendDelta) {
+			LOG(INFO) << "scheduling list variables" << endl;
 			scheduleDelayedCommand("{\"msg\":\"listVariables\", \"delta\":true}");
+		}
 	} else if (result == RInside::ParseEvalResult::PE_INCOMPLETE) {
 		sendTextToClient("Incomplete R statement\n", true);
 	}
@@ -490,29 +498,15 @@ RC2::RSession::handleExecuteScript(JsonCommand& command) {
 void
 RC2::RSession::handleListVariablesCommand(bool delta, JsonCommand& command)
 {
-	string rArg;
-	if (delta)
-		rArg = "delta=TRUE";
-	string cmd("rc2.listVariables(" + rArg + ")");
-	_impl->ignoreOutput = true;
-	try {
-		Rcpp::CharacterVector rResults = _impl->R->parseEval(cmd);
-		string jsonStr(rResults[0]);
-		LOG(INFO) << "executed list vars" << endl;
-
-		auto varDict = json2::parse(jsonStr);
-		json2 results = {
-			{"variables", varDict},
-			{"msg", "variableupdate"},
-			{"delta", delta}
-		};
-		if (!command.clientData().is_null())
-			results["clientData"] = command.clientData();
-		sendJsonToClientSource(results.dump());
-	} catch (std::runtime_error &err) {
-		LOG(WARNING) << "listVariables got error:" << err.what() << endl;
-	}
-	_impl->ignoreOutput = false;
+	json2 vars = delta ? _impl->envWatcher->jsonDelta() : _impl->envWatcher->toJson();
+	json2 results = {
+		{"variables", vars},
+		{"msg", "variableupdate"},
+		{"delta", delta}
+	};
+	if (!command.clientData().is_null())
+		results["clientData"] = command.clientData();
+	sendJsonToClientSource(results.dump());
 }
 
 void
@@ -565,17 +559,12 @@ RC2::RSession::handleHelpCommand(JsonCommand& command)
 void
 RC2::RSession::executeFile(JsonCommand& command) {
 	long fileId = atol(command.argument().c_str());
-// 	if (_impl->fileManager.saveInProgress(fileId)) {
-// 		LOG(INFO) << "delaying execute" << endl;
-// 		_impl->fileManager.addSaveCallback(fileId, [&]() {
-// 			this->executeFile(command);
-// 		});
-// 		return;
-// 	}
 	string fpath = _impl->fileManager.filePathForId(fileId);
 	fs::path p(fpath);
 	clearFileChanges();
 	_impl->fileManager.resetWatch();
+	if (_impl->watchVariables)
+		_impl->envWatcher->captureEnvironment();
 	if (p.extension() == ".Rmd") {
 		executeRMarkdown(fpath, fileId, command);
 	} else if (p.extension() == ".Rnw") {
@@ -588,6 +577,8 @@ RC2::RSession::executeFile(JsonCommand& command) {
 		flushOutputBuffer();
 		_impl->sourceInProgress = false;
 		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId);
+		if (_impl->watchVariables)
+			scheduleDelayedCommand("{\"msg\":\"listVariables\", \"delta\":true}");
 	} else {
 		string errMsg = "unsupported file type:" + fpath;
 		sendJsonToClientSource(formatErrorAsJson(kError_Execfile_InvalidInput, errMsg, _impl->currentQueryId));
