@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include "json.hpp"
+#include "SessionCommon.hpp"
 
 using json = nlohmann::json;
 using Rcpp::RObject;
@@ -13,7 +14,7 @@ namespace RC2 {
 	
 class EnvironmentWatcher : private boost::noncopyable {
 public:
-	EnvironmentWatcher(SEXP environ);
+	EnvironmentWatcher(SEXP environ, ExecuteCallback callback);
 	~EnvironmentWatcher();
 
 	json::value_type toJson();
@@ -26,8 +27,9 @@ public:
 protected:
 	Rcpp::Environment _env;
 	std::vector<Variable> _lastVars;
+	ExecuteCallback _execCallback;
 	
-	void valueToJson(RObject& robj, json& jobj, bool includeListChildren);
+	void valueToJson(std::string& varName, RObject& robj, json& jobj, bool includeListChildren=false);
 	//returns array
 	json rvectorToJsonArray(RObject& robj);
 	
@@ -40,6 +42,8 @@ protected:
 	void setPrimitiveData(RObject& robj, json& jobj);
 	void setDimNames(RObject& robj, json& jobj);
 	void setListData(RObject& robj, json& jobj, bool includeListChildren);
+	
+	void addSummary(std::string& varName, json& jobj);
 };
 
 	

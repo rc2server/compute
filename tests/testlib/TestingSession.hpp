@@ -34,6 +34,8 @@ namespace RC2 {
 		void startCountdown(int count);
 		void executeDelayedJson(string msg);
 		
+		ExecuteCallback getExecCallback() { return getExecuteCallback(); }
+		
 		event_base* cheatBase() { return getEventBase(); }
 		queue<string> _messages;
 		bool countingDown;

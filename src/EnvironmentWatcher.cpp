@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include "EnvironmentWatcher.hpp"
 #include "RC2Logging.h"
+#include "../common/RC2Utils.hpp"
 
 const int kMaxLen = 100;
 const char *kNotAVector = "notAVector";
@@ -52,8 +53,8 @@ columnType(RObject& robj, json& jobj, int colNum) {
 	return "-";
 }
 
-RC2::EnvironmentWatcher::EnvironmentWatcher ( SEXP environ )
-	: _env(environ)
+RC2::EnvironmentWatcher::EnvironmentWatcher ( SEXP environ, ExecuteCallback callback )
+	: _env(environ), _execCallback(callback)
 {
 
 }
@@ -82,7 +83,7 @@ RC2::EnvironmentWatcher::toJson ( std::string varName )
 {
 	json results;
 	Rcpp::RObject robj(_env.get(varName));
-	valueToJson(robj, results, true);
+	valueToJson(varName, robj, results, true);
 	return results;
 }
 
@@ -129,7 +130,7 @@ RC2::EnvironmentWatcher::jsonDelta()
 	results["removed"] = removedNames;
 	std::for_each(added.begin(), added.end(), [&](Variable aVar) {
 		json varValue;
-		valueToJson(aVar.second, varValue, false);
+		valueToJson(aVar.first, aVar.second, varValue, false);
 		jsonAdded[aVar.first] = varValue;
 	});
 	results["assigned"] = jsonAdded;
@@ -137,15 +138,40 @@ RC2::EnvironmentWatcher::jsonDelta()
 }
 
 void
-RC2::EnvironmentWatcher::valueToJson ( RObject& robj, json& jobj, bool includeListChildren )
+RC2::EnvironmentWatcher::addSummary(std::string& varName, json& jobj)
 {
+	std::string vname = varName;
+	StripQuotes(vname);
+	std::string cmd = "capture.output(str(" + vname + "))";
+	RObject result;
+	_execCallback(cmd, result);
+	try {
+		Rcpp::StringVector strs(result);
+		std::string summary;
+		std::for_each(strs.begin(), strs.end(), [&](const char* str) { 
+			if (summary.length() > 0)
+				summary += "\n";
+			summary += str; 
+		});
+		jobj["summary"] = summary;
+	} catch (...) {
+		LOG(INFO) << "exception for summary of " << varName << std::endl;
+	}
+}
+
+void
+RC2::EnvironmentWatcher::valueToJson (std::string& varName, RObject& robj, json& jobj, bool includeListChildren )
+{
+	jobj[kName] = varName;
 	if (Rf_isObject(robj)) {
 		setObjectData(robj, jobj);
+		addSummary(varName, jobj);
 		return;
 	}
 	switch(robj.sexp_type()) {
 		case VECSXP:
 			setListData(robj, jobj, includeListChildren);
+			addSummary(varName, jobj);
 			break;
 		case ENVSXP:
 			setEnvironmentData(robj, jobj);
@@ -170,13 +196,14 @@ RC2::EnvironmentWatcher::setListData ( RObject& robj, json& jobj, bool includeLi
 	json nameArray = rvectorToJsonArray(names);
 	jobj["names"] = nameArray;
 	jobj["length"] = len;
+	std::string emptyStr;
 	if (includeListChildren) {
 		json children;
 		int maxLen = len < kMaxLen ? len : kMaxLen;
 		for (int i=0; i < maxLen; i++) {
 			RObject aChild(VECTOR_ELT(robj, i));
 			json childObj;
-			valueToJson(aChild, childObj, false);
+			valueToJson(emptyStr,  aChild, childObj, false);
 			childObj[kName] = nameArray[i];
 			children.push_back(childObj);
 		}
@@ -304,7 +331,7 @@ RC2::EnvironmentWatcher::setGenericObjectData ( RObject& robj, json& jobj )
 		nameArray.push_back(aName);
 		Rcpp::RObject attrVal(robj.attr(aName));
 		json attrJval;
-		valueToJson(attrVal, attrJval, true);
+		valueToJson(aName, attrVal, attrJval, true);
 		attrJval[kName] = aName;
 		valueArray.push_back(attrJval);
 	});
@@ -326,7 +353,7 @@ RC2::EnvironmentWatcher::setEnvironmentData ( RObject& robj, json& jobj )
 		std::string varName(cnames[i]);
 		cobj[kName] = varName;
 		RObject childVal(cenv.get(varName));
-		valueToJson(childVal, cobj, true);
+		valueToJson(varName, childVal, cobj, true);
 		childArray.push_back(cobj);
 	}
 	jobj[kValue] = childArray;

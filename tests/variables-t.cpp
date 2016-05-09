@@ -37,7 +37,9 @@ namespace testing {
 		session->doJson("{\"msg\":\"listVariables\", \"argument\":\"\", \"watch\":true}");
 		ASSERT_EQ(session->_messages.size(), 1);
 		json results = session->popMessage();
-		auto elems = mapArayToMapMap(results["variables"]["values"]);
+		auto vars = results["variables"];
+		auto vals = vars["values"];
+		auto elems = mapArayToMapMap(results["variables"]);
 		ASSERT_TRUE(results["msg"] == "variableupdate");
 		ASSERT_EQ(elems["x"], 22);
 		ASSERT_EQ(elems["y"], 11);
@@ -45,7 +47,7 @@ namespace testing {
 
 	TEST_F(VarTest, basicWatcher)
 	{
-		EnvironmentWatcher watcher(Rcpp::Environment::global_env());
+		EnvironmentWatcher watcher(Rcpp::Environment::global_env(), session->getExecCallback());
 		//number
 		session->execScript("x <- 20");
 		session->emptyMessages();
@@ -92,7 +94,7 @@ namespace testing {
 	}
 	
 	TEST_F(VarTest, factorTest) {
-		EnvironmentWatcher watcher(Rcpp::Environment::global_env());
+		EnvironmentWatcher watcher(Rcpp::Environment::global_env(),  session->getExecCallback());
 		session->execScript("f <- factor(c(1,1,3,4,2,5), labels = letters[1:5])");
 		json fjson = watcher.toJson("f");
 		ASSERT_EQ(fjson["type"], "f");
@@ -110,7 +112,7 @@ namespace testing {
 	}
 
 	TEST_F(VarTest, dframeTest) {
-		EnvironmentWatcher watcher(Rcpp::Environment::global_env());
+		EnvironmentWatcher watcher(Rcpp::Environment::global_env(), session->getExecCallback());
 		session->execScript("df <- women");
 		json df = watcher.toJson("df");
 		ASSERT_EQ(df["nrow"], 15);
@@ -128,7 +130,7 @@ namespace testing {
 	}
 
 	TEST_F(VarTest, simpleDelta) {
-		EnvironmentWatcher watcher(Rcpp::Environment::global_env());
+		EnvironmentWatcher watcher(Rcpp::Environment::global_env(),  session->getExecCallback());
 		session->execScript("x <- 2; y <- 4");
 		watcher.captureEnvironment();
 		session->execScript("x <- y / 4");

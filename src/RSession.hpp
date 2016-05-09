@@ -6,6 +6,7 @@
 #include <functional>
 #include <boost/noncopyable.hpp>
 #include "JsonCommand.hpp"
+#include "SessionCommon.hpp"
 
 using std::string;
 
@@ -73,6 +74,7 @@ namespace RC2 {
 			//this is likely needed for subclasses (like in a unit test)
 			//caller will have to cast to event_base*
 			struct event_base*	getEventBase() const;
+			ExecuteCallback getExecuteCallback();
 			
 			struct Impl;
 			std::unique_ptr<Impl>		_impl;

@@ -303,7 +303,7 @@ RC2::RSession::prepareForRunLoop()
 	}
 	_impl->outBuffer = evbuffer_new();
 	_impl->fileManager.setEventBase(_impl->eventBase);
-	_impl->envWatcher.reset(new EnvironmentWatcher(Rcpp::Environment::global_env()));
+	_impl->envWatcher.reset(new EnvironmentWatcher(Rcpp::Environment::global_env(), getExecuteCallback()));
 }
 
 void
@@ -805,6 +805,19 @@ struct event_base* RC2::RSession::getEventBase() const
 	return _impl->eventBase;
 }
 
+RC2::ExecuteCallback RC2::RSession::getExecuteCallback()
+{
+	return [this](const string& cmd, RObject& result) {
+		SEXP sr;
+		bool ok = false;
+		{
+			BooleanWatcher bwatch(&_impl->ignoreOutput);
+			ok = _impl->R->parseEval(cmd, sr) == 0;
+		}
+		result = sr;
+		return ok;
+	};
+}
 
 static string 
 escape_quotes(const string before)
