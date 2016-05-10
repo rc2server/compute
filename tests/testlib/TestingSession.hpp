@@ -35,6 +35,7 @@ namespace RC2 {
 		void executeDelayedJson(string msg);
 		
 		ExecuteCallback getExecCallback() { return getExecuteCallback(); }
+		bool doLoadEnvironment() { return loadEnvironment(); }
 		
 		event_base* cheatBase() { return getEventBase(); }
 		queue<string> _messages;

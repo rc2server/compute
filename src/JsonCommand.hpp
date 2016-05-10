@@ -6,7 +6,7 @@ namespace RC2 {
 	
 	enum class CommandType {
 		Unknown=-1, Open, Close, ClearFileChanges, ExecScript, ExecFile,
-		Help, ListVariables, GetVariable, ToggleWatch
+		Help, ListVariables, GetVariable, ToggleWatch, SaveData
 	};
 	
 	class JsonCommand {
@@ -20,6 +20,7 @@ namespace RC2 {
 				std::string cmdStr = cmd["msg"];
 				if (cmdStr == "open") _type = CommandType::Open;
 				if (cmdStr == "close") _type = CommandType::Close;
+				if (cmdStr == "saveEnv") _type = CommandType::SaveData;
 				if (cmdStr == "clearFileChanges") _type = CommandType::ClearFileChanges;
 				if (cmdStr == "execScript") _type = CommandType::ExecScript;
 				if (cmdStr == "execFile") _type = CommandType::ExecFile;

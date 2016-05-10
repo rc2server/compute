@@ -138,6 +138,30 @@ namespace testing {
 		ASSERT_TRUE((bool)results1["delta"]);
 		ASSERT_EQ(results1["variables"]["assigned"]["x"]["value"][0], 4);
 	}
+	/** This test doesn't work because things need to happen in a particular order and there are race condtions, or else message counts vary.
+
+	TEST_F(SessionTest, saveRData)
+	{
+		std::thread t([]() {
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			session->execScript("xy <- 11");
+			session->doJson("{\"msg\":\"saveEnv\"}");
+			session->execScript("xy <- 22");
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			ASSERT_TRUE(session->doLoadEnvironment());
+			session->emptyMessages();
+			session->doJson("{\"msg\":\"getVariable\", \"argument\":\"xy\"}");
+		});
+		t.detach();
+		session->startCountdown(4);
+		session->startEventLoop();
+		ASSERT_EQ(session->_messages.size(), 1);
+		json results = session->popMessage();
+		cout << results.dump() << std::endl;
+		ASSERT_EQ(results["msg"], "variablevalue");
+		ASSERT_EQ(results["name"], "xy");
+		session->doJson("{\"msg\":\"close\"}");
+	} */
 };
 
 

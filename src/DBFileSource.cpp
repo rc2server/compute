@@ -57,19 +57,22 @@ RC2::DBFileSource::loadRData()
 	string filepath = _impl->workingDir_ + "/.RData";
 	ostringstream query;
 	query << "select bindata from rcworkspacedata where id = " << _impl->wspaceId_;
+	LOG(INFO) << "load:" << query.str() << std::endl;
 	DBResult res(PQexecParams(_impl->db_, query.str().c_str(), 0, NULL, NULL, NULL, NULL, 1));
 	ExecStatusType rc = PQresultStatus(res);
 	if (res.dataReturned()) {
-		int datalen = PQgetlength(res, 0, 4);
+		int datalen = PQgetlength(res, 0, 0);
 		if (datalen > 0) {
-			char *data = PQgetvalue(res, 0, 1);
+			char *data = PQgetvalue(res, 0, 0);
 			ofstream rdata;
 			rdata.open(filepath, ios::out | ios::trunc | ios::binary);
 			rdata.write(data, datalen);
 			rdata.close();
+			LOG(INFO) << ".RData loaded" << std::endl;
 			return true;
 		}
 	}
+	LOG(INFO) << ".RData not loaded" << std::endl;
 	return false;
 }
 
@@ -78,9 +81,17 @@ RC2::DBFileSource::saveRData()
 {
 	size_t newSize=0;
 	string filePath = _impl->workingDir_ + "/.RData";
-	if (!fs::exists(filePath))
+	if (!fs::exists(filePath)) {
+		LOG(INFO) << "no .RData file to save" << std::endl;
 		return;
+	}
 	unique_ptr<char[]> data = ReadFileBlob(filePath, newSize);
+	DBTransaction trans(_impl->db_);
+	DBResult lockRes(PQexec(_impl->db_, "lock table rcworkspacedata in access exclusive mode"));
+	if (!lockRes.commandOK()) {
+		LOG(ERROR) << "saveRData failed to get lock on table" << std::endl;
+		return;
+	}
 	ostringstream query;
 	query << "update rcworkspacedata set bindata = $1::bytea where id = " << _impl->wspaceId_;
 	int pformats[] = {1};
@@ -90,6 +101,18 @@ RC2::DBFileSource::saveRData()
 		pSizes, pformats, 1));
 	if (!res.commandOK()) {
 		throw FormattedException("failed to update rcworkspacedata %ld: %s", _impl->wspaceId_, res.errorMessage());
+	}
+	if (res.rowsAffected() < 1) {
+		ostringstream iquery;
+		iquery << "insert into rcworkspacedata (id,bindata) values (" << _impl->wspaceId_ << ", $1::bytea)";
+		DBResult iRes(PQexecParams(_impl->db_, iquery.str().c_str(), 1, NULL, params, pSizes, pformats, 1));
+		if (!iRes.commandOK()) {
+			throw FormattedException("failed to insert rcworkspacedata %ld:%s", _impl->wspaceId_, iRes.errorMessage());
+		}
+	}
+	DBResult commitRes(trans.commit());
+	if (!commitRes.commandOK()) {
+		throw FormattedException("failed to commit save rdata");
 	}
 }
 

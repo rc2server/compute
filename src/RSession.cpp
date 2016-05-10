@@ -84,6 +84,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	bool							ignoreOutput;
 	bool							sourceInProgress;
 	bool							watchVariables;
+	bool 							properlyClosed;
 
 			Impl();
 			Impl(const Impl &copy) = delete;
@@ -215,7 +216,10 @@ RC2::RSession::RSession(RSessionCallbacks *callbacks)
 RC2::RSession::~RSession()
 {
 	if (_impl->R) {
-		_impl->fileManager.saveRData();
+		if (!_impl->properlyClosed) {
+			LOG(WARNING) << "session not properly closed" << std::endl;
+			handleCloseCommand();
+		}
 		delete _impl->R;
 		_impl->R = nullptr;
 	}
@@ -347,10 +351,9 @@ RC2::RSession::handleCommand(JsonCommand& command)
 		return;
 	}
 	_impl->currentQueryId = command.raw().value("queryId", 0);
-	
 	switch(command.type()) {
 		case CommandType::Close:
-			event_base_loopbreak(_impl->eventBase);
+			handleCloseCommand();
 			break;
 		case CommandType::ClearFileChanges:
 			_impl->fileManager.resetWatch(); //clears cache
@@ -374,6 +377,12 @@ RC2::RSession::handleCommand(JsonCommand& command)
 			_impl->watchVariables = command.raw().value("watch", false);
 			if (_impl->watchVariables)
 				handleListVariablesCommand(false, command);
+			break;
+		case CommandType::SaveData:
+			handleSaveEnvCommand();
+			break;
+		default:
+			LOG(ERROR) << "unknown command type" << std::endl;
 			break;
 	}
 }
@@ -471,6 +480,27 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 	}
 }
 
+void 
+RC2::RSession::handleCloseCommand()
+{
+	if (_impl->properlyClosed) {
+		LOG(WARNING) << "duplicate handleCloseCommand" << std::endl;
+		return;
+	}
+	_impl->properlyClosed = true;
+	handleSaveEnvCommand();
+	event_base_loopbreak(_impl->eventBase);
+}
+
+void 
+RC2::RSession::handleSaveEnvCommand()
+{
+	LOG(INFO) << "saving .RData" << std::endl;
+//	BooleanWatcher watch(&_impl->ignoreOutput);
+	_impl->R->parseEvalQNT("save.image()");
+	_impl->fileManager.saveRData();
+}
+
 void
 RC2::RSession::handleExecuteScript(JsonCommand& command) {
 	LOG(INFO) << "exec:" << command.argument() << " in " << _impl->tmpDir->getPath() << endl;
@@ -521,6 +551,7 @@ RC2::RSession::handleGetVariableCommand(JsonCommand &command)
 		json2 varDict = json2::parse(jsonStr);
 		json2 results = {
 			{"msg", "variablevalue"},
+			{"name", command.argument()},
 			{"value", varDict},
 			{"startTime", command.startTimeStr()}
 		};
@@ -818,6 +849,13 @@ RC2::ExecuteCallback RC2::RSession::getExecuteCallback()
 		return ok;
 	};
 }
+
+bool 
+RC2::RSession::loadEnvironment()
+{
+	return _impl->fileManager.loadRData();
+}
+
 
 static string 
 escape_quotes(const string before)

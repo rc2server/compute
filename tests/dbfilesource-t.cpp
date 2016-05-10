@@ -1,34 +1,65 @@
 #include <gtest/gtest.h>
 #include <string>
 #include <iostream>
+#include <fstream>
 #include <memory>
+#include <glog/logging.h>
 #include "../src/DBFileSource.hpp"
 #include "common/RC2Utils.hpp"
+#include <postgresql/libpq-fe.h>
+#define BOOST_NO_CXX11_SCOPED_ENUMS
+#include <boost/filesystem.hpp>
 
 
 using namespace std;
+namespace fs = boost::filesystem;
 
-namespace RC2 {
 namespace testing {
 
-	TEST(DBFileSourceTest, basicTest)
-	{
-		const long wspaceId = 1;
-		PGconn *dbcon = PQconnectdb("postgresql://rc2@localhost/rc2test?application_name=rsession");
-		DBFileSource dbsrc;
-		TemporaryDirectory tmpDir;
-		dbsrc.initializeSource(dbcon, wspaceId);
-		dbsrc.setWorkingDir(tmpDir.getPath());
+	class DBSourceTest: public ::testing::Test {
+	public:
+		RC2::TemporaryDirectory tmpDir;
+		RC2::DBFileSource source;
+		PGconn* db;
 		
-		char msg[255];
-		snprintf(msg, 255, "where wspaceid = %ld", wspaceId);
-		dbsrc.loadFiles(msg);
-
-		ASSERT_TRUE(dbsrc.filesById_.size() == 2);
-//		ASSERT_STREQ(json.c_str(), ib.popCurrentMessage().c_str());
-
-		PQfinish(dbcon);
+	protected:
+		virtual void SetUp() {
+			google::InitGoogleLogging("DBSourceTest");
+			db = PQconnectdb("postgresql://rc2@localhost/rc2test?application_name=unittest&sslmode=disable");
+			ASSERT_TRUE(db != nullptr);
+			source.initializeSource(db, 1);
+			source.setWorkingDir(tmpDir.getPath());
+		}
+		
+		virtual void TearDown() {
+			//nuke the fake .RData we created
+			PQexec(db, "delete from rcworkspacedata where id = 1");
+			PQfinish(db);
+			db = nullptr;
+		}
+	};
+	
+	TEST_F(DBSourceTest, loadRData)
+	{
+		string data("foo\nbar\n");
+		fs::path path = this->tmpDir.getPath();
+		path += "/.RData";
+		ofstream ofs(path.c_str());
+		ofs << data;
+		ofs.close();
+		
+		source.saveRData();
+		fs:remove(path);
+		source.loadRData();
+		ASSERT_EQ(data.length(), fs::file_size(path));
+		
+		ifstream ifs(path.c_str());
+		string line, text;
+		while (getline(ifs, line)) {
+			text += line + "\n";
+		}
+		ifs.close();
+		ASSERT_EQ(data, text);
 	}
 
-};
 };

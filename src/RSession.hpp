@@ -58,6 +58,8 @@ namespace RC2 {
 			void	handleJsonCommand(string json);
 			void	handleCommand(JsonCommand& command);
 			void	handleOpenCommand(JsonCommand& command);
+			void	handleCloseCommand();
+			void	handleSaveEnvCommand();
 			void	handleHelpCommand(JsonCommand& command);
 			void	handleListVariablesCommand(bool delta, JsonCommand& command);
 			void	handleGetVariableCommand(JsonCommand& command);
@@ -75,6 +77,7 @@ namespace RC2 {
 			//caller will have to cast to event_base*
 			struct event_base*	getEventBase() const;
 			ExecuteCallback getExecuteCallback();
+			bool loadEnvironment();
 			
 			struct Impl;
 			std::unique_ptr<Impl>		_impl;
