@@ -2,8 +2,8 @@
 #include <vector>
 #include <map>
 #include <sys/time.h>
-#include "EnvironmentWatcher.hpp"
 #include "RC2Logging.h"
+#include "EnvironmentWatcher.hpp"
 #include "../common/RC2Utils.hpp"
 
 const int kMaxLen = 100;
@@ -316,7 +316,7 @@ RC2::EnvironmentWatcher::setFunctionData ( RObject& robj, json& jobj )
 		});
 		jobj["body"] = stream.str();
 	} catch (std::exception &e) {
-		LOG(ERROR) << "failed to get function body:" << e.what() << std::endl;
+		LOG(WARNING) << "failed to get function body:" << e.what() << std::endl;
 	} 
 }
 

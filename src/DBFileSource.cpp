@@ -89,7 +89,7 @@ RC2::DBFileSource::saveRData()
 	DBTransaction trans(_impl->db_);
 	DBResult lockRes(PQexec(_impl->db_, "lock table rcworkspacedata in access exclusive mode"));
 	if (!lockRes.commandOK()) {
-		LOG(ERROR) << "saveRData failed to get lock on table" << std::endl;
+		LOG(WARNING) << "saveRData failed to get lock on table" << std::endl;
 		return;
 	}
 	ostringstream query;
@@ -160,7 +160,7 @@ RC2::DBFileSource::loadFiles(const char *whereClause)
 			utime(filepath.c_str(), &modbuf);
 		}
 	} else {
-		LOG(ERROR) << "sql error: " << res.errorMessage() << endl;
+		LOG(WARNING) << "sql error: " << res.errorMessage() << endl;
 	}
 }
 
@@ -287,7 +287,7 @@ RC2::DBFileSource::removeDBFile(DBFileInfoPtr fobj)
 	if (res.commandOK()) {
 		filesById_.erase(fobj->id);
 	} else {
-		LOG(ERROR) << "sql error delting file " << fobj->id << ":" 
+		LOG(WARNING) << "sql error delting file " << fobj->id << ":" 
 			<< res.errorMessage() << endl;
 	}
 }

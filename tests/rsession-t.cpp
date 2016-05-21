@@ -3,7 +3,7 @@
 #include <iostream>
 #include <queue>
 #include <thread>
-#include <glog/logging.h>
+#include "../src/RC2Logging.h"
 #include "common/RC2Utils.hpp"
 #include "json.hpp"
 #include "../src/RSession.hpp"

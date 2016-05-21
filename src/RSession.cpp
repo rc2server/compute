@@ -11,7 +11,7 @@
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
-#include <glog/logging.h>
+#include "RC2Logging.h"
 #include <RInside.h>
 #include <event2/buffer.h>
 #include <event2/event.h>
@@ -28,7 +28,6 @@
 #include "InotifyFileWatcher.hpp"
 #include "FileManager.hpp"
 #include "EnvironmentWatcher.hpp"
-#include "RC2Logging.h"
 
 using namespace std;
 namespace fs = boost::filesystem;
@@ -144,8 +143,6 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 RC2::RSession::Impl::Impl()
 	: consoleOutBuffer(new string)
 {
-	FLAGS_log_dir = "/tmp";
-	google::InitGoogleLogging("rsession");
 }
 
 void
@@ -202,7 +199,7 @@ RC2::RSession::scheduleDelayedCommand(string json)
 RC2::RSession::RSession(RSessionCallbacks *callbacks)
 		: _impl(new Impl())
 {
-	FLAGS_stderrthreshold = 0;
+//	FLAGS_stderrthreshold = 0;
 	_callbacks = callbacks;
 	setenv("R_HOME", "/usr/local/lib/R", 0); //will not overwrite
 	_impl->R = new RInside(0, NULL, false, true, false);
@@ -269,7 +266,7 @@ RC2::RSession::parseArguments(int argc, char *argv[])
 		LOG(INFO) << "arguments parsed\n";
 		
 	} catch (TCLAP::ArgException &e) {
-		LOG(ERROR) << "error:" << e.error() << endl;
+		LOG(FATAL) << "error:" << e.error() << endl;
 	}
 	return true;
 }
@@ -295,7 +292,7 @@ RC2::RSession::prepareForRunLoop()
 		evutil_make_socket_nonblocking(_impl->socket);
 		_impl->eventBuffer = bufferevent_socket_new(_impl->eventBase, _impl->socket, 0);
 		if (_impl->eventBuffer == nullptr) {
-			LOG(ERROR) << "failed to create bufferevent socket" << endl;
+			LOG(WARNING) << "failed to create bufferevent socket" << endl;
 			return;
 		}
 		bufferevent_setcb(_impl->eventBuffer,
@@ -339,7 +336,7 @@ RC2::RSession::handleJsonStatic(struct bufferevent *bev, void *ctx)
 			me->handleJsonCommand(me->_impl->inputBuffer.popCurrentMessage());
 		}
 	} catch (exception const& e) {
-		LOG(ERROR) << "exception in handleJsonStatic:" << e.what() << endl;
+		LOG(WARNING) << "exception in handleJsonStatic:" << e.what() << endl;
 	}
 }
 
@@ -347,7 +344,7 @@ void
 RC2::RSession::handleCommand(JsonCommand& command)
 {
 	if (!_impl->open) {
-		LOG(ERROR) << "R not open" << endl;
+		LOG(WARNING) << "R not open" << endl;
 		return;
 	}
 	_impl->currentQueryId = command.raw().value("queryId", 0);
@@ -382,7 +379,7 @@ RC2::RSession::handleCommand(JsonCommand& command)
 			handleSaveEnvCommand();
 			break;
 		default:
-			LOG(ERROR) << "unknown command type" << std::endl;
+			LOG(WARNING) << "unknown command type" << std::endl;
 			break;
 	}
 }
@@ -399,15 +396,15 @@ RC2::RSession::handleJsonCommand(string json)
 			std::istringstream istr(json);
 			istr >> doc;
 		} catch (std::invalid_argument &iae) {
-			LOG(ERROR) << "parse exception:" << iae.what() << endl;
+			LOG(WARNING) << "parse exception:" << iae.what() << endl;
 			return;
 		} catch (std::exception &ex) {
-			LOG(ERROR) << "unknown exception parsing:" << ex.what() << endl;
+			LOG(WARNING) << "unknown exception parsing:" << ex.what() << endl;
 		}
 		JsonCommand command(doc);
 		if (command.type() == CommandType::Open) {
 			if (_impl->open) {
-				LOG(ERROR) << "duplicate open message received" << endl;
+				LOG(WARNING) << "duplicate open message received" << endl;
 				return;
 			}
 			handleOpenCommand(command);
@@ -425,7 +422,7 @@ void
 RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 {
 	if (_impl->open) {
-		LOG(ERROR) << "duplicate open message received" << endl;
+		LOG(WARNING) << "duplicate open message received" << endl;
 		return;
 	}
 	_impl->wspaceId = cmd.raw()["wspaceId"];
@@ -443,7 +440,7 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		LOG(INFO) << connectString.str() << endl;
 		
 		if (NULL ==  _impl->eventBase) {
-			LOG(ERROR) << "handleOpenCommand called before prepareForRunLoop()" << endl;
+			LOG(WARNING) << "handleOpenCommand called before prepareForRunLoop()" << endl;
 			abort();
 		}
 		string workDir = "/tmp/" + GenerateUUID();
@@ -690,7 +687,7 @@ RC2::RSession::executeSweave(string filePath, long fileId, JsonCommand& command)
 		pid_t parent = getpid();
 		pid_t pid = fork();
 		if (pid == -1) {
-			LOG(ERROR) << "fork() failed for texi2dvi" << endl;
+			LOG(WARNING) << "fork() failed for texi2dvi" << endl;
 		} else if (pid > 0) {
 			int status=0;
 			LOG(INFO) << "calling waitpid:" << pid << endl;

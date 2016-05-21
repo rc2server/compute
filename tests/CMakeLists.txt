@@ -22,6 +22,6 @@ add_subdirectory(testlib)
 
 FOREACH(test ${TESTS})
 	add_executable(${test}-t ${test}-t.cpp)
-	target_link_libraries(${test}-t testslib src event common R -l:RInside.so ${Compute_Libs} ${GTEST_BOTH_LIBRARIES} pthread -lm)
+	target_link_libraries(${test}-t testslib src event common R -l:RInside.so ${Compute_Libs} ${Boost_LIBRARIES} ${GTEST_BOTH_LIBRARIES} pthread -lm)
 	add_test(${test} ${test}-t)
 ENDFOREACH()

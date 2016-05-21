@@ -60,7 +60,7 @@ namespace testing {
 			const char *ev = getenv("GLOG_minloglevel");
 			if (ev == nullptr || ev[0] != '0') {
 				//turn off info logging but don't override if already set
-				FLAGS_minloglevel = 1;
+//				FLAGS_minloglevel = 1;
 			}
 			event_set_log_callback(myevent_logger);
 			session->prepareForRunLoop();

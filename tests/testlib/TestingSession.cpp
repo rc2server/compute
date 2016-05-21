@@ -1,6 +1,6 @@
 #include <iostream>
 #include <thread>
-#include <glog/logging.h>
+#include "../../src/RC2Logging.h"
 #include "common/RC2Utils.hpp"
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>

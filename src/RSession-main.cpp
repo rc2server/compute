@@ -1,11 +1,15 @@
 #include <cstdlib>
 #include <iostream>
 #include <signal.h>
+#include "RC2Logging.h"
 #include "common/RC2Utils.hpp"
 #include "RSessionCallbacks.hpp"
 #include "RSession.hpp"
+#define BOOST_NO_CXX11_SCOPED_ENUMS
+#include <boost/filesystem.hpp>
 
 using namespace std;
+namespace fs = boost::filesystem;
 
 static RC2::RSessionCallbacks *callbacks=nullptr;
 static RC2::RSession *session=nullptr;
@@ -28,6 +32,18 @@ int
 main(int argc, char** argv) 
 {
 	std::set_terminate(exitHandler);
+
+	using namespace g3;
+	std::unique_ptr<LogWorker> logworker{ LogWorker::createLogWorker() };
+	auto sinkHandle = logworker->addSink(std2::make_unique<RC2::CustomSink>(),
+										 &RC2::CustomSink::ReceiveLogMessage);
+	
+	// initialize the logger before it can receive LOG calls
+	initializeLogging(logworker.get());
+	if (fs::exists("/usr/lib/R"))
+		setenv("R_HOME", "/usr/lib/R", 0);
+	else
+		setenv("R_HOME", "/usr/local/lib/R", 0);
 	
 	callbacks = new RC2::RSessionCallbacks();
 	session = new RC2::RSession(callbacks);

@@ -15,11 +15,11 @@
 #include <boost/regex.hpp>
 #include <sys/types.h>
 #include <utime.h>
+#include "RC2Logging.h"
 #include "../common/PostgresUtils.hpp"
 #include "../common/FormattedException.hpp"
 #include "common/RC2Utils.hpp"
 #include "DBFileSource.hpp"
-#include "RC2Logging.h"
 
 using namespace std;
 using boost::format;
@@ -142,10 +142,10 @@ RC2::FileManager::Impl::connect(string str, long wspaceId, long sessionRecId)
 	dbcon_ = PQconnectdb(str.c_str());
 	//TODO: error checking
 	if (NULL == dbcon_) {
-		LOG(ERROR) << "PQconnectdb returned NULL" << endl;
+		LOG(FATAL) << "PQconnectdb returned NULL" << endl;
 		abort();
 	} else if (PQstatus(dbcon_) != CONNECTION_OK) {
-		LOG(ERROR) << "failed to connect to database: " << PQerrorMessage(dbcon_) << endl;
+		LOG(FATAL) << "failed to connect to database: " << PQerrorMessage(dbcon_) << endl;
 		abort();
 	}
 	char msg[255];
@@ -182,7 +182,7 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 	DBResult res(PQexecParams(dbcon_, query.str().c_str(), 1, NULL, params,  
 		pSizes, &pformats, 1));
 	if (!res.commandOK()) {
-		LOG(ERROR) << "insert image error:" << res.errorMessage() << endl;
+		LOG(WARNING) << "insert image error:" << res.errorMessage() << endl;
 		throw FormattedException("failed to insert image in db: %s", res.errorMessage());
 	}
 //	LOG(INFO) << "inserted image " << imgId << " of size " << size << endl;
@@ -233,7 +233,7 @@ RC2::FileManager::Impl::processDBNotification(string message)
 	const char *msgStr = message.c_str();
 	char type = msgStr[0];
 	if (!(type == 'i' || type == 'u' || type == 'd') || message.length() < 2) {
-		LOG(ERROR) << "bad db notification received:" << message << endl;
+		LOG(WARNING) << "bad db notification received:" << message << endl;
 		return;
 	}
 	long fileId = atol(&msgStr[1]);
@@ -283,7 +283,7 @@ RC2::FileManager::Impl::processDBNotification(string message)
 			}
 		}
 	} catch (exception &e) {
-		LOG(ERROR) << "exception handling db notification: " << e.what() << endl;
+		LOG(WARNING) << "exception handling db notification: " << e.what() << endl;
 	}
 }
 
@@ -305,7 +305,7 @@ RC2::FileManager::Impl::executeDBCommand(string cmd)
 {
 	DBResult res(PQexec(dbcon_, cmd.c_str()));
 	if (res.commandOK()) {
-		LOG(ERROR) << "sql error executing: " << cmd << " (" 
+		LOG(WARNING) << "sql error executing: " << cmd << " (" 
 			<< res.errorMessage() << ")" << endl;
 		return false;
 	}
@@ -424,7 +424,7 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 				LOG(INFO) << "got write for " << fobj->name << endl;
 			}
 		} catch(exception &ex) {
-			LOG(ERROR) << "exception in inotify code: " << ex.what() << endl;
+			LOG(WARNING) << "exception in inotify code: " << ex.what() << endl;
 		}
 		//handle event
 		p += sizeof(struct inotify_event) + event->len;

@@ -3,7 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <memory>
-#include <glog/logging.h>
+#include "../src/RC2Logging.h"
 #include "../src/DBFileSource.hpp"
 #include "common/RC2Utils.hpp"
 #include <postgresql/libpq-fe.h>
@@ -24,7 +24,11 @@ namespace testing {
 		
 	protected:
 		virtual void SetUp() {
-			google::InitGoogleLogging("DBSourceTest");
+			using namespace g3;
+			using namespace RC2;
+			std::unique_ptr<LogWorker> logworker{ LogWorker::createLogWorker() };
+			auto sinkHandle = logworker->addSink(std2::make_unique<CustomSink>(),
+												 &CustomSink::ReceiveLogMessage);
 			db = PQconnectdb("postgresql://rc2@localhost/rc2test?application_name=unittest&sslmode=disable");
 			ASSERT_TRUE(db != nullptr);
 			source.initializeSource(db, 1);
