@@ -10,6 +10,7 @@ namespace RC2 {
 std::string GenerateUUID();
 std::string GetPathForExecutable(pid_t pid);
 std::string SlurpFile(const char *filename);
+std::string PrivatePackagePath();
 std::runtime_error FormatErrorAsJson(int errorCode, std::string details);
 std::unique_ptr<char[]> ReadFileBlob(std::string filePath, size_t &size);
 inline void StripQuotes(std::string& str) {

@@ -124,3 +124,19 @@ RC2::MakeDirectoryPath(std::string s, mode_t mode)
 	return mdretval;
 }
 
+std::string
+RC2::PrivatePackagePath()
+{
+	std::string installLoc = RC2::GetPathForExecutable(getpid());
+	std::string::size_type pos = installLoc.rfind('/');
+	
+	//add our package directory to the R library search path
+	std::string pkgPath = installLoc.substr(0, pos) + "/pkgs/";
+	if (!boost::filesystem::is_directory(pkgPath)) {
+		boost::filesystem::path localpath(installLoc);
+		localpath = localpath.parent_path() /= "R";
+		if (boost::filesystem::is_directory(localpath))
+			pkgPath = localpath.c_str();
+	}
+	return pkgPath;
+}

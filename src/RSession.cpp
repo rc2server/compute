@@ -458,7 +458,7 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		setenv("R_DEFAULT_DEVICE", "png", 1);
 		_impl->R->parseEvalQNT("setwd(\"" + escape_quotes(workDir) + "\")");
 		_impl->ignoreOutput = true;
-		_impl->R->parseEvalQNT("library(rc2);");
+		_impl->R->parseEvalQNT("library(rc2)");
 		_impl->R->parseEvalQNT("library(rmarkdown)");
 		_impl->R->parseEvalQNT("library(tools)");
 		_impl->R->parseEvalQNT("rm(argv)"); //RInside creates this even though we passed NULL
@@ -539,24 +539,15 @@ RC2::RSession::handleListVariablesCommand(bool delta, JsonCommand& command)
 void
 RC2::RSession::handleGetVariableCommand(JsonCommand &command)
 {
-	string rcmd("rc2.sublistValue(\"" + escape_quotes(command.argument()) + "\")");
+	json2 value = _impl->envWatcher->toJson(command.argument());
 	LOG(INFO) << "get variable:" <<command.argument() << endl;
-	_impl->ignoreOutput = true;
-	try {
-		Rcpp::CharacterVector rResults = _impl->R->parseEval(rcmd);
-		string jsonStr(rResults[0]);
-		json2 varDict = json2::parse(jsonStr);
-		json2 results = {
-			{"msg", "variablevalue"},
-			{"name", command.argument()},
-			{"value", varDict},
-			{"startTime", command.startTimeStr()}
-		};
-		sendJsonToClientSource(results.dump());
-	} catch (std::runtime_error &err) {
-		LOG(WARNING) << "getVariable got error:" << err.what() << endl;
-	}
-	_impl->ignoreOutput = false;
+	json2 results = {
+		{"msg", "variablevalue"},
+		{"name", command.argument()},
+		{"value", value},
+		{"startTime", command.startTimeStr()}
+	};
+	sendJsonToClientSource(results.dump());
 }
 
 void

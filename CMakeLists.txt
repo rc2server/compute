@@ -133,3 +133,4 @@ target_link_libraries(rsession src common pthread ${Compute_Libs} ${Boost_LIBRAR
 
 install(TARGETS rserver rsession  RUNTIME DESTINATION .)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/vendor/RInside DESTINATION . ${INSTALL_PATH})
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/R/rc2 DESTINATION . ${INSTALL_PATH})

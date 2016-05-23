@@ -11,8 +11,11 @@
 #include "RServer.hpp"
 #include "tclap/CmdLine.h"
 #include "common/RC2Utils.hpp"
+#define BOOST_NO_CXX11_SCOPED_ENUMS
+#include <boost/filesystem.hpp>
 
 using namespace std;
+namespace fs = boost::filesystem;
 
 
 static void event_callback(evutil_socket_t socket, short events, void *objptr);
@@ -72,10 +75,11 @@ RServer::startRunLoop()
 void
 RServer::handleEvent(evutil_socket_t listener, short events)
 {
-	string path = RC2::GetPathForExecutable(getpid());
-	string::size_type pos = path.rfind('/');
-	path = path.substr(0, pos) + "/rsession";
-	
+	const char *libKey = "R_Libs";
+	string installLoc = RC2::GetPathForExecutable(getpid());
+	string::size_type pos = installLoc.rfind('/');
+	string path = installLoc.substr(0, pos) + "/rsession";
+
 	struct sockaddr_in clientAddr;
 	socklen_t clientLen = sizeof(clientAddr);
 	int clientSock = accept(listener, (struct sockaddr*)&clientAddr, &clientLen);
