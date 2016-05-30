@@ -44,7 +44,7 @@ namespace RC2 {
 			bool	loadRData();
 			void	saveRData();
 			
-			std::string	filePathForId(long fileId);
+			bool	filePathForId(long fileId, std::string& filePath);
 			void	findOrAddFile(std::string fname, FileInfo &info);
 			bool	fileInfoForId(long fileId, FileInfo &info);
 			

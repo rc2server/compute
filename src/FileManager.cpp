@@ -13,6 +13,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
 #include <boost/regex.hpp>
+#include <boost/algorithm/string.hpp>
 #include <sys/types.h>
 #include <utime.h>
 #include "RC2Logging.h"
@@ -230,13 +231,23 @@ void
 RC2::FileManager::Impl::processDBNotification(string message)
 {
 	LOG(INFO) << "db notification: " << message << endl;
-	const char *msgStr = message.c_str();
-	char type = msgStr[0];
+	char type = message.c_str()[0];
 	if (!(type == 'i' || type == 'u' || type == 'd') || message.length() < 2) {
 		LOG(WARNING) << "bad db notification received:" << message << endl;
 		return;
 	}
-	long fileId = atol(&msgStr[1]);
+	//figure out fileId and wspaceId from message
+	string numStr(message.substr(1));
+	vector<string> fields;
+	boost::split(fields, numStr, boost::is_any_of("/"));
+	if (fields.size() != 3) {
+		LOG(WARNING) << "bad db notification received:" << message << endl;
+		return;
+	}
+	long fileId = atol(fields[0].c_str());
+	long fileWspaceId = atol(fields[1].c_str());
+	if (wspaceId_ != fileWspaceId)
+		return;
 	try {
 		if (type == 'd') {
 			try {
@@ -256,24 +267,13 @@ RC2::FileManager::Impl::processDBNotification(string message)
 					" but we dont' have a desc for it:" << ee.what() << endl;
 			}
 		} else {
-			//parse wspace and project ids
-			long fileWspace=0, fileProject=0;
-			istringstream ss(&msgStr[2]);
-			string wstr, pstr;
-			if (getline(ss, wstr, '/')) {
-				fileWspace = atol(wstr.c_str());
-			} else {
-				throw runtime_error("failed to parse db notification");
-			}
 			ostringstream query;
 			query << " where f.id = " << fileId;
 			if (type == 'i') {
-				if (fileWspace == wspaceId_) {
-					LOG(INFO) << "got insert for " << fileId << endl;
-					ignoreFSNotifications();
-					dbFileSource_.loadFiles(query.str().c_str());
-					watchFile(dbFileSource_.filesById_[fileId]);
-				}
+				LOG(INFO) << "got insert for " << fileId << endl;
+				ignoreFSNotifications();
+				dbFileSource_.loadFiles(query.str().c_str());
+				watchFile(dbFileSource_.filesById_[fileId]);
 			} else if (type == 'u') {
 				LOG(INFO) << "got update for " << fileId << endl;
 				if (dbFileSource_.filesById_.count(fileId) > 0) {
@@ -566,15 +566,16 @@ RC2::FileManager::fileInfoForId (long fileId, FileInfo& info)
 }
 
 
-string
-RC2::FileManager::filePathForId(long fileId)
+bool
+RC2::FileManager::filePathForId(long fileId, string& filePath)
 {
 	auto & fileCache = _impl->dbFileSource_.filesById_;
 	if (fileCache.count(fileId) != 1) {
 		LOG(WARNING) << "filenameForId called with invalid id: " << fileId << endl;
-		return "";
+		return false;
 	}
-	return fileCache[fileId]->path;
+	filePath = fileCache[fileId]->path;
+	return true;
 }
 
 void
