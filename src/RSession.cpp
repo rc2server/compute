@@ -578,7 +578,12 @@ RC2::RSession::handleHelpCommand(JsonCommand& command)
 void
 RC2::RSession::executeFile(JsonCommand& command) {
 	long fileId = atol(command.argument().c_str());
-	string fpath = _impl->fileManager.filePathForId(fileId);
+	string fpath;
+	if (!_impl->fileManager.filePathForId(fileId, fpath)) {
+		string errmsg = "unknown file:" + fileId;
+		sendJsonToClientSource(formatErrorAsJson(kErrfor_UnknownFile, errmsg, _impl->currentQueryId));
+		return;
+	}
 	fs::path p(fpath);
 	clearFileChanges();
 	_impl->fileManager.resetWatch();

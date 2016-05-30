@@ -18,6 +18,7 @@ class RInside;
 #define kError_Open_CreateDirFailed 102
 #define kError_Execfile_InvalidInput 103
 #define kError_ExecFile_MarkdownFailed 104
+#define kErrfor_UnknownFile 105
 
 typedef std::function<void(string&)> OutputCallback;
 //typedef void (^OutputCallback)(string &str);
