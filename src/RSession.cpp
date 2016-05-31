@@ -74,6 +74,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	unique_ptr<TemporaryDirectory>	tmpDir;
 	unique_ptr<EnvironmentWatcher>	envWatcher;
 	shared_ptr<string>				consoleOutBuffer;
+	string							stdOutCapture;
 	double							consoleLastWrite;
 	int								wspaceId;
 	int								sessionRecId;
@@ -81,6 +82,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	int								currentQueryId;
 	bool							open;
 	bool							ignoreOutput;
+	bool							captureStdOut;
 	bool							sourceInProgress;
 	bool							watchVariables;
 	bool 							properlyClosed;
@@ -229,6 +231,10 @@ void
 RC2::RSession::consoleCallback(const string &text, bool is_error)
 {
 //	LOG(INFO) << "write cb: " << text <<  "(ignore=" << _impl->ignoreOutput << ",vis=" << R_Visible << ",sip=" << _impl->sourceInProgress << ")" << endl;
+	if (_impl->captureStdOut) {
+		_impl->stdOutCapture += text;
+		return;
+	}
 	if (_impl->ignoreOutput)
 		return;
 	if (is_error) {
@@ -413,7 +419,7 @@ RC2::RSession::handleJsonCommand(string json)
 		}
 	} catch (std::runtime_error error) {
 		LOG(WARNING) << "handleJsonCommand error: " << error.what() << endl;
-		sendJsonToClientSource(error.what());
+		sendJsonToClientSource(formatErrorAsJson(kError_ExecFile_MarkdownFailed, error.what(), true));
 	}
 	_impl->currentQueryId = 0;
 }
@@ -614,7 +620,7 @@ RC2::RSession::executeFile(JsonCommand& command) {
 void
 RC2::RSession::executeRMarkdown(string fileName, long fileId, JsonCommand& command)
 {
-	TemporaryDirectory tmp;
+	TemporaryDirectory tmp(false);
 	bool fileGenerated = false;
 
 	fs::path origFileName(fileName);
@@ -632,12 +638,21 @@ RC2::RSession::executeRMarkdown(string fileName, long fileId, JsonCommand& comma
 	string rcmd = "setwd('" + tmp.getPath() + "');render(\"" + escape_quotes(fileName) + "\", output_format=html_document());";
 	fs::path opath(_impl->tmpDir->getPath());
 	opath /= origFileName;
+	bool generatedHtml = false;
 	{
 		Impl::NotifySuspender suspender(*_impl);
+		_impl->captureStdOut = true;
+		_impl->captureStdOut = "";
 		LOG(INFO) << "executing: " << rcmd << endl;
 		_impl->R->parseEvalQNT(rcmd);
+		_impl->captureStdOut = false;
 		flushOutputBuffer();
-		fs::copy_file(tmpHtmlPath, htmlPath, fs::copy_option::overwrite_if_exists);
+		if (fs::exists(tmpHtmlPath)) {
+			generatedHtml = true;
+			fs::copy_file(tmpHtmlPath, htmlPath, fs::copy_option::overwrite_if_exists);
+		} else {
+			LOG(WARNING) << "Rmd failed to generate html:" << _impl->stdOutCapture << endl;
+		}
 	}
 	//reset working directory
 	rcmd = "setwd(\"" + _impl->tmpDir->getPath() + "\")";
@@ -645,13 +660,13 @@ RC2::RSession::executeRMarkdown(string fileName, long fileId, JsonCommand& comma
 		
 	boost::system::error_code ec;
 	fileGenerated = fs::exists(htmlPath) && fs::file_size(htmlPath, ec) > 0;
-	if (fileGenerated) {
+	if (generatedHtml && fileGenerated) {
 		Impl::NotifySuspender suspender(*_impl);
 		FileInfo finfo;
 		_impl->fileManager.findOrAddFile(htmlName, finfo);
 		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId, &finfo);
 	} else {
-		formatErrorAsJson(kError_ExecFile_MarkdownFailed, "failed to generate html", _impl->currentQueryId);
+		sendJsonToClientSource(formatErrorAsJson(kError_ExecFile_MarkdownFailed, "failed to generate html:" + _impl->stdOutCapture, _impl->currentQueryId));
 	}
 }
 
