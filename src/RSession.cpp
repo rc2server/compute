@@ -508,7 +508,9 @@ RC2::RSession::handleExecuteScript(JsonCommand& command) {
 	}
 	_impl->fileManager.resetWatch();
 	SEXP ans=NULL;
-	RInside::ParseEvalResult result = _impl->R->parseEvalR(command.argument(), ans);
+	string tmpcmd = "getwd();";
+	tmpcmd += command.argument();
+	RInside::ParseEvalResult result = _impl->R->parseEvalR(tmpcmd, ans);
 	LOG(INFO) << "parseEvalR returned " << (ans != NULL) << endl;
 	flushOutputBuffer();
 	if (result == RInside::ParseEvalResult::PE_SUCCESS) {
@@ -627,7 +629,7 @@ RC2::RSession::executeRMarkdown(string fileName, long fileId, JsonCommand& comma
 	tmpHtmlPath /= htmlName;
 
 	fs::copy_file(srcPath, destPath, fs::copy_option::overwrite_if_exists);
-	string rcmd = "setwd('" + tmp.getPath() + "');render(\"" + escape_quotes(fileName) + "\", output_format=html_document()); setwd('" + _impl->tmpDir->getPath() + "')";
+	string rcmd = "setwd('" + tmp.getPath() + "');render(\"" + escape_quotes(fileName) + "\", output_format=html_document());";
 	fs::path opath(_impl->tmpDir->getPath());
 	opath /= origFileName;
 	{
@@ -637,6 +639,9 @@ RC2::RSession::executeRMarkdown(string fileName, long fileId, JsonCommand& comma
 		flushOutputBuffer();
 		fs::copy_file(tmpHtmlPath, htmlPath, fs::copy_option::overwrite_if_exists);
 	}
+	//reset working directory
+	rcmd = "setwd(\"" + _impl->tmpDir->getPath() + "\")";
+	_impl->R->parseEvalQNT(rcmd);
 		
 	boost::system::error_code ec;
 	fileGenerated = fs::exists(htmlPath) && fs::file_size(htmlPath, ec) > 0;
