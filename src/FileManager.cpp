@@ -20,6 +20,7 @@
 #include "../common/PostgresUtils.hpp"
 #include "../common/FormattedException.hpp"
 #include "common/RC2Utils.hpp"
+#include "common/ZeroInitializedStruct.hpp"
 #include "DBFileSource.hpp"
 
 using namespace std;
@@ -49,7 +50,7 @@ struct PendingImage {
 
 using PendingImageMap = map<int,PendingImage>;
 
-class RC2::FileManager::Impl {
+class RC2::FileManager::Impl : public ZeroInitializedClass {
 	public:
 		long						wspaceId_;
 		long						sessionRecId_;
