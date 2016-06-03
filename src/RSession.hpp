@@ -27,6 +27,7 @@ namespace RC2 {
 
 	class RSessionCallbacks;
 	class InputBufferManager;
+	class FileManager;
 	struct FileInfo;
 
 	class RSession : private boost::noncopyable {
@@ -80,9 +81,12 @@ namespace RC2 {
 			ExecuteCallback getExecuteCallback();
 			bool loadEnvironment();
 			
+			FileManager const* getFileManager() const; //should not be deallocated
+			void setFileManager(FileManager *manager);
+
 			struct Impl;
-			std::unique_ptr<Impl>		_impl;
-			RSessionCallbacks*		 	_callbacks;
+			std::unique_ptr<Impl>			_impl;
+			RSessionCallbacks*		 		_callbacks;
 
 	};
 };

@@ -70,7 +70,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	struct evbuffer*				outBuffer;
 	InputBufferManager				inputBuffer;
 	RInside*						R;
-	FileManager						fileManager;
+	unique_ptr<FileManager>			fileManager;
 	unique_ptr<TemporaryDirectory>	tmpDir;
 	unique_ptr<EnvironmentWatcher>	envWatcher;
 	shared_ptr<string>				consoleOutBuffer;
@@ -102,7 +102,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 		LOG(INFO) << "handleExecComplete got json:" << s << endl;
 		args->session->sendJsonToClientSource(s);
 		if (gotFileInfo) {
-			args->session->_impl->fileManager.fileInfoForId(args->finfo.id, args->finfo);
+			args->session->_impl->fileManager->fileInfoForId(args->finfo.id, args->finfo);
 			json2 results = { 
 				{"msg", "showoutput"}, 
 				{"fileId", args->finfo.id}, 
@@ -128,13 +128,13 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 		:_impl(impl)
 		{
 			_impl.ignoreOutput = true;
-//			_impl.fileManager.suspendNotifyEvents();
+//			_impl.fileManager->suspendNotifyEvents();
 		}
 		
 		~NotifySuspender()
 		{
 			_impl.ignoreOutput = false;
-//			_impl.fileManager.resumeNotifyEvents();
+//			_impl.fileManager->resumeNotifyEvents();
 		}
 		
 	};
@@ -152,7 +152,7 @@ RC2::RSession::Impl::addImagesToJson(json2& json)
 {
 	std::vector<long> imageIds;
 	long batchId;
-	fileManager.checkWatch(imageIds, batchId);
+	fileManager->checkWatch(imageIds, batchId);
 	if (imageIds.size() > 0)
 		json["images"] = imageIds;
 	if (batchId > 0)
@@ -163,7 +163,7 @@ string
 RC2::RSession::Impl::acknowledgeExecComplete(JsonCommand& command, int queryId, bool expectShowOutput) 
 {
 	LOG(INFO) << "exec complete posting" << endl;
-	fileManager.cleanupImageWatch();
+	fileManager->cleanupImageWatch();
 	json2 results;
 	results["msg"] = "execComplete";
 	results["startTime"] = command.startTimeStr();
@@ -210,6 +210,10 @@ RC2::RSession::RSession(RSessionCallbacks *callbacks)
 	};
 	_callbacks->_writeLambda = clambda;
 	_impl->R->set_callbacks(_callbacks);
+	if (!_impl->fileManager) {
+		unique_ptr<FileManager> fm(new FileManager());
+		_impl->fileManager = std::move(fm);
+	}
 }
 
 RC2::RSession::~RSession()
@@ -309,7 +313,7 @@ RC2::RSession::prepareForRunLoop()
 		bufferevent_enable(_impl->eventBuffer, EV_READ|EV_WRITE|BEV_OPT_DEFER_CALLBACKS);
 	}
 	_impl->outBuffer = evbuffer_new();
-	_impl->fileManager.setEventBase(_impl->eventBase);
+	_impl->fileManager->setEventBase(_impl->eventBase);
 	_impl->envWatcher.reset(new EnvironmentWatcher(Rcpp::Environment::global_env(), getExecuteCallback()));
 }
 
@@ -359,7 +363,7 @@ RC2::RSession::handleCommand(JsonCommand& command)
 			handleCloseCommand();
 			break;
 		case CommandType::ClearFileChanges:
-			_impl->fileManager.resetWatch(); //clears cache
+			_impl->fileManager->resetWatch(); //clears cache
 			break;
 		case CommandType::ExecScript:
 			handleExecuteScript(command);
@@ -456,9 +460,9 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		}
 		_impl->tmpDir = std::move(std::unique_ptr<TemporaryDirectory>(new TemporaryDirectory(workDir, false)));
 		LOG(INFO) << "wd=" << _impl->tmpDir->getPath() << endl;
-		_impl->fileManager.setWorkingDir(_impl->tmpDir->getPath());
-		_impl->fileManager.initFileManager(connectString.str().c_str(), _impl->wspaceId, _impl->sessionRecId);
-		bool haveRData = _impl->fileManager.loadRData();
+		_impl->fileManager->setWorkingDir(_impl->tmpDir->getPath());
+		_impl->fileManager->initFileManager(connectString.str().c_str(), _impl->wspaceId, _impl->sessionRecId);
+		bool haveRData = _impl->fileManager->loadRData();
 		setenv("TMPDIR", workDir.c_str(), 1);
 		setenv("TEMP", workDir.c_str(), 1);
 		setenv("R_DEFAULT_DEVICE", "png", 1);
@@ -501,22 +505,20 @@ RC2::RSession::handleSaveEnvCommand()
 	LOG(INFO) << "saving .RData" << std::endl;
 //	BooleanWatcher watch(&_impl->ignoreOutput);
 	_impl->R->parseEvalQNT("save.image()");
-	_impl->fileManager.saveRData();
+	_impl->fileManager->saveRData();
 }
 
 void
 RC2::RSession::handleExecuteScript(JsonCommand& command) {
-	LOG(INFO) << "exec:" << command.argument() << " in " << _impl->tmpDir->getPath() << endl;
+	LOG(INFO) << "exec:" << command.argument() << endl;
 	bool sendDelta = _impl->watchVariables || command.watchVariables();
 	if (sendDelta) {
 		LOG(INFO) << " watching for changes" << endl;
 		_impl->envWatcher->captureEnvironment();
 	}
-	_impl->fileManager.resetWatch();
+	_impl->fileManager->resetWatch();
 	SEXP ans=NULL;
-	string tmpcmd = "getwd();";
-	tmpcmd += command.argument();
-	RInside::ParseEvalResult result = _impl->R->parseEvalR(tmpcmd, ans);
+	RInside::ParseEvalResult result = _impl->R->parseEvalR(command.argument(), ans);
 	LOG(INFO) << "parseEvalR returned " << (ans != NULL) << endl;
 	flushOutputBuffer();
 	if (result == RInside::ParseEvalResult::PE_SUCCESS) {
@@ -587,14 +589,14 @@ void
 RC2::RSession::executeFile(JsonCommand& command) {
 	long fileId = atol(command.argument().c_str());
 	string fpath;
-	if (!_impl->fileManager.filePathForId(fileId, fpath)) {
+	if (!_impl->fileManager->filePathForId(fileId, fpath)) {
 		string errmsg = "unknown file:" + fileId;
 		sendJsonToClientSource(formatErrorAsJson(kErrfor_UnknownFile, errmsg, _impl->currentQueryId));
 		return;
 	}
 	fs::path p(fpath);
 	clearFileChanges();
-	_impl->fileManager.resetWatch();
+	_impl->fileManager->resetWatch();
 	if (_impl->watchVariables)
 		_impl->envWatcher->captureEnvironment();
 	if (p.extension() == ".Rmd") {
@@ -655,7 +657,7 @@ RC2::RSession::executeRMarkdown(string fileName, long fileId, JsonCommand& comma
 		}
 	}
 	//reset working directory
-	rcmd = "setwd(\"" + _impl->tmpDir->getPath() + "\")";
+	rcmd = "setwd(\"" + _impl->tmpDir->getPath() + "\");options(dev=\"rc2.pngdev\", bitmapType=\"cairo\")";
 	_impl->R->parseEvalQNT(rcmd);
 		
 	boost::system::error_code ec;
@@ -663,7 +665,7 @@ RC2::RSession::executeRMarkdown(string fileName, long fileId, JsonCommand& comma
 	if (generatedHtml && fileGenerated) {
 		Impl::NotifySuspender suspender(*_impl);
 		FileInfo finfo;
-		_impl->fileManager.findOrAddFile(htmlName, finfo);
+		_impl->fileManager->findOrAddFile(htmlName, finfo);
 		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId, &finfo);
 	} else {
 		sendJsonToClientSource(formatErrorAsJson(kError_ExecFile_MarkdownFailed, "failed to generate html:" + _impl->stdOutCapture, _impl->currentQueryId));
@@ -736,7 +738,7 @@ RC2::RSession::executeSweave(string filePath, long fileId, JsonCommand& command)
 		boost::system::error_code ec;
 		if (fs::exists(genPdfPath) && fs::file_size(genPdfPath, ec) > 0) {
 			fs::copy_file(genPdfPath, destPdfPath, fs::copy_option::overwrite_if_exists);
-			_impl->fileManager.findOrAddFile(basePdfName, finfo);
+			_impl->fileManager->findOrAddFile(basePdfName, finfo);
 		} else {
 			LOG(INFO) << "genPdfPath empty:" << genPdfPath << endl;
 			fs::path errorPath(scratchPath);
@@ -863,10 +865,22 @@ RC2::ExecuteCallback RC2::RSession::getExecuteCallback()
 	};
 }
 
+const RC2::FileManager* RC2::RSession::getFileManager() const
+{
+	return _impl->fileManager.get();
+}
+
+void RC2::RSession::setFileManager ( RC2::FileManager* manager )
+{
+	unique_ptr<FileManager> fm(manager);
+	_impl->fileManager = std::move(fm);
+}
+
+
 bool 
 RC2::RSession::loadEnvironment()
 {
-	return _impl->fileManager.loadRData();
+	return _impl->fileManager->loadRData();
 }
 
 
