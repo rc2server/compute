@@ -1,0 +1,237 @@
+---
+title: "Chapter 9"
+author: "jharner"
+date: "February 14, 2016"
+output: html_document
+---
+
+# Chapter 9 Distributions of Two Variables
+
+## Section 9.1 Simple Linear Regression
+
+### Pairs of variables
+Consider the case in which two variables are measured on the individuals (experimental units) randomly sampled from a population. For example, the age and systolic blood pressure could be measured on patients. The $x$ variable age is called the *independent*, *explanatory*, or *predictor* variable or *features*; the $y$ variable systolic blood pressure is the *dependent*, *outcome*, or *response* variables.
+
+We are interested in the relationship between the two variables. Often, this means we want to predict $y$ from $x$, e.g., by using the ``best'' line of fit.
+
+### Linear Regression Model
+
+We start by fitting a straight line to the blood pressure data.  
+
+True Model: $Y = \alpha + \beta x + \epsilon$ where:  
+
+* $\alpha$ is the intercept (value of $y$ when $x = 0$)  
+* $\beta$ is the slope (change in $y$ per unit change in $x$)  
+* $\epsilon$ is the random deviation about the regression line for a given $x$.  
+
+We must estimate $\alpha$ and $\beta$. The line of best fit will be:  
+\[
+	\hat y = a + b x
+\]
+where $a$ and $b$ are the estimates (based on data) of the intercept and slope, respectively.
+
+The least squares estimates of $a$ and $b$ are chosen to minimize:
+\[
+	\sum (y - \hat y)^2
+\]
+The coefficients $a$ and $b$ can be found by differentiating 
+\[
+	\sum (y - \hat y)^2 = \sum (y - a - b x)^2
+\]
+with respect to $a$ and $b$ and setting the linear expressions to 0 (the normal equations). The resulting least squares estimates are:  
+\[
+	b = \frac{\sum(x - \bar x)(y - \bar y)}{\sum(x - \bar x)^2}
+	   = \frac{\sum xy - (\sum x)(\sum y)/n}{\sum x^2 - (\sum x)^2/n}
+	   =\frac{S_{xy}}{S_{xx}}
+\]
+and
+\[
+	a = \bar y - b \bar x
+\]
+where $a$ has units of $y$ and $b$ has units of $y$/units of $x$.
+
+Initially estimates are obtained using R's `lm()` function, where `lm` stands for linear model.
+
+#### Example:  Visualizing and Fitting the Relationship between Age and Blood Pressure
+```{r Chap9Ex}
+bp <- data.frame(
+  age = c(28, 23, 52, 42, 27, 29, 43, 34, 40, 28),
+  systolic = c(70, 68, 90, 75, 68, 80, 78, 70, 80, 72))
+str(bp)
+attach(bp)
+```
+
+`lm(systolic ~ age)` fits a linear regression model with `systolic` as the outcome variable and `age` as the explanatory variable.  
+```{r}
+bp.lm <- lm(systolic ~ age)
+```
+
+The fitted object contains various attributes, e.g., the coefficients, the fitted values, and the residuals. Individual components can be extracted using the `$` operator.
+```{r}
+bp.lm$coef
+```
+The `bp.lm$coef` (or equivalently `coef(bp.lm)`) gives the intercept $a =$ `bp.lm$coef[1] =` `r  round((a <- bp.lm$coef[1]), 3)` and the slope $b =$ `bp.lm$coef[2] =` `r  round((b <- bp.lm$coef[2]), 3)`, i.e.,
+$$
+  \hat{y} = `r round(a, 3)` + `r round(b, 3)`\, \mbox{age}.
+$$
+
+We visualize the data using a scatterplot by plotting the pairs of points for `age` and `systolic`, using the generic function `plot()`. A straight line can then be superimposed on the plot using the `abline` function, which can extract the intercept and slope from the fitted model `bp.lm`. Does a straight line fit the data?
+
+The model generally fits the data, but the data varies somewhat about the estimated regression line. A nonparametric *loess* curve, based on a local regresssion fit, is superimposed on the plot to assess the extent of nonlinearity.
+```{r}
+plot(age, systolic)
+abline(bp.lm)
+lines(lowess(age, systolic, f=0.75), lty=2)
+```
+
+The linear fit is reasonable, but the loess fit shows some deviation from linearity.
+
+The estimates of the intercept and the slope for `age` are now compared with the "manual" calculation of the intercept and slope, which is computed in the following code.
+```{r}
+n <- length(systolic)
+Sxx <- sum(age^2) - (sum(age))^2/n
+Sxy <- sum(age*systolic) -(sum(age)*sum(systolic))/n
+```
+or more intuitively,
+```{r}
+Sxx <- sum((age - mean(age))^2)
+Sxy <- sum((age - mean(age)) * (systolic - mean(systolic)))
+```
+The estimated slope is:
+```{r}
+round(b <- Sxy/Sxx, 3)
+```
+The estimated intercept is:
+```{r}
+round(a <- mean(systolic) - b * mean(age), 3)
+```
+The computed coefficient are the same as those computed by `lm`.
+
+## Section 9.2 Model Testing
+
+### Model Testing
+
+The following are the conditions for prediction:  
+
+1. a straight line fits the data;  
+2. the slope $\beta \ne 0$.
+
+The assumptions of the model ($Y = \alpha + \beta x + \epsilon$) are:  
+
+* the $x$ variable is fixed;  
+* linearity in $x$;
+* $\epsilon$ is independent and identically normal with a mean of 0 and a variance of $\sigma^2$ (or $\epsilon \sim iin(0,\, \sigma^2)$ for short).  
+
+In terms of $Y$ for the random $X$ case, we can look at the conditional distribution of $Y$ given $X = x$.   
+
+* $E(Y\,|\, x) = \alpha + \beta x$, i.e., the mean of $Y$ is linear in $x$.
+* $V(Y\,|\, x) = \sigma^2$, i.e., the variance of $Y$ is independent of $x$.
+
+In a practical sense, there is little distinction between the fixed and random $x$ case.
+
+Under the assumptions of the model, we can test:   
+
+$H_0: \beta = 0$ vs. $H_a: \beta \ne 0$
+
+or more generally,  
+
+$H_0: \beta = \beta_0$ vs. $H_a: \beta \ne \beta_0$
+
+by a $t$-test.
+
+### Testing the Slope
+
+Consider testing: $H_0: \beta = \beta_0$. The $t$ test is:  
+\[
+	t = \frac{b - \beta_0}{\mbox{est. s.e.}(b)} = \frac{b - \beta_0}
+	{\hat \sigma/\sqrt{S_{xx}}}
+\]
+which is distributed as a $t$ with $n - 2$ degrees of freedom ($\sim t_{n - 2}$).  
+
+Therefore, we must estimate the s.e.($b$). First, estimate $\sigma^2$, the common variance about the regression line for each $x$.
+\[
+	s_{y.x}^2 = \frac{\sum (y - \hat y)^2}{n -2} = \frac{S_{yy} - b S_{xy}}{n - 2} = \frac{S_{yy} - S_{xy}^2/S_{xx}}{n - 2}
+\]
+where $S_{yy} = \sum (y - \bar y)^2 = \sum y^2 - (\sum y)^2/n$.
+
+Then:  
+\[
+	\mbox{est. s.e.}(b) = s_{y.x}/\sqrt{S_{xx}}
+\]
+
+Use R's `summary` generic function to get more informatioin about model objects.
+
+### Example (cont.):  Visualizing and Fitting the Relationship between Age and Blood Pressure
+
+```{r}
+summary(bp.lm)
+```
+
+The residual standard error, i.e., $s_{y.x}$, is:
+```{r}
+systolic.hat <- a + b * age
+systolic.res <- systolic - systolic.hat
+(s_y.x <- sqrt(sum(systolic.res^2)/(n - 2)))
+```
+This agrees with `summary` output above.
+
+The $t$-test and the conclusion are:
+```{r}
+(round(t <- b/(s_y.x / sqrt(Sxx)), 3))
+abs(t) > qt(0.975, n - 2)
+```
+Thus, we reject $H_0$ and conclude there is a significant linear relationship between age and systolic blood pressure.
+
+The $p$-value is `2 * (1 - pt(t, n -2)) = ` `r round(2 * (1 - pt(t, n -2)), 4)`, indicating a high level of significance.
+
+### Model Assessment
+
+How is the model assessed? Often we examine the residuals, $e_i = y_i - \hat y_i$, which measure the lack of fit.  
+
+1. Normality---plot a histogram of the residuals. Are the residuals normally distributed about 0?  
+2. Normality---construct a normal probability plot of the residuals. Do the points approximate lie along a straight line?   
+3. Linearity---plot the $e_i$ versus $\hat y_i$. Are the points randomly scattered around the regression line?  
+4. Equality of variances---plot the $e_i$ versus $y_i$ or $x$. Do the points form a band around 0?  
+5. Independence---is there a natural sequence in time or space? Autocorrelation?  
+
+The residuals are somewhat symmetrically distributed around 0, which suggests normaility.
+```{r}
+hist(systolic.res, breaks=4, prob=T, right=F, xlim=c(-10, 10), ylim=c(0, 0.12), xlab= "Systolic Residuals", main="Histogram of the Residuals")
+rug(systolic.res)
+curve(dnorm(x, mean = mean(systolic.res), sd = sd(systolic.res)), add = TRUE)
+lines(density(systolic.res, bw=1.5), lty = 2)
+```
+
+The fit is hampered somewhat by one (or two) large positive residuals. This is seen not only in the *rug plot*, but also in the nonparametric density curve.
+
+The normal probability plot of the residuals confirms this.
+```{r}
+qqnorm(systolic.res, ylim=c(-5, 10), ylab="Systolic Residuals", xlab="Normal Quantiles")
+qqline(systolic.res)
+```
+
+Positive skewness of the residuals is indicated.
+
+Linearity is now assessed by plotting the systolic residuals versus the predicted systolic values.
+```{r}
+plot(systolic.hat, systolic.res, xlab="Systolic Predictions", ylab="Systolic Rediduals")
+abline(h = 0)
+```
+
+The plot suggests linearity is plausible, except for one large residual.
+
+
+Equality of variances is now assessed by plotting the systolic residuals versus age.
+```{r label=systolicResAge,fig=TRUE,width=4,height=3.2}
+plot(age, systolic.res)
+abline(h = 0)
+```
+
+Again, the assumption that $\sigma^2$ does not depend on age is supported, but one potential outlier is present.
+
+The curvature in the loess fit suggests that a quadratic term might improve the fit.
+```{r}
+bp.lmq <- lm(systolic ~ age + I(age^2))
+summary(bp.lmq)
+```
+However, `age^2` is not significant, which is not surprising when the original scatterplot is examined. More data is needed in order to make a more definitive determination beyond linearity.

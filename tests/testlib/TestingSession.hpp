@@ -6,6 +6,8 @@
 #include <event2/thread.h>
 #include "../../src/RSession.hpp"
 #include "../../src/RSessionCallbacks.hpp"
+#include "../../src/FileManager.hpp"
+#include "../../src/RC2Logging.h"
 #include "json.hpp"
 
 using namespace std;
@@ -18,7 +20,9 @@ namespace RC2 {
 	
 	class TestingSession : public RSession {
 	public:
-		using RSession::RSession;
+		
+		TestingSession(RSessionCallbacks *callbacks, FileManager *fm=nullptr);
+		
 		virtual void	sendJsonToClientSource(std::string json);
 		
 		bool fileExists(string filename);
@@ -42,6 +46,37 @@ namespace RC2 {
 		bool countingDown;
 		int countDown;
 	};	
+	
+	class TestingFileManager : public FileManager {
+	public:
+		TestingFileManager();
+		virtual ~TestingFileManager();
+		virtual void 	initFileManager(std::string connectString, int wspaceId, int sessionRecId);
+		
+		std::string 	getWorkingDir() const;
+		virtual void 	setWorkingDir(std::string dir);
+		
+		virtual void	resetWatch();
+		virtual void	checkWatch(std::vector<long> &imageIds, long &batchId);
+		virtual void	cleanupImageWatch();
+		
+		virtual bool	loadRData();
+		virtual void	saveRData();
+		
+		virtual bool	filePathForId(long fileId, std::string& filePath);
+		virtual void	findOrAddFile(std::string fname, FileInfo &info);
+		virtual bool	fileInfoForId(long fileId, FileInfo &info);
+		
+		virtual void	suspendNotifyEvents();
+		virtual void	resumeNotifyEvents();
+		
+		//file should have been copied to the working directory
+		void	addFile(long fileId, std::string name, long version);
+	
+	protected:
+		std::string _workingDir;
+		std::vector<FileInfo> _files;
+	};
 }
 
 
@@ -52,23 +87,36 @@ namespace testing {
 	protected:
 		static RSessionCallbacks *callbacks;
 		static TestingSession *session;
+		static TestingFileManager *fileManager;
 		
 		static void SetUpTestCase() {
+			cerr << "setting up..." << endl;
 			evthread_use_pthreads();
+			fileManager = new TestingFileManager();
 			callbacks = new RSessionCallbacks();
-			session = new TestingSession(callbacks);
+			session = new TestingSession(callbacks, fileManager);
 			const char *ev = getenv("GLOG_minloglevel");
 			if (ev == nullptr || ev[0] != '0') {
 				//turn off info logging but don't override if already set
 //				FLAGS_minloglevel = 1;
 			}
+			using namespace g3;
+			static std::unique_ptr<LogWorker> logworker{ LogWorker::createLogWorker() };
+			auto sinkHandle = logworker->addSink(std2::make_unique<RC2::CustomSink>(),
+												 &RC2::CustomSink::ReceiveLogMessage);
+			
+			// initialize the logger before it can receive LOG calls
+			initializeLogging(logworker.get());
 			event_set_log_callback(myevent_logger);
 			session->prepareForRunLoop();
 			session->doJson("{\"msg\":\"open\", \"argument\": \"\", \"wspaceId\":1, \"sessionRecId\":1, \"dbhost\":\"localhost\", \"dbuser\":\"rc2\", \"dbname\":\"rc2test\", \"dbpass\":\"rc2\"}");
+			cerr << "setup complete" << endl;
+			fileManager->setWorkingDir(session->getWorkingDirectory());
 		}
 		
 		static void TearDownTestCase() {
 			try {
+				session->doJson("{\"msg\":\"close\"}");
 				delete session;
 				session = NULL;
 				delete callbacks;

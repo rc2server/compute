@@ -55,6 +55,8 @@ namespace testing {
 
 	TEST_F(SessionTest, execRMD)
 	{
+		session->copyFileToWorkingDirectory("chapter.Rmd");
+		fileManager->addFile(4, "chapter.Rmd", 1);
 		session->executeDelayedJson("{\"msg\":\"execFile\", \"argument\":\"4\"}");
 		session->startCountdown(2);
 		session->startEventLoop();
@@ -79,7 +81,7 @@ namespace testing {
 
 	TEST_F(SessionTest, genImages)
 	{
-		session->executeDelayedJson("{\"msg\":\"execScript\", \"argument\":\"plot(rnorm(21))\"}");
+		session->executeDelayedJson("{\"msg\":\"execScript\", \"argument\":\"plot(rnorm(21)); plot(rnorm(12))\"}");
 		//need to delay action until after startEventLoop()
 //		std::thread t([]() {
 //			std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -88,7 +90,7 @@ namespace testing {
 			
 //		});
 //		t.detach();
-		session->startCountdown(1);
+		session->startCountdown(2);
 		session->startEventLoop();
 		ASSERT_EQ(session->_messages.size(), 1);
 		json results = session->popMessage();

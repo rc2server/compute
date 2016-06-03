@@ -9,6 +9,7 @@ include_directories (${CMAKE_CURRENT_SOURCE_DIR}
 configure_file(test1.Rmd test1.Rmd COPYONLY)
 configure_file(test1.Rnw test1.Rnw COPYONLY)
 configure_file(test1.R test1.R COPYONLY)
+configure_file(chapter.Rmd chapter.Rmd COPYONLY)
 
 SET(TESTS
 	rserver

@@ -26,6 +26,14 @@ namespace RC2 {
 	}
 	
 
+	TestingSession::TestingSession (RSessionCallbacks *callbacks, FileManager* fm)
+	: RSession(callbacks)
+{
+	if (fm)
+		setFileManager(fm);
+}
+
+	
 void TestingSession::startCountdown ( int count )
 {
 	countDown = count; 
@@ -106,10 +114,108 @@ TestingSession::execScript ( string rcode )
 	handleJsonCommand(json);
 }
 
+TestingFileManager::TestingFileManager() {
+}
+
+TestingFileManager::~TestingFileManager() {
+}
+
+void
+TestingFileManager::initFileManager(std::string connectString, int wspaceId, int sessionRecId)
+{
+}
+
+void
+TestingFileManager::resetWatch()
+{
+}
+
+void
+TestingFileManager::checkWatch(std::vector<long> &imageIds, long &batchId)
+{
+}
+
+void
+TestingFileManager::cleanupImageWatch()
+{
+}
+
+bool
+TestingFileManager::loadRData() 
+{
+}
+
+void
+TestingFileManager::saveRData()
+{
+}
+
+string TestingFileManager::getWorkingDir() const
+{
+	return _workingDir;
+}
+
+void TestingFileManager::setWorkingDir ( string dir )
+{
+	_workingDir = dir;
+}
+
+
+bool
+TestingFileManager::filePathForId(long fileId, std::string& filePath)
+{
+	fs::path path = getWorkingDir();
+	FileInfo finfo;
+	if (!fileInfoForId(fileId, finfo)) {
+		cerr << "failed to find file " << fileId << endl;
+		return false;
+	}
+//	path /= finfo.name;
+//	filePath = path.native();
+	filePath = finfo.name;
+	return true;
+}
+
+void
+TestingFileManager::findOrAddFile(std::string fname, FileInfo &info)
+{
+}
+
+bool
+TestingFileManager::fileInfoForId(long fileId, FileInfo &info)
+{
+	for (auto itr = _files.begin(); itr != _files.end(); ++itr) {
+		if (itr->id == fileId) {
+			info = *itr;
+			return true;
+		}
+	}
+	return false;
+}
+
+void
+TestingFileManager::suspendNotifyEvents()
+{
+}
+
+void
+TestingFileManager::resumeNotifyEvents()
+{
+}
+
+void
+TestingFileManager::addFile ( long int fileId, string name, long int version )
+{
+	FileInfo finfo(fileId, version, name);
+	_files.push_back(finfo);
+}
+
+
 };
 
 namespace testing {
-	RSessionCallbacks* BaseSessionTest::callbacks = NULL;
-	TestingSession* BaseSessionTest::session = NULL;
+	RSessionCallbacks* BaseSessionTest::callbacks = nullptr;
+	TestingSession* BaseSessionTest::session = nullptr;
+	TestingFileManager* BaseSessionTest::fileManager = nullptr;
 	
 };

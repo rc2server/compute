@@ -1,9 +1,9 @@
+#include "../src/RC2Logging.h"
 #include <gtest/gtest.h>
 #include <string>
 #include <iostream>
 #include <queue>
 #include <thread>
-#include <glog/logging.h>
 #include <Rcpp.h>
 #include "common/RC2Utils.hpp"
 #include "testlib/TestingSession.hpp"
