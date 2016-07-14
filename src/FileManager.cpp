@@ -80,6 +80,7 @@ class RC2::FileManager::Impl : public ZeroInitializedClass {
 		bool executeDBCommand(string cmd);
 		
 		unique_ptr<char[]> readFileBlob(DBFileInfoPtr fobj, size_t &size);
+		bool fileExistsWithName(string fname);
 
 		void	setupInotify(FileManager *fm);
 		void 	watchFile(DBFileInfoPtr file);
@@ -337,6 +338,18 @@ RC2::FileManager::Impl::ignoreFSNotifications()
 	event_add(evt, &timeout);
 }
 
+bool
+RC2::FileManager::Impl::fileExistsWithName(string fname) {
+	auto & fileMap = dbFileSource_.filesById_;
+	for (auto itr = fileMap.begin(); itr != fileMap.end(); ++itr) {
+		DBFileInfoPtr ptr = itr->second;
+		if (0 == fname.compare(ptr->name)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 #pragma mark -
 
 void
@@ -368,16 +381,20 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 void
 RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 {
-	if (ignoreFSNotifications_)
-		return;
-	ignoreFSNotifications();
+	bool ignoring = ignoreFSNotifications_;
+	if (!ignoring)
+		ignoreFSNotifications();
 	char buf[I_BUF_LEN];
 	size_t numRead = bufferevent_read(bev, buf, I_BUF_LEN);
 	char *p;
+	if (ignoring) {
+		LOG(INFO) << "ignoring " << numRead << "inotify events";
+		return;
+	}
 	for (p=buf; p < buf + numRead; ) {
 		struct inotify_event *event = (struct inotify_event*)p;
 		int evtype = event->mask & 0xffff; //events are in lower word, flags in upper
-		LOG(INFO) << "notify:" << std::hex << event->mask << endl;
+		LOG(INFO) << "notify:" << std::hex << event->mask;
 		try {
 			if(evtype == IN_CREATE) {
 				if (!(event->mask & IN_ISDIR)) { //we don't want these events, they are duplicates
@@ -389,9 +406,13 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 							startImageWatch(fname, what[1], event);
 //							newFileId = insertImage(fname, what[1]);
 						} else if (manuallyAddedFiles_.find(fname) == manuallyAddedFiles_.end()) {
-							LOG(INFO) << "inotify create for " << fname << endl << manuallyAddedFiles_.size() << endl;
-							newFileId = dbFileSource_.insertDBFile(fname);
-							LOG(INFO) << "inserted s " << newFileId << endl;
+							if (fileExistsWithName(fname)) {
+								LOG(INFO) << "create for existing file " << fname;
+							} else {
+								LOG(INFO) << "inotify create for " << fname << endl << manuallyAddedFiles_.size() << endl;
+								newFileId = dbFileSource_.insertDBFile(fname);
+								LOG(INFO) << "inserted s " << newFileId << endl;
+							}
 						}
 						if (newFileId > 0) {
 							//need to add a watch for this file
@@ -438,7 +459,7 @@ RC2::FileManager::Impl::watchFile(DBFileInfoPtr file) {
 	if (stat(fullPath.c_str(), &file->sb) == -1)
 		throw StatException((format("stat failed for watch %s") % fullPath.c_str()).str());
 	file->watchDescriptor = inotify_add_watch(inotifyFd_, fullPath.c_str(), 
-				IN_OPEN | IN_CLOSE_WRITE | IN_DELETE_SELF | IN_MODIFY);
+											  IN_OPEN | IN_CLOSE_WRITE | IN_DELETE_SELF | IN_MODIFY | IN_EXCL_UNLINK);
 	if (file->watchDescriptor == -1)
 		throw FormattedException("inotify_add_warched failed %s", file->name.c_str());
 	filesByWatchDesc_[file->watchDescriptor] = file;

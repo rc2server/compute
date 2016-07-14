@@ -4,6 +4,7 @@
 #include <memory>
 #include <algorithm>
 #include <stdlib.h>
+#include <functional>
 
 namespace RC2 {
 
@@ -33,6 +34,18 @@ class TemporaryDirectory {
 		bool			_eraseOnDeath;
 
 };
+
+//use as
+// Defer onExit([&usedVar, this](void) {
+//     free(foo); //or whatever code to run when out of scope
+// });
+struct Defer {
+	Defer(std::function<void (void)> f) : f_(f) {}
+	~Defer(void) { f_(); }
+private:
+	std::function<void (void)> f_;
+};
+
 
 struct BooleanWatcher {
 	BooleanWatcher(bool* ptr)
