@@ -88,6 +88,7 @@ include_directories (${CMAKE_CURRENT_SOURCE_DIR}
 	${CMAKE_SOURCE_DIR}/vendor
 	/usr/include
 	/usr/include/postgresql
+	/usr/share/R/include
 	/usr/local/lib/R/library/RInside/include
 	/usr/local/lib/R/library/Rcpp/include
 	/usr/local/lib/R/site-library/RInside/include
