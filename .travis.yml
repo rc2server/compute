@@ -1,7 +1,7 @@
 language: cpp
+os: linux
 dist: trusty
 compiler: gcc
-os: linux
 sudo: required
 
 before_install: travis_before_install.sh
