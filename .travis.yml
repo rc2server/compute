@@ -5,5 +5,5 @@ compiler: gcc
 sudo: required
 
 before_install: travis_before_install.sh
-mkdir build && cd build && cmake .. && make test
+script: mkdir build && cd build && cmake .. && make test
 
