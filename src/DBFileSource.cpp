@@ -17,7 +17,6 @@ namespace fs = boost::filesystem;
 
 class RC2::DBFileSource::Impl {
 public:
-	PGconn *db_;
 	long wspaceId_;
 	string workingDir_;
 };
@@ -33,15 +32,15 @@ RC2::DBFileSource::~DBFileSource()
 }
 
 void
-RC2::DBFileSource::initializeSource(PGconn *con, long wsid)
+RC2::DBFileSource::initializeSource(std::shared_ptr<PGDBConnection> connection, long wsid)
 {
-	_impl->db_ = con;
+	dbcon_ = connection;
 	_impl->wspaceId_ = wsid;
 	//verify workspace exists in database
 	ostringstream query;
 	query << "select id,name from rcworkspace where id = " << wsid;
-	DBResult res(PQexec(con, query.str().c_str()));
-	if (!res.dataReturned() || PQntuples(res) < 1)
+	DBResult res = connection->executeQuery(query.str());
+	if (res.rowsReturned() < 1)
 		throw std::runtime_error((format("invalid workspace id: %1%") % wsid).str());
 }
 
@@ -58,12 +57,12 @@ RC2::DBFileSource::loadRData()
 	ostringstream query;
 	query << "select bindata from rcworkspacedata where id = " << _impl->wspaceId_;
 	LOG(INFO) << "load:" << query.str() << std::endl;
-	DBResult res(PQexecParams(_impl->db_, query.str().c_str(), 0, NULL, NULL, NULL, NULL, 1));
-	ExecStatusType rc = PQresultStatus(res);
+	DBResult res = dbcon_->executeQuery(query.str(), 0, NULL, NULL, NULL, NULL, 1);
+//	ExecStatusType rc = PQresultStatus(res);
 	if (res.dataReturned()) {
-		int datalen = PQgetlength(res, 0, 0);
+		int datalen = res.getLength(0, 0);
 		if (datalen > 0) {
-			char *data = PQgetvalue(res, 0, 0);
+			char *data = res.getValue(0, 0);
 			ofstream rdata;
 			rdata.open(filepath, ios::out | ios::trunc | ios::binary);
 			rdata.write(data, datalen);
@@ -86,8 +85,8 @@ RC2::DBFileSource::saveRData()
 		return;
 	}
 	unique_ptr<char[]> data = ReadFileBlob(filePath, newSize);
-	DBTransaction trans(_impl->db_);
-	DBResult lockRes(PQexec(_impl->db_, "lock table rcworkspacedata in access exclusive mode"));
+	DBTransaction trans = dbcon_->startTransaction();
+	DBResult lockRes = dbcon_->executeQuery("lock table rcworkspacedata in access exclusive mode");
 	if (!lockRes.commandOK()) {
 		LOG(WARNING) << "saveRData failed to get lock on table" << std::endl;
 		return;
@@ -97,15 +96,14 @@ RC2::DBFileSource::saveRData()
 	int pformats[] = {1};
 	int pSizes[] = {(int)newSize};
 	const char *params[] = {data.get()};
-	DBResult res(PQexecParams(_impl->db_, query.str().c_str(), 1, NULL, params, 
-		pSizes, pformats, 1));
+	DBResult res = dbcon_->executeQuery(query.str(), 1, NULL, params, pSizes, pformats, 1);
 	if (!res.commandOK()) {
 		throw FormattedException("failed to update rcworkspacedata %ld: %s", _impl->wspaceId_, res.errorMessage());
 	}
 	if (res.rowsAffected() < 1) {
 		ostringstream iquery;
 		iquery << "insert into rcworkspacedata (id,bindata) values (" << _impl->wspaceId_ << ", $1::bytea)";
-		DBResult iRes(PQexecParams(_impl->db_, iquery.str().c_str(), 1, NULL, params, pSizes, pformats, 1));
+		DBResult iRes = dbcon_->executeQuery(iquery.str(), 1, NULL, params, pSizes, pformats, 1);
 		if (!iRes.commandOK()) {
 			throw FormattedException("failed to insert rcworkspacedata %ld:%s", _impl->wspaceId_, iRes.errorMessage());
 		}
@@ -122,22 +120,22 @@ RC2::DBFileSource::loadFiles(const char *whereClause)
 	ostringstream query;
 	query << "select f.id::int4, f.version::int4, f.name, extract('epoch' from f.lastmodified)::int4, " 
 		"d.bindata from rcfile f join rcfiledata d on f.id = d.id " << whereClause;
-	DBResult res(PQexecParams(_impl->db_, query.str().c_str(), 0, NULL, NULL, NULL, NULL, 1));
+	DBResult res = dbcon_->executeQuery(query.str(), 0, NULL, NULL, NULL, NULL);
 	if (res.dataReturned()) {
-		int numfiles = PQntuples(res);
+		int numfiles = res.rowsReturned();
 		for (int i=0; i < numfiles; i++) {
 			uint32_t pid=0, pver=0, lastmod=0;
 			string pname;
 			char *ptr;
-			ptr = PQgetvalue(res, i, 0);
+			ptr = res.getValue(i, 0);
 			pid = ntohl(*(uint32_t*)ptr);
-			ptr = PQgetvalue(res, i, 1);
+			ptr = res.getValue(i, 1);
 			pver = ntohl(*(uint32_t*)ptr);
-			pname = PQgetvalue(res, i, 2);
-			ptr = PQgetvalue(res, i, 3);
+			pname = res.getValue(i, 2);
+			ptr = res.getValue(i, 3);
 			lastmod = ntohl(*(uint32_t*)ptr);
-			int datalen = PQgetlength(res, i, 4);
-			char *data = PQgetvalue(res, i, 4);
+			int datalen = res.getLength(i, 4);
+			char *data = res.getValue(i, 4);
 			DBFileInfoPtr filePtr;
 			if (filesById_.count(pid) > 0) {
 				filePtr = filesById_.at(pid);
@@ -191,8 +189,8 @@ RC2::DBFileSource::insertDBFile(string fname)
 {
 	string filePath = _impl->workingDir_ + "/" + fname;
 	LOG(INFO) << "insertDBFile(" << fname << ")" << endl;
-	DBTransaction trans(_impl->db_);
-	long fileId = DBLongFromQuery(_impl->db_, "select nextval('rcfile_seq'::regclass)");
+	DBTransaction trans = dbcon_->startTransaction();
+	long fileId = dbcon_->longFromQuery("select nextval('rcfile_seq'::regclass)");
 
 	DBFileInfoPtr fobj(new DBFileInfo(fileId, 1, fname));
 	if (stat(filePath.c_str(), &fobj->sb) == -1)
@@ -201,16 +199,14 @@ RC2::DBFileSource::insertDBFile(string fname)
 	size_t newSize=0;
 	unique_ptr<char[]> data = ReadFileBlob(filePath, newSize);
 	
-
-	char *escapedNamePtr = PQescapeLiteral(_impl->db_, fname.c_str(), fname.length());
-	string escapedName = escapedNamePtr;
-	PQfreemem(escapedNamePtr);
+	string escapedName;
+	dbcon_->escapeLiteral(fname, escapedName);
 	ostringstream query;
 	query << "insert into rcfile (id, version, wspaceid"
 		<< ",name,filesize,lastmodified) values ("
 		<< fileId << ", 1, " << _impl->wspaceId_ << "," << escapedName << "," << newSize 
 		<< ", to_timestamp(" << modTime << "))";
-	DBResult res1(_impl->db_, query.str());
+	DBResult res1 = dbcon_->executeQuery(query.str());
 	if (!res1.commandOK()) {
 		LOG(INFO) << "insert dbfile failed: " << res1.errorMessage() << endl;
 		throw FormattedException("failed to insert file %s: %s", fname.c_str(), res1.errorMessage());
@@ -221,8 +217,7 @@ RC2::DBFileSource::insertDBFile(string fname)
 	int pformats[] = {1};
 	int pSizes[] = {(int)newSize};
 	const char *params[1] = {data.get()};
-	DBResult res2(PQexecParams(_impl->db_, query.str().c_str(), 1, NULL, params, 
-		pSizes, pformats, 1));
+	DBResult res2 = dbcon_->executeQuery(query.str(), 1, NULL, params, pSizes, pformats, 1);
 	if (!res2.commandOK()) {
 		LOG(INFO) << "executing query:" << query.str() << endl;
 		LOG(INFO) << "insert dbfiledata failed: " << res2.errorMessage() << endl;
@@ -251,12 +246,12 @@ RC2::DBFileSource::updateDBFile(DBFileInfoPtr fobj)
 	size_t newSize=0;
 	unique_ptr<char[]> data = ReadFileBlob(filePath, newSize);
 
-	DBTransaction trans(_impl->db_);
+	DBTransaction trans = dbcon_->startTransaction();
 	ostringstream query;
 	query << "update rcfile set version = " << newVersion << ", lastmodified = to_timestamp("
 		<< newMod << "), filesize = " << newSize << " where id = " << fobj->id;
 	LOG(INFO) << "executing " << query.str() << endl;
-	DBResult res1(_impl->db_, query.str());
+	DBResult res1 = dbcon_->executeQuery(query.str());
 	if (!res1.commandOK()) {
 		throw FormattedException("failed to update file %ld: %s", fobj->id, res1.errorMessage());
 	}
@@ -266,8 +261,7 @@ RC2::DBFileSource::updateDBFile(DBFileInfoPtr fobj)
 	int pformats[] = {1};
 	int pSizes[] = {(int)newSize};
 	const char *params[] = {data.get()};
-	DBResult res2(PQexecParams(_impl->db_, query.str().c_str(), 1, NULL, params, 
-		pSizes, pformats, 1));
+	DBResult res2 = dbcon_->executeQuery(query.str(), 1, NULL, params, pSizes, pformats);
 	if (!res2.commandOK()) {
 		throw FormattedException("failed to update file %ld: %s", fobj->id, res2.errorMessage());
 	}
@@ -283,7 +277,7 @@ RC2::DBFileSource::removeDBFile(DBFileInfoPtr fobj)
 {
 	ostringstream query;
 	query << "delete from rcfile where id = " << fobj->id;
-	DBResult res(PQexec(_impl->db_, query.str().c_str()));
+	DBResult res = dbcon_->executeQuery(query.str());
 	if (res.commandOK()) {
 		filesById_.erase(fobj->id);
 	} else {

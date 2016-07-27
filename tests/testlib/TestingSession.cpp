@@ -64,7 +64,7 @@ void TestingSession::executeDelayedJson ( string msg )
 void
 TestingSession::sendJsonToClientSource(std::string jsonStr) {
 	_messages.push(jsonStr + "\n");
-	LOG(INFO) <<"t-json:" <<  jsonStr << " (" << countDown << ")" << endl;
+	LOG(INFO) <<"t-json:" <<  jsonStr << " (" << countDown << ")";
 	if (countingDown) {
 		countDown--;
 		if (countDown <= 0) {
@@ -150,24 +150,13 @@ TestingFileManager::saveRData()
 {
 }
 
-string TestingFileManager::getWorkingDir() const
-{
-	return _workingDir;
-}
-
-void TestingFileManager::setWorkingDir ( string dir )
-{
-	_workingDir = dir;
-}
-
-
 bool
 TestingFileManager::filePathForId(long fileId, std::string& filePath)
 {
 	fs::path path = getWorkingDir();
 	FileInfo finfo;
 	if (!fileInfoForId(fileId, finfo)) {
-		cerr << "failed to find file " << fileId << endl;
+		LOG(WARNING) << "failed to find file " << fileId;
 		return false;
 	}
 //	path /= finfo.name;
@@ -217,5 +206,6 @@ namespace testing {
 	RSessionCallbacks* BaseSessionTest::callbacks = nullptr;
 	TestingSession* BaseSessionTest::session = nullptr;
 	TestingFileManager* BaseSessionTest::fileManager = nullptr;
+//	unique_ptr<TestLogging> BaseSessionTest::testLogger(new TestLogging());
 	
 };

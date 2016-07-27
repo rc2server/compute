@@ -44,6 +44,8 @@ namespace testing {
 // 			session->doJson("{\"msg\":\"execFile\", \"argument\":\"3\"}");
 // 		});
 // 		t.detach();
+		session->copyFileToWorkingDirectory("test1.R");
+		fileManager->addFile(3, "test1.R", 1);
 		session->executeDelayedJson("{\"msg\":\"execFile\", \"argument\":\"3\"}");
 		session->startCountdown(2);
 		session->startEventLoop();

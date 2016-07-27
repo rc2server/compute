@@ -2,7 +2,14 @@
 
 #include <postgresql/libpq-fe.h>
 #include <string>
+#include <stdexcept>
 #include <stdlib.h>
+
+struct DBException: public std::runtime_error {
+	DBException(std::string const &message)
+	: std::runtime_error(message)
+	{}
+};
 
 class DBResult {
 	PGresult *res;
@@ -39,6 +46,13 @@ class DBResult {
 		int rowsAffected() const {
 			return atoi(PQcmdTuples(res));
 		}
+		int rowsReturned() const {
+			if (!dataReturned()) throw DBException("rowsReturned called when query did not return rows");
+			return PQntuples(res);
+		}
+		
+		int getLength(int row, int col) { return PQgetlength(res, row, col); }
+		char * getValue(int row, int col) { return PQgetvalue(res, row, col); }
 };
 
 class DBTransaction {
@@ -58,15 +72,3 @@ class DBTransaction {
 			return res;
 		}
 };
-
-inline long DBLongFromQuery(PGconn *db, const char *query) 
-{
-	long value = 0;
-	DBResult res(PQexec(db, query));
-	if (res.dataReturned()) {
-		value = atol(PQgetvalue(res, 0, 0));
-	} else {
-		throw std::runtime_error(res.errorMessage());
-	}
-	return value;
-}

@@ -53,9 +53,6 @@ namespace RC2 {
 		virtual ~TestingFileManager();
 		virtual void 	initFileManager(std::string connectString, int wspaceId, int sessionRecId);
 		
-		std::string 	getWorkingDir() const;
-		virtual void 	setWorkingDir(std::string dir);
-		
 		virtual void	resetWatch();
 		virtual void	checkWatch(std::vector<long> &imageIds, long &batchId);
 		virtual void	cleanupImageWatch();
@@ -74,7 +71,6 @@ namespace RC2 {
 		void	addFile(long fileId, std::string name, long version);
 	
 	protected:
-		std::string _workingDir;
 		std::vector<FileInfo> _files;
 	};
 }
@@ -83,11 +79,24 @@ namespace RC2 {
 namespace testing {
 	using namespace RC2;
 	
+	struct TestLogging {
+		TestLogging() {
+			using namespace g3;
+			static std::unique_ptr<LogWorker> logworker{ LogWorker::createLogWorker() };
+			auto sinkHandle = logworker->addSink(std2::make_unique<RC2::CustomSink>(),
+												 &RC2::CustomSink::ReceiveLogMessage);
+			
+			// initialize the logger before it can receive LOG calls
+			initializeLogging(logworker.get());
+		}
+	};
+	
 	class BaseSessionTest : public ::testing::Test {
 	protected:
 		static RSessionCallbacks *callbacks;
 		static TestingSession *session;
 		static TestingFileManager *fileManager;
+//		static unique_ptr<TestLogging> testLogger;
 		
 		static void SetUpTestCase() {
 			cerr << "setting up..." << endl;
@@ -95,11 +104,6 @@ namespace testing {
 			fileManager = new TestingFileManager();
 			callbacks = new RSessionCallbacks();
 			session = new TestingSession(callbacks, fileManager);
-			const char *ev = getenv("GLOG_minloglevel");
-			if (ev == nullptr || ev[0] != '0') {
-				//turn off info logging but don't override if already set
-//				FLAGS_minloglevel = 1;
-			}
 			using namespace g3;
 			static std::unique_ptr<LogWorker> logworker{ LogWorker::createLogWorker() };
 			auto sinkHandle = logworker->addSink(std2::make_unique<RC2::CustomSink>(),
@@ -111,7 +115,7 @@ namespace testing {
 			session->prepareForRunLoop();
 			session->doJson("{\"msg\":\"open\", \"argument\": \"\", \"wspaceId\":1, \"sessionRecId\":1, \"dbhost\":\"localhost\", \"dbuser\":\"rc2\", \"dbname\":\"rc2test\", \"dbpass\":\"rc2\"}");
 			cerr << "setup complete" << endl;
-			fileManager->setWorkingDir(session->getWorkingDirectory());
+//			fileManager->setWorkingDir(session->getWorkingDirectory());
 		}
 		
 		static void TearDownTestCase() {

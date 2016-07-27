@@ -17,7 +17,6 @@
 #include <sys/types.h>
 #include <utime.h>
 #include "RC2Logging.h"
-#include "../common/PostgresUtils.hpp"
 #include "../common/FormattedException.hpp"
 #include "common/RC2Utils.hpp"
 #include "common/ZeroInitializedStruct.hpp"
@@ -55,8 +54,8 @@ class RC2::FileManager::Impl : public ZeroInitializedClass {
 		long						wspaceId_;
 		long						sessionRecId_;
 		long						sessionImageBatch_;
-		DBFileSource				dbFileSource_;
-		PGconn*						dbcon_;
+		shared_ptr<DBFileSource>	dbFileSource_;
+		shared_ptr<PGDBConnection>	dbConnection_;
 		set<string>					manuallyAddedFiles_;
 		map<int, DBFileInfoPtr>		filesByWatchDesc_;
 		PendingImageMap				pendingImagesByWatchDesc_;
@@ -71,11 +70,11 @@ class RC2::FileManager::Impl : public ZeroInitializedClass {
 		bool						ignoreDBNotifications_;
 
 		Impl()
-			: imgRegex_("rc2img(\\d+).png")
+			: imgRegex_("rc2img(\\d+).png"), dbConnection_(new PGDBConnection())
 		{}
 
 		void cleanup(); //replacement for destructor
-		void connect(string str, long wspaceId, long sessionRecId);
+		void connect(std::shared_ptr<PGDBConnection> connection, long wspaceId, long sessionRecId);
 		long insertImage(string fname, string imgNumStr);
 		bool executeDBCommand(string cmd);
 		
@@ -133,28 +132,18 @@ void
 RC2::FileManager::Impl::cleanup() {
 	if (inotifyFd_ != -1)
 		close(inotifyFd_);
-	if (dbcon_)
-		PQfinish(dbcon_);
 }
 
 void
-RC2::FileManager::Impl::connect(string str, long wspaceId, long sessionRecId) 
+RC2::FileManager::Impl::connect(std::shared_ptr<PGDBConnection> connection, long wspaceId, long sessionRecId) 
 {
 	wspaceId_ = wspaceId;
 	sessionRecId_ = sessionRecId;
-	dbcon_ = PQconnectdb(str.c_str());
-	//TODO: error checking
-	if (NULL == dbcon_) {
-		LOG(FATAL) << "PQconnectdb returned NULL" << endl;
-		abort();
-	} else if (PQstatus(dbcon_) != CONNECTION_OK) {
-		LOG(FATAL) << "failed to connect to database: " << PQerrorMessage(dbcon_) << endl;
-		abort();
-	}
+	dbConnection_ = connection;
 	char msg[255];
-	dbFileSource_.initializeSource(dbcon_, wspaceId_);
+	dbFileSource_->initializeSource(dbConnection_, wspaceId_);
 	snprintf(msg, 255, "where wspaceid = %ld", wspaceId_);
-	dbFileSource_.loadFiles(msg);
+	dbFileSource_->loadFiles(msg);
 	sessionImageBatch_ = 0;
 }
 
@@ -168,13 +157,13 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 		LOG(INFO) << "got image with no data" << endl;
 		return 0;
 	}
-	long imgId = DBLongFromQuery(dbcon_, "select nextval('sessionimage_seq'::regclass)");
+	long imgId = dbConnection_->longFromQuery("select nextval('sessionimage_seq'::regclass)");
 	if (imgId <= 0)
 		throw FormattedException("failed to get session image id");
 	if (sessionImageBatch_ <= 0) {
 		stringstream batchq;
 		batchq << "select max(batchid) from sessionimage where sessionid = " << sessionRecId_;
-		sessionImageBatch_ = DBLongFromQuery(dbcon_, batchq.str().c_str()) + 1;
+		sessionImageBatch_ = dbConnection_->longFromQuery(batchq.str().c_str()) + 1;
 	}
 	stringstream query;
 	query << "insert into sessionimage (id,sessionid,batchid,name,imgdata) values (" << imgId 
@@ -182,8 +171,7 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 	int pformats = 1;
 	int pSizes[] = {(int)size};
  	const char *params[] = {buffer.get()};
-	DBResult res(PQexecParams(dbcon_, query.str().c_str(), 1, NULL, params,  
-		pSizes, &pformats, 1));
+	DBResult res = dbConnection_->executeQuery(query.str(), 1, NULL, params, pSizes, &pformats);
 	if (!res.commandOK()) {
 		LOG(WARNING) << "insert image error:" << res.errorMessage() << endl;
 		throw FormattedException("failed to insert image in db: %s", res.errorMessage());
@@ -253,10 +241,10 @@ RC2::FileManager::Impl::processDBNotification(string message)
 	try {
 		if (type == 'd') {
 			try {
-				DBFileInfoPtr fobj = dbFileSource_.filesById_.at(fileId);
+				DBFileInfoPtr fobj = dbFileSource_->filesById_.at(fileId);
 				//stop notify watch first
 				inotify_rm_watch(inotifyFd_, fobj->watchDescriptor);
-				dbFileSource_.filesById_.erase(fileId);
+				dbFileSource_->filesById_.erase(fileId);
 				filesByWatchDesc_.erase(fileId);
 				fs::remove(workingDir + "/" + fobj->path);
 			} catch (out_of_range &ore) {
@@ -274,13 +262,13 @@ RC2::FileManager::Impl::processDBNotification(string message)
 			if (type == 'i') {
 				LOG(INFO) << "got insert for " << fileId << endl;
 				ignoreFSNotifications();
-				dbFileSource_.loadFiles(query.str().c_str());
-				watchFile(dbFileSource_.filesById_[fileId]);
+				dbFileSource_->loadFiles(query.str().c_str());
+				watchFile(dbFileSource_->filesById_[fileId]);
 			} else if (type == 'u') {
 				LOG(INFO) << "got update for " << fileId << endl;
-				if (dbFileSource_.filesById_.count(fileId) > 0) {
+				if (dbFileSource_->filesById_.count(fileId) > 0) {
 					ignoreFSNotifications();
-					dbFileSource_.loadFiles(query.str().c_str());
+					dbFileSource_->loadFiles(query.str().c_str());
 				}
 			}
 		}
@@ -292,20 +280,22 @@ RC2::FileManager::Impl::processDBNotification(string message)
 void
 RC2::FileManager::Impl::handleDBNotifications()
 {
+	LOG(INFO) << "handleDBNotifications called";
 	ignoreFSNotifications();
 	PGnotify *notify;
-	PQconsumeInput(dbcon_);
-	while((notify = PQnotifies(dbcon_)) != NULL) {
+	dbConnection_->consumeInput();
+	string name, channel;
+	while (dbConnection_->checkForNotification(name, channel)) {
+		LOG(INFO) << "got notification " << channel;
 		if (!ignoreDBNotifications_)
-			processDBNotification(notify->extra);
-		PQfreemem(notify);
+			processDBNotification(channel);
 	}
 }
 
 bool
 RC2::FileManager::Impl::executeDBCommand(string cmd)
 {
-	DBResult res(PQexec(dbcon_, cmd.c_str()));
+	DBResult res = dbConnection_->executeQuery(cmd);
 	if (res.commandOK()) {
 		LOG(WARNING) << "sql error executing: " << cmd << " (" 
 			<< res.errorMessage() << ")" << endl;
@@ -340,7 +330,7 @@ RC2::FileManager::Impl::ignoreFSNotifications()
 
 bool
 RC2::FileManager::Impl::fileExistsWithName(string fname) {
-	auto & fileMap = dbFileSource_.filesById_;
+	auto & fileMap = dbFileSource_->filesById_;
 	for (auto itr = fileMap.begin(); itr != fileMap.end(); ++itr) {
 		DBFileInfoPtr ptr = itr->second;
 		if (0 == fname.compare(ptr->name)) {
@@ -362,7 +352,7 @@ RC2::FileManager::Impl::setupInotify(FileManager *fm) {
 	if (rootDir_.wd == -1)
 		throw FormattedException("inotify_add_watched failed");
 	stat(workingDir.c_str(), &rootDir_.sb);
-	for (auto itr=dbFileSource_.filesById_.begin(); itr != dbFileSource_.filesById_.end(); ++itr) {
+	for (auto itr=dbFileSource_->filesById_.begin(); itr != dbFileSource_->filesById_.end(); ++itr) {
 		try {
 			watchFile(itr->second);
 		} catch (Impl::StatException &se) {
@@ -410,13 +400,13 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 								LOG(INFO) << "create for existing file " << fname;
 							} else {
 								LOG(INFO) << "inotify create for " << fname << endl << manuallyAddedFiles_.size() << endl;
-								newFileId = dbFileSource_.insertDBFile(fname);
+								newFileId = dbFileSource_->insertDBFile(fname);
 								LOG(INFO) << "inserted s " << newFileId << endl;
 							}
 						}
 						if (newFileId > 0) {
 							//need to add a watch for this file
-							watchFile(dbFileSource_.filesById_[newFileId]);
+							watchFile(dbFileSource_->filesById_[newFileId]);
 						}
 					}
 				}
@@ -428,13 +418,13 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 				} else {
 					DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
 					LOG(INFO) << "got close write event for " << fobj->name << endl;
-					dbFileSource_.updateDBFile(fobj);
+					dbFileSource_->updateDBFile(fobj);
 				}
 			} else if (evtype == IN_DELETE_SELF) {
 
 				DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
 			LOG(INFO) << "got delete event for " << fobj->name << endl;
-				dbFileSource_.removeDBFile(fobj);
+				dbFileSource_->removeDBFile(fobj);
 				filesByWatchDesc_.erase(fobj->id);
 				//discard our records of it
 				inotify_rm_watch(inotifyFd_, event->wd);
@@ -482,12 +472,18 @@ RC2::FileManager::~FileManager()
 }
 
 void
-RC2::FileManager::initFileManager(string connectString, int wspaceId, int sessionRecId)
+RC2::FileManager::initFileManager(std::string workingDir, std::shared_ptr<PGDBConnection> connection, int wspaceId, 
+								  int sessionRecId, std::shared_ptr<DBFileSource> dbsrc)
 {
-	_impl->connect(connectString, wspaceId, sessionRecId);
+	_impl->dbFileSource_ = dbsrc;
+	if (!_impl->dbFileSource_)
+		_impl->dbFileSource_ = make_shared<DBFileSource>();
+	_impl->workingDir = workingDir;
+	_impl->dbFileSource_->setWorkingDir(workingDir);
+	_impl->connect(connection, wspaceId, sessionRecId);
 	_impl->setupInotify(this);
-	DBResult listenRes(_impl->dbcon_, "listen rcfile");
-	struct event *evt = event_new(_impl->eventBase_, PQsocket(_impl->dbcon_), 
+	DBResult listenRes = _impl->dbConnection_->executeQuery("listen rcfile");
+	struct event *evt = event_new(_impl->eventBase_,_impl->dbConnection_->getSocket(), 
 		EV_READ|EV_PERSIST, RC2::FileManager::Impl::handleDBNotify, this);
 	event_priority_set(evt, 2); //so inotify events handled first
 	event_add(evt, NULL);
@@ -507,12 +503,17 @@ void RC2::FileManager::resumeNotifyEvents()
 	bufferevent_disable(_impl->inotifyEvent_, EV_READ);
 }
 
-void
-RC2::FileManager::setWorkingDir(std::string dir) 
-{ 
-	_impl->workingDir = dir; 
-	_impl->dbFileSource_.setWorkingDir(dir);
+string RC2::FileManager::getWorkingDir() const
+{
+	return _impl->workingDir;
 }
+
+// void
+// RC2::FileManager::setWorkingDir(std::string dir) 
+// { 
+// 	_impl->workingDir = dir; 
+// //	_impl->dbFileSource_->setWorkingDir(dir);
+// }
 
 void
 RC2::FileManager::setEventBase(struct event_base *eb)
@@ -547,19 +548,19 @@ void RC2::FileManager::cleanupImageWatch()
 bool
 RC2::FileManager::loadRData()
 {
-	return _impl->dbFileSource_.loadRData();
+	return _impl->dbFileSource_->loadRData();
 }
 
 void
 RC2::FileManager::saveRData()
 {
-	_impl->dbFileSource_.saveRData();
+	_impl->dbFileSource_->saveRData();
 }
 
 void
 RC2::FileManager::findOrAddFile(std::string fname, FileInfo &info)
 {
-	auto & fileMap = _impl->dbFileSource_.filesById_;
+	auto & fileMap = _impl->dbFileSource_->filesById_;
 	for (auto itr = fileMap.begin(); itr != fileMap.end(); ++itr) {
 		DBFileInfoPtr ptr = itr->second;
 		if (0 == fname.compare(ptr->name)) {
@@ -569,15 +570,15 @@ RC2::FileManager::findOrAddFile(std::string fname, FileInfo &info)
 		}
 	}
 	//need to add the file
-	long fid = _impl->dbFileSource_.insertDBFile(fname);
+	long fid = _impl->dbFileSource_->insertDBFile(fname);
 	_impl->manuallyAddedFiles_.insert(fname);
-	_impl->fileInfoForDBPtr(_impl->dbFileSource_.filesById_[fid], info);
+	_impl->fileInfoForDBPtr(_impl->dbFileSource_->filesById_[fid], info);
 }
 
 bool 
 RC2::FileManager::fileInfoForId (long fileId, FileInfo& info)
 {
-	auto & fileCache = _impl->dbFileSource_.filesById_;
+	auto & fileCache = _impl->dbFileSource_->filesById_;
 	if (fileCache.count(fileId) != 1)
 		return false;
 	auto dbptr = fileCache[fileId];
@@ -591,7 +592,7 @@ RC2::FileManager::fileInfoForId (long fileId, FileInfo& info)
 bool
 RC2::FileManager::filePathForId(long fileId, string& filePath)
 {
-	auto & fileCache = _impl->dbFileSource_.filesById_;
+	auto & fileCache = _impl->dbFileSource_->filesById_;
 	if (fileCache.count(fileId) != 1) {
 		LOG(WARNING) << "filenameForId called with invalid id: " << fileId << endl;
 		return false;

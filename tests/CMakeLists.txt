@@ -12,9 +12,10 @@ configure_file(test1.R test1.R COPYONLY)
 configure_file(chapter.Rmd chapter.Rmd COPYONLY)
 
 SET(TESTS
-	rserver
+	pgdbconnection
 	inputbuffer
 	dbfilesource
+	rserver
 	rsession
 	variables
 )
@@ -24,5 +25,5 @@ add_subdirectory(testlib)
 FOREACH(test ${TESTS})
 	add_executable(${test}-t ${test}-t.cpp)
 	target_link_libraries(${test}-t testslib src event common R -l:RInside.so ${Compute_Libs} ${Boost_LIBRARIES} ${GTEST_BOTH_LIBRARIES} pthread -lm)
-	add_test(${test} tests/${test}-t)
+	add_test(${test} ${test}-t)
 ENDFOREACH()

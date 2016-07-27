@@ -3,7 +3,7 @@
 #include <iostream>
 #include <map>
 #include <sys/stat.h>
-#include <postgresql/libpq-fe.h>
+#include "../common/PGDBConnection.hpp"
 
 namespace RC2 {
 
@@ -34,7 +34,7 @@ namespace RC2 {
 				DBFileSource();
 		virtual ~DBFileSource();
 	
-			void	initializeSource(PGconn *con, long wsid);
+			void	initializeSource(std::shared_ptr<PGDBConnection> connection, long wsid);
 			void	setWorkingDir(std::string workingDir);
 			void	loadFiles(const char *whereClause);
 			
@@ -51,6 +51,7 @@ namespace RC2 {
 		std::map<long, DBFileInfoPtr>	filesById_;
 
 		private:
+			std::shared_ptr<PGDBConnection> dbcon_;
 			class Impl;
 			std::unique_ptr<Impl>	_impl;
 	};

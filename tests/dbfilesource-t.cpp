@@ -6,7 +6,7 @@
 #include "../src/RC2Logging.h"
 #include "../src/DBFileSource.hpp"
 #include "common/RC2Utils.hpp"
-#include <postgresql/libpq-fe.h>
+#include "common/PGDBConnection.hpp"
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 
@@ -20,7 +20,7 @@ namespace testing {
 	public:
 		RC2::TemporaryDirectory tmpDir;
 		RC2::DBFileSource source;
-		PGconn* db;
+		shared_ptr<RC2::PGDBConnection> db;
 		
 	protected:
 		virtual void SetUp() {
@@ -29,16 +29,15 @@ namespace testing {
 			std::unique_ptr<LogWorker> logworker{ LogWorker::createLogWorker() };
 			auto sinkHandle = logworker->addSink(std2::make_unique<CustomSink>(),
 												 &CustomSink::ReceiveLogMessage);
-			db = PQconnectdb("postgresql://rc2@localhost/rc2test?application_name=unittest&sslmode=disable");
-			ASSERT_TRUE(db != nullptr);
+			db = make_shared<RC2::PGDBConnection>();
+			db->connect("postgresql://rc2@localhost/rc2test?application_name=unittest&sslmode=disable");
 			source.initializeSource(db, 1);
 			source.setWorkingDir(tmpDir.getPath());
 		}
 		
 		virtual void TearDown() {
 			//nuke the fake .RData we created
-			PQexec(db, "delete from rcworkspacedata where id = 1");
-			PQfinish(db);
+			db->executeQuery("delete from rcworkspacedata where id = 1");
 			db = nullptr;
 		}
 	};

@@ -4,6 +4,7 @@
 #include <vector>
 #include <functional>
 #include <event2/event.h>
+#include "common/PGDBConnection.hpp"
 
 namespace RC2 {
 	
@@ -34,13 +35,19 @@ namespace RC2 {
 		}
 	};
 	
+	class DBFileSource;
+	
 	class FileManager {
 	public:
 		FileManager();
 		virtual ~FileManager();
-		virtual void 	initFileManager(std::string connectString, int wspaceId, int sessionRecId);
+		//the dbsrc parameter is for dependency injection
+		virtual void 	initFileManager(std::string workingDir, std::shared_ptr<PGDBConnection> connection, 
+										int wspaceId, int sessionRecId, 
+										std::shared_ptr<DBFileSource> dbsrc =  std::shared_ptr<DBFileSource>());
 		
-		virtual void 	setWorkingDir(std::string dir);
+		virtual std::string	getWorkingDir() const; //necessary for subclass to get variable stored in impl class
+//		virtual void 	setWorkingDir(std::string dir);
 		virtual void	setEventBase(struct event_base *evbase);
 		
 		virtual void	resetWatch();
@@ -59,6 +66,7 @@ namespace RC2 {
 		
 		//for unit testing
 		virtual void	processDBNotification(std::string message);
+
 	private:
 		class Impl;
 		std::unique_ptr<Impl>		_impl;

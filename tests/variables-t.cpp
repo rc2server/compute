@@ -35,6 +35,7 @@ namespace testing {
 		session->doJson("{\"msg\":\"execScript\", \"argument\":\"x<-22;y<-11\"}");
 		session->emptyMessages();
 		session->doJson("{\"msg\":\"listVariables\", \"argument\":\"\", \"watch\":true}");
+		cerr << "message size:" << session->_messages.size() << endl;
 		ASSERT_EQ(session->_messages.size(), 1);
 		json results = session->popMessage();
 		auto vars = results["variables"];
