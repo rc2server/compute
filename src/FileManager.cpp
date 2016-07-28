@@ -201,7 +201,7 @@ void RC2::FileManager::Impl::stopImageWatch ( int wd )
 void RC2::FileManager::Impl::cleanupImageWatch()
 {
 	for(auto it = pendingImagesByWatchDesc_.begin(); it != pendingImagesByWatchDesc_.end(); ++it) {
-		LOG(INFO) << "cleaning up image " << it->second.fileName;
+//		LOG(INFO) << "cleaning up image " << it->second.fileName;
 		//check to see if image exists on disk with file size > 0
 		fs::path imgPath(workingDir);
 		imgPath /= it->second.fileName;
@@ -524,6 +524,7 @@ RC2::FileManager::setEventBase(struct event_base *eb)
 void
 RC2::FileManager::resetWatch()
 {
+//	LOG(INFO) << "fm:resetWatch called: " << _impl->imageIds_.size();
 	if (_impl->imageIds_.size() > 0) {
 		_impl->sessionImageBatch_++;
 		LOG(INFO) << "incrementing batch_id:" << _impl->sessionImageBatch_;

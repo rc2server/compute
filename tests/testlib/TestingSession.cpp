@@ -125,20 +125,20 @@ TestingFileManager::initFileManager(std::string connectString, int wspaceId, int
 {
 }
 
-void
-TestingFileManager::resetWatch()
-{
-}
-
-void
-TestingFileManager::checkWatch(std::vector<long> &imageIds, long &batchId)
-{
-}
-
-void
-TestingFileManager::cleanupImageWatch()
-{
-}
+// void
+// TestingFileManager::resetWatch()
+// {
+// }
+// 
+// void
+// TestingFileManager::checkWatch(std::vector<long> &imageIds, long &batchId)
+// {
+// }
+// 
+// void
+// TestingFileManager::cleanupImageWatch()
+// {
+// }
 
 bool
 TestingFileManager::loadRData() 
@@ -168,6 +168,13 @@ TestingFileManager::filePathForId(long fileId, std::string& filePath)
 void
 TestingFileManager::findOrAddFile(std::string fname, FileInfo &info)
 {
+	for (auto itr = _files.begin(); itr != _files.end(); ++itr) {
+		if (itr->name == fname) {
+			info = *itr;
+			return;
+		}
+	}
+	FileManager::findOrAddFile(fname, info);
 }
 
 bool

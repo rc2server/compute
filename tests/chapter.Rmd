@@ -80,7 +80,7 @@ We visualize the data using a scatterplot by plotting the pairs of points for `a
 The model generally fits the data, but the data varies somewhat about the estimated regression line. A nonparametric *loess* curve, based on a local regresssion fit, is superimposed on the plot to assess the extent of nonlinearity.
 ```{r}
 plot(age, systolic)
-abline(bp.lm)
+#abline(bp.lm)
 lines(lowess(age, systolic, f=0.75), lty=2)
 ```
 
@@ -206,8 +206,8 @@ The fit is hampered somewhat by one (or two) large positive residuals. This is s
 
 The normal probability plot of the residuals confirms this.
 ```{r}
-qqnorm(systolic.res, ylim=c(-5, 10), ylab="Systolic Residuals", xlab="Normal Quantiles")
-qqline(systolic.res)
+#qqnorm(systolic.res, ylim=c(-5, 10), ylab="Systolic Residuals", xlab="Normal Quantiles")
+#qqline(systolic.res)
 ```
 
 Positive skewness of the residuals is indicated.
@@ -215,7 +215,7 @@ Positive skewness of the residuals is indicated.
 Linearity is now assessed by plotting the systolic residuals versus the predicted systolic values.
 ```{r}
 plot(systolic.hat, systolic.res, xlab="Systolic Predictions", ylab="Systolic Rediduals")
-abline(h = 0)
+#abline(h = 0)
 ```
 
 The plot suggests linearity is plausible, except for one large residual.

@@ -53,9 +53,9 @@ namespace RC2 {
 		virtual ~TestingFileManager();
 		virtual void 	initFileManager(std::string connectString, int wspaceId, int sessionRecId);
 		
-		virtual void	resetWatch();
-		virtual void	checkWatch(std::vector<long> &imageIds, long &batchId);
-		virtual void	cleanupImageWatch();
+// 		virtual void	resetWatch();
+// 		virtual void	checkWatch(std::vector<long> &imageIds, long &batchId);
+// 		virtual void	cleanupImageWatch();
 		
 		virtual bool	loadRData();
 		virtual void	saveRData();

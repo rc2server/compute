@@ -39,11 +39,6 @@ namespace testing {
 
 	TEST_F(SessionTest, execFiles)
 	{
-// 		std::thread t([]() {
-// 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-// 			session->doJson("{\"msg\":\"execFile\", \"argument\":\"3\"}");
-// 		});
-// 		t.detach();
 		session->copyFileToWorkingDirectory("test1.R");
 		fileManager->addFile(3, "test1.R", 1);
 		session->executeDelayedJson("{\"msg\":\"execFile\", \"argument\":\"3\"}");
@@ -71,6 +66,8 @@ namespace testing {
 
 	TEST_F(SessionTest, execSweave)
 	{
+		session->copyFileToWorkingDirectory("test1.Rnw");
+		fileManager->addFile(5, "test1.Rnw", 1);
 		session->executeDelayedJson("{\"msg\":\"execFile\", \"argument\":\"5\"}");
 		session->startCountdown(2);
 		session->startEventLoop();
@@ -84,21 +81,13 @@ namespace testing {
 	TEST_F(SessionTest, genImages)
 	{
 		session->executeDelayedJson("{\"msg\":\"execScript\", \"argument\":\"plot(rnorm(21)); plot(rnorm(12))\"}");
-		//need to delay action until after startEventLoop()
-//		std::thread t([]() {
-//			std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//			session->doJson("{\"msg\":\"execScript\", \"argument\":\"plot(rnorm(21))\"}");
-//			session->doJson("{\"msg\":\"execScript\", \"argument\":\"xz <- matrix(1:10, ncol=5);write(t(xz), file=\\\"mjl.data\\\")\"}");
-			
-//		});
-//		t.detach();
-		session->startCountdown(2);
+		session->startCountdown(1);
 		session->startEventLoop();
 		ASSERT_EQ(session->_messages.size(), 1);
 		json results = session->popMessage();
 		ASSERT_TRUE(results["msg"] == "execComplete");
 		ASSERT_TRUE(results["images"].is_array());
-		ASSERT_EQ(results["images"].size(), 1);
+		ASSERT_EQ(results["images"].size(), 2);
 		//should really make sure image is valid? How do we do that?
 	}
 
@@ -127,6 +116,7 @@ namespace testing {
 		//need to delay action until after startEventLoop()
 		std::thread t([]() {
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			session->doJson("{\"msg\":\"execScript\", \"argument\":\"rm(list = ls())\"}");
 			session->doJson("{\"msg\":\"execScript\", \"argument\":\"x <- 2\"}");
 			session->doJson("{\"msg\":\"toggleVariableWatch\", \"watch\":true}");
 			session->emptyMessages();
