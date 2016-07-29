@@ -21,7 +21,7 @@ void get_var_names(std::vector<Variable> &vars, std::vector<std::string> &names)
 	});
 }
 
-bool compareVariablesByName(Variable& v1, Variable& v2) {
+bool compareVariablesByName(const Variable& v1, const Variable& v2) {
 	return v1.first < v2.first;
 }
 } //namespace RC2
@@ -76,9 +76,7 @@ RC2::EnvironmentWatcher::captureEnvironment()
 		std::string name(aName);
 		_lastVars.push_back(Variable(name, _env.get(name)));
 	});
-	sort(_lastVars.begin(), _lastVars.end(), [](Variable v1, Variable v2) -> bool { 
-		return v1.first < v2.first;
-	});
+	std::sort(_lastVars.begin(), _lastVars.end(), compareVariablesByName);
 }
 
 json::value_type 
