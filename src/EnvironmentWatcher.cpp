@@ -1,4 +1,4 @@
-#include <algorithm>
+//#include <algorithm>
 #include <vector>
 #include <map>
 #include <sys/time.h>
@@ -71,10 +71,13 @@ RC2::EnvironmentWatcher::captureEnvironment()
 	_lastVars.clear();
 	Rcpp::StringVector names(_env.ls(false));
 	//reorder values for easier comparison
-	std::sort(names.begin(), names.end());
+//	std::sort(names.begin(), names.end());
 	std::for_each(names.begin(), names.end(), [&](const char* aName) { 
 		std::string name(aName);
 		_lastVars.push_back(Variable(name, _env.get(name)));
+	});
+	sort(_lastVars.begin(), _lastVars.end(), [](Variable v1, Variable v2) -> bool { 
+		return v1.first < v2.first;
 	});
 }
 
