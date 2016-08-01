@@ -55,6 +55,9 @@ ExternalProject_Add (
 	CONFIGURE_COMMAND
 	INSTALL_COMMAND ""
 	UPDATE_COMMAND ""
+	LOG_DOWNLOAD 1
+	LOG_CONFIGURE 1
+	LOG_BUILD 1
 )
 ExternalProject_Get_Property(cppnetlib source_dir)
 ExternalProject_Get_Property(cppnetlib binary_dir)
@@ -113,23 +116,24 @@ add_library(boost_system STATIC IMPORTED)
 add_library(boost_regex STATIC IMPORTED)
 #add_library(g3logger STATIC IMPORTED  ${rcompute2_BINARY_DIR}/libg3logger.a)
 #add_library(RInside SHARED IMPORTED)
-set_target_properties(event PROPERTIES IMPORTED_LOCATION /usr/local/lib/libevent.a)
-set_target_properties(event_pthreads PROPERTIES IMPORTED_LOCATION /usr/local/lib/libevent_pthreads.a)
+set_target_properties(event PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libevent.a)
+set_target_properties(event_pthreads PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libevent_pthreads.a)
 set_target_properties(boost_system PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libboost_system.a)
 set_target_properties(boost_filesystem PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libboost_filesystem.a)
 set_target_properties(boost_regex PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libboost_regex.a)
 set_target_properties(uuid PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libuuid.a)
-#set_target_properties(RInside PROPERTIES IMPORTED_LOCATION /usr/local/lib/R/library/RInside/libs/RInside.so)
+#set_target_properties(RInside PROPERTIES IMPORTED_LOCATION /usr/local/lib/R/site-library/RInside/libs/libRInside.so)
 
 add_executable(rsession src/RSession-main.cpp)
 
 add_executable(rserver src/RServer-main.cpp)
 
+add_dependencies(rsession cppnetlib g3log)
 #set_target_properties(rsession PROPERTIES INSTALL_RPATH "\$ORIGIN/lib")
 #set_target_properties(rserver rsession PROPERTIES INSTALL_RPATH "$ORIGIN/../:$ORIGIN")
 
 target_link_libraries(rserver src common ${Compute_Libs} ${Boost_LIBRARIES})
-target_link_libraries(rsession src common pthread ${Compute_Libs} ${Boost_LIBRARIES} R -l:RInside.so libg3logger.a ${G3LOG_LIBRARY_DIR} ${NETLIB_LIBRARIES} -lm)
+target_link_libraries(rsession src common pthread ${Compute_Libs} ${Boost_LIBRARIES} R -lRInside libg3logger.a ${G3LOG_LIBRARY_DIR} ${NETLIB_LIBRARIES} -lm)
 #target_compile_options(rsession PRIVATE RInside.so)
 
 install(TARGETS rserver rsession  RUNTIME DESTINATION .)
