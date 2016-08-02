@@ -3,8 +3,13 @@ os: linux
 dist: trusty
 compiler: gcc
 sudo: required
+services: 
+  - postgresql
 
 before_install: ./travis_before_install.sh
-before_script: ./travis_before_script.sh
+before_script: 
+  - sudo ./travis_before_script.sh
+  - psql -c 'create user rc2; create database rc2unittest owner rc2;' -U postgres
+  
 script: mkdir build && cd build && cmake .. && make VERBOSE=1 && make test
 
