@@ -9,7 +9,8 @@ services:
 before_install: ./travis_before_install.sh
 before_script: 
   - sudo ./travis_before_script.sh
-  - psql -c 'create user rc2; create database rc2unittest owner rc2;' -U postgres
+  - psql -c 'create user rc2' -U postgres
+  - psql -c 'create database rc2unittest owner rc2' -U postgres
   
 script: mkdir build && cd build && cmake .. && make VERBOSE=1 && make test
 
