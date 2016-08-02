@@ -8,3 +8,5 @@ add_library (src InputBufferManager.cpp
 					RServer.cpp 
 					RSession.cpp 
 					RSessionCallbacks.cpp )
+
+add_dependencies(src g3log common)

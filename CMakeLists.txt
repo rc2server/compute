@@ -42,29 +42,11 @@ SET(Compute_Libs
 	event_pthreads
 	uuid
 	pq
+	RInside
 	g3logger
 )
 
 include(ExternalProject)
-ExternalProject_Add (
-	cppnetlib 
-	URL http://storage.googleapis.com/cpp-netlib-downloads/0.11.1/cpp-netlib-0.11.1-final.tar.bz2
-	BINARY_DIR ${rcompute2_BINARY_DIR}/cppnetlib
-	BUILD_IN_SOURCE 0
-	CMAKE_ARGS -DCPP-NETLIB_BUILD_TESTS:BOOL=OFF -DCPP-NETLIB_BUILD_EXAMPLES:BOOL=OFF
-	CONFIGURE_COMMAND
-	INSTALL_COMMAND ""
-	UPDATE_COMMAND ""
-	LOG_DOWNLOAD 1
-	LOG_CONFIGURE 1
-	LOG_BUILD 1
-)
-ExternalProject_Get_Property(cppnetlib source_dir)
-ExternalProject_Get_Property(cppnetlib binary_dir)
-set(CPP-NETLIB_INCLUDE_DIR "${source_dir}")
-set(CPP-NETLIB_LIBRARY_DIR "${binary_dir}/libs/network/src")
-set(CPP-NETLIB_LIBRARIES "cppnetlib-uri" "cppnetlib-client-connections")
-link_directories(${CPP-NETLIB_LIBRARY_DIR})
 
 ExternalProject_Add (
 	g3log
@@ -81,19 +63,15 @@ ExternalProject_Get_Property(g3log binary_dir)
 set(G3LOG_INCLUDE_DIR "${source_dir}/src")
 set(G3LOG_LIBRARY_DIR "${binary_dir}")
 link_directories(${G3LOG_LIBRARY_DIR})
-#set(G3LOG_LIBRARIES "cppnetlib-uri" "cppnetlib-client-connections")
 
 #R installed from sources uses /usr/local/lib/R/library while it uses /usr/local/lib/R/site-library if installed via rpm
 include_directories (${CMAKE_CURRENT_SOURCE_DIR} 
 	${CMAKE_ROOT}
-	${CPPNET-LIB_INCLUDE_DIR}
 	${G3LOG_INCLUDE_DIR}
 	${CMAKE_SOURCE_DIR}/vendor
 	/usr/include
 	/usr/include/postgresql
 	/usr/share/R/include
-	/usr/local/lib/R/library/RInside/include
-	/usr/local/lib/R/library/Rcpp/include
 	/usr/local/lib/R/site-library/RInside/include
 	/usr/local/lib/R/site-library/Rcpp/include
 	/usr/local/lib/R/include)
@@ -114,26 +92,25 @@ add_library(event_pthreads STATIC IMPORTED)
 add_library(boost_filesystem STATIC IMPORTED)
 add_library(boost_system STATIC IMPORTED)
 add_library(boost_regex STATIC IMPORTED)
-#add_library(g3logger STATIC IMPORTED  ${rcompute2_BINARY_DIR}/libg3logger.a)
-#add_library(RInside SHARED IMPORTED)
+add_library(RInside SHARED IMPORTED)
 set_target_properties(event PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libevent.a)
 set_target_properties(event_pthreads PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libevent_pthreads.a)
 set_target_properties(boost_system PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libboost_system.a)
 set_target_properties(boost_filesystem PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libboost_filesystem.a)
 set_target_properties(boost_regex PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libboost_regex.a)
 set_target_properties(uuid PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libuuid.a)
-#set_target_properties(RInside PROPERTIES IMPORTED_LOCATION /usr/local/lib/R/site-library/RInside/libs/libRInside.so)
+set_target_properties(RInside PROPERTIES IMPORTED_LOCATION /usr/local/lib/R/site-library/RInside/libs/RInside.so)
 
 add_executable(rsession src/RSession-main.cpp)
 
 add_executable(rserver src/RServer-main.cpp)
 
-add_dependencies(rsession cppnetlib g3log)
+add_dependencies(rsession g3log)
 #set_target_properties(rsession PROPERTIES INSTALL_RPATH "\$ORIGIN/lib")
 #set_target_properties(rserver rsession PROPERTIES INSTALL_RPATH "$ORIGIN/../:$ORIGIN")
 
 target_link_libraries(rserver src common ${Compute_Libs} ${Boost_LIBRARIES})
-target_link_libraries(rsession src common pthread ${Compute_Libs} ${Boost_LIBRARIES} R -lRInside libg3logger.a ${G3LOG_LIBRARY_DIR} ${NETLIB_LIBRARIES} -lm)
+target_link_libraries(rsession src common pthread ${Compute_Libs} ${Boost_LIBRARIES} R RInside libg3logger.a -lm)
 #target_compile_options(rsession PRIVATE RInside.so)
 
 install(TARGETS rserver rsession  RUNTIME DESTINATION .)
