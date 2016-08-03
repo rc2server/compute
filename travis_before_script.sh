@@ -1,3 +1,5 @@
+#!/bin/sh
+
 if [ $TRAVIS_OS_NAME = linux ]; then
 	echo "checking for RInside"
 	if [ ! -f /usr/local/lib/R/site-library/RInside/libs/RInside.h ]; then
