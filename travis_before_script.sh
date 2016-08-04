@@ -10,8 +10,6 @@ set -v
 	echo "checking for RInside"
 	if [ ! -f /usr/local/lib/R/site-library/RInside/libs/RInside.h ]; then
 		echo "installing RInside"
-		pwd
-		ls -l vendor
 		wget https://cran.r-project.org/src/contrib/RInside_0.2.13.tar.gz
 		tar zxf RInside_0.2.13.tar.gz
 		cd RInside
@@ -25,6 +23,7 @@ set -v
 
 	echo "configuring database"
 	cd $SRCDIR
+	psql -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public' -U postgres
 	psql -c 'create user rc2' -U postgres
 	psql -c 'create database rc2unittest owner rc2' -U postgres
 	psql -U rc2 rc2unittest < $SRCDIR/root/rc2.sql
