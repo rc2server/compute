@@ -23,9 +23,9 @@ set -v
 
 	echo "configuring database"
 	cd $SRCDIR
-	psql -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public' -U postgres
-	psql -c 'create user rc2' -U postgres
-	psql -c 'create database rc2unittest owner rc2' -U postgres
+	psql -U postgres -c 'create user rc2'
+	psql -U postgres -c 'create database rc2unittest owner rc2'
+	psql -U postgres -U rc2 rcunittest -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public'
 	psql -U rc2 rc2unittest < $SRCDIR/root/rc2.sql
 	psql -U rc2 rc2unittest < $SRCDIR/root/testData.sql
 	
