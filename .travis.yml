@@ -3,12 +3,15 @@ os: linux
 dist: trusty
 compiler: gcc
 sudo: required
-services: 
-  - postgresql
-
-before_install: ./travis_before_install.sh
-before_script: 
-  - sudo ./travis_before_script.sh
-  
+services:
+- postgresql
+before_install: "./travis_before_install.sh"
+before_script:
+- sudo ./travis_before_script.sh
 script: mkdir build && cd build && cmake .. && make VERBOSE=1 && make test CTEST_OUTPUT_ON_FAILURE=TRUE
-
+notifications:
+  slack:
+    secure: jydo6k0Ca5edDDlsum1INkuUysHvOXeWjx6Wsl7+Dpubmlmj41aA2bZXcwzlDNlWeU2Amp7rLrArr3kQJffyqrn1l4F7M+9T8USbzOTPZ8Au/oUaEdZbkD6ayXs6L3CoyJhrEf5AVqjSCP5o3BLeyedOdcxOggxIGL89naLv3Hnp26yVVx6rmmoI14+l1tVU59wAjcBjaFkaNCXMPXycit1Cxcdxybm2R1tgbnGBY7ztbEzrH+ORx5dgEPxkvmszjOBP2xyQFMExxpPIliYPrMBp3494Io6s3O7ofOl879yOqlYytpE9NRkx9A3vEQ2429mJxp2Q16QwyiDqD1ToqVIEPEatiriN3nEjxvhFKSIGnLhqBInlN/0iUxu51kq6yoETugI9RGJYyL+vAd0Lm+GFqFLbhT9yUyE2kPob9wMZPV47BqJevvB3hSRbwoWW/Mg2xRfzlyz3/JxByqXrM1zf2Ftz8OiZCxtuU/kj5C8FRVc2v2uEgedOphNhezNDzXuL4ft59iWfeFK+YsKIUzfb3gpbEMLQSU3Q/HteysqaBTzk2Xui1okhLnxECfJXVfT1pUmlS93vTJhvgeRJqWh9xCy+wwaCiTHPOUlgA9MQW9YTnirDvXg5uqkKo9j9V4koBOOgey4jTin82mCIkToGEBD17gn+5UsLLQYS5ug=
+  on_success: never
+  on_failure: always
+  
