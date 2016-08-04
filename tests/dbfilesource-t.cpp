@@ -6,9 +6,10 @@
 #include "../src/RC2Logging.h"
 #include "../src/DBFileSource.hpp"
 #include "common/RC2Utils.hpp"
-#include "common/PGDBConnection.hpp"
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
+#include "testlib/TestPGDBConnection.hpp"
+#include "testlib/TestingSession.hpp"
 
 
 using namespace std;
@@ -20,7 +21,7 @@ namespace testing {
 	public:
 		RC2::TemporaryDirectory tmpDir;
 		RC2::DBFileSource source;
-		shared_ptr<RC2::PGDBConnection> db;
+		shared_ptr<RC2::TestPGDBConnection> db;
 		
 	protected:
 		virtual void SetUp() {
@@ -29,8 +30,8 @@ namespace testing {
 			std::unique_ptr<LogWorker> logworker{ LogWorker::createLogWorker() };
 			auto sinkHandle = logworker->addSink(std2::make_unique<CustomSink>(),
 												 &CustomSink::ReceiveLogMessage);
-			db = make_shared<RC2::PGDBConnection>();
-			db->connect("postgresql://rc2@localhost/rc2test?application_name=unittest&sslmode=disable");
+			db = make_shared<RC2::TestPGDBConnection>();
+			db->connect("");
 			source.initializeSource(db, 1);
 			source.setWorkingDir(tmpDir.getPath());
 		}
