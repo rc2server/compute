@@ -6,7 +6,10 @@ set -v
 	if [ ! -f /usr/local/lib/R/site-library/RInside/libs/RInside.h ]; then
 		echo "installing RInside"
 		pwd
-		ls
+		ls -l vendor
+		if [ ! -f ./vendor/rinside.patch ]; then
+			echo "failed to find patch"
+		fi
 		wget https://cran.r-project.org/src/contrib/RInside_0.2.13.tar.gz
 		tar zxf RInside_0.2.13.tar.gz
 		cd RInside
