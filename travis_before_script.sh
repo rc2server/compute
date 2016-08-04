@@ -14,7 +14,7 @@ set -v
 		tar zxf RInside_0.2.13.tar.gz
 		cd RInside
 		echo "in $PWD"
-		patch -p1 < vendor/rinside.patch
+		patch -p1 < ../vendor/rinside.patch
 		R CMD INSTALL .
 		cd ..
 		rm -rf RInside_0.2.13.tar.gz RInside
