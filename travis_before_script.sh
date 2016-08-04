@@ -25,6 +25,8 @@ set -v
 
 	echo "configuring database"
 	cd $SRCDIR
+	psq l -c 'create user rc2' -U postgres
+	psql -c 'create database rc2unittest owner rc2' -U postgres
 	psql -U rc2 rc2unittest < $SRCDIR/root/rc2.sql
 	psql -U rc2 rc2unittest < $SRCDIR/root/testData.sql
 	
