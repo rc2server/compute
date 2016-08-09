@@ -8,5 +8,5 @@ make
 rc=$?; if [ $rc != 0 ]; then exit $rc; fi
 make package
 rc=$?; if [ $rc != 0 ]; then exit $rc; fi
-make test
+make test CTEST_OUTPUT_ON_FAILURE=TRUE
 rc=$?; if [ $rc != 0 ]; then exit $rc; fi
