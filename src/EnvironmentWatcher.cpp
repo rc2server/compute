@@ -228,13 +228,16 @@ RC2::EnvironmentWatcher::setObjectData ( RObject& robj, json& jobj )
 	} else if (jobj[kClass] == "Date") {
 		Rcpp::Date date(robj);
 		char datebuf[16];
-		snprintf(datebuf, 16, "%02d-%02d-%02d", date.getYear(), date.getMonth(), date.getDay());
+		snprintf(datebuf, 16, "%4d-%02d-%02d", date.getYear(), date.getMonth(), date.getDay());
 		jobj[kValue] = datebuf;
+		jobj["type"] = "date";
 	} else if (jobj[kClass] == "POSIXct") {
 		jobj[kValue] = REAL(robj)[0];
+		jobj["type"] = "date";
 	} else if (jobj[kClass] == "POSIXlt") {
 		Rcpp::Datetime dt(robj);
 		jobj[kValue] = dt.getFractionalTimestamp();
+		jobj["type"] = "date";
 	}  else if (jobj[kClass] == "data.frame") {
 		setDataFrameData(robj, jobj);
 	} else {
@@ -415,6 +418,11 @@ RC2::EnvironmentWatcher::setPrimitiveData ( RObject& robj, json& jobj )
 		case RAWSXP: //24
 			jobj[kClass] = "raw";
 			jobj[kType] = "r";
+			{
+//				Rcpp::RawVector raw(robj);
+//				std::vector<char> bytes = 
+//				jobj[kValue] = raw.asStdVectorInt();
+			}
 			break;
 		default:
 			jobj[kClass] = "unsupported type";
