@@ -93,6 +93,8 @@ namespace testing {
 
 	TEST_F(SessionTest, singleHelp)
 	{
+//		session->execScript("library(rc2)");
+//		session->execScript("options(device = \"rc2.pngdev\", bitmapType = \"cairo\")");
 		session->emptyMessages();
 		session->doJson("{\"msg\":\"help\", \"argument\":\"lm\"}");
 		ASSERT_EQ(session->_messages.size(), 1);

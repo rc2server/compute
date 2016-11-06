@@ -26,7 +26,7 @@ void RC2::TestPGDBConnection::connect (std::string connectStr)
 		}
 	}
 	try {
-		PGDBConnection::connect("postgresql://rc2@localhost/rc2unittest?application_name=rc2+unit+tests&sslmode=disable");
+		PGDBConnection::connect("postgresql://rc2@localhost/rc2test?application_name=rc2+unit+tests&sslmode=disable");
 		return;
 	} catch (...) {
 		ADD_FAILURE() << "failed to connect to rc2unittest db";

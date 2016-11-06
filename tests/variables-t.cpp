@@ -32,6 +32,7 @@ namespace testing {
 	TEST_F(VarTest, listVariables)
 	{
 		session->doJson("{\"msg\":\"execScript\", \"argument\":\"rm(list=ls())\"}");
+		session->doJson("{\"msg\":\"execScript\", \"argument\":\"z <- c('foo','bar')\"}");
 		session->doJson("{\"msg\":\"execScript\", \"argument\":\"x<-22;y<-11\"}");
 		session->emptyMessages();
 		session->doJson("{\"msg\":\"listVariables\", \"argument\":\"\", \"watch\":true}");
