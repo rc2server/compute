@@ -107,7 +107,8 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 				{"msg", "showoutput"}, 
 				{"fileId", args->finfo.id}, 
 				{"fileName", args->finfo.name}, 
-				{"fileVersion", args->finfo.version} };
+				{"fileVersion", args->finfo.version},
+				{"queryId", args->queryId} };
 			args->session->sendJsonToClientSource(results.dump());
 		}
 		delete args;
