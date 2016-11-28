@@ -29,8 +29,9 @@ RServer::RServer()
 	event_config_require_features(config, EV_FEATURE_FDS);
 	_eventBase = event_base_new_with_config(config);
 	event_config_free(config);
-
-	event_new(_eventBase, SIGINT, EV_SIGNAL|EV_PERSIST, terminate_app, this);
+	//add signal handler event for basic kill signal
+	auto evt = event_new(_eventBase, SIGTERM, EV_SIGNAL|EV_PERSIST, terminate_app, this);
+	event_add(evt, nullptr);
 }
 
 RServer::~RServer()
@@ -68,8 +69,9 @@ RServer::startRunLoop()
 	}
 	event_add(listener_event, nullptr);
 	
+	cerr << "listening" << endl;
+	
 	int drc = event_base_dispatch(_eventBase);
-	cerr << "dispatch:" << drc << endl;
 }
 
 void
