@@ -113,6 +113,8 @@ target_link_libraries(rserver src common ${Compute_Libs} ${Boost_LIBRARIES})
 target_link_libraries(rsession src common pthread ${Compute_Libs} ${Boost_LIBRARIES} R RInside libg3logger.a -lm)
 #target_compile_options(rsession PRIVATE RInside.so)
 
+install(CODE "execute_process(COMMAND \"${CMAKE_SOURCE_DIR}/prepareRInside.sh\" \"${CMAKE_BINARY_DIR}\")")
+
 install(TARGETS rserver rsession  RUNTIME DESTINATION .)
-#install(DIRECTORY ${CMAKE_SOURCE_DIR}/vendor/RInside DESTINATION . ${INSTALL_PATH})
+install(DIRECTORY ${CMAKE_BINARY_DIR}/RInside DESTINATION . ${INSTALL_PATH})
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/R/rc2 DESTINATION . ${INSTALL_PATH})
