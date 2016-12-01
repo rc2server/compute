@@ -3,4 +3,4 @@
 	url = https://github.com/gabime/spdlog.git
 [submodule "rc2root"]
 	path = rc2root
-	url = https://github.com/wvuRc2/rc2.git
+	url = https://github.com/rc2server/rc2.git
