@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <boost/log/utility/setup/file.hpp>
+#include <boost/algorithm/string.hpp>
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
@@ -38,6 +39,10 @@ extern Rboolean R_Visible;
 static string escape_quotes(const string before);
 static string formatErrorAsJson(int errorCode, string details, int queryId=0);
 static void rc2_log_callback(int severity, const char *msg);
+
+inline bool stringHasPrefix(string str, const char* prefix) {
+	return strncmp(str.c_str(), prefix, strlen(prefix)) == 0;
+}
 
 inline double currentFractionalSeconds() {
 	struct timeval tv;
@@ -75,6 +80,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	unique_ptr<EnvironmentWatcher>	envWatcher;
 	shared_ptr<string>				consoleOutBuffer;
 	string							stdOutCapture;
+	string							currentImageName; //watching to track title of it
 	double							consoleLastWrite;
 	int								wspaceId;
 	int								sessionRecId;
@@ -235,7 +241,19 @@ RC2::RSession::~RSession()
 void
 RC2::RSession::consoleCallback(const string &text, bool is_error)
 {
-//	LOG(INFO) << "write cb: " << text <<  "(ignore=" << _impl->ignoreOutput << ",vis=" << R_Visible << ",sip=" << _impl->sourceInProgress << ")";
+	if (stringHasPrefix(text, "rc2.imgstart=")) {
+		auto imgname = text.substr(13);
+		boost::algorithm::trim(imgname);
+		_impl->currentImageName = imgname;
+		return;
+	} else if (stringHasPrefix(text, "rc2.imgtitle=")) {
+		auto imgtitle = text.substr(13);
+		boost::algorithm::trim(imgtitle);
+		_impl->fileManager->setTitle(imgtitle, _impl->currentImageName);
+		_impl->currentImageName = "";
+		return;
+	}
+	LOG(INFO) << "write cb: " << text <<  "(ignore=" << _impl->ignoreOutput << ",vis=" << R_Visible << ",sip=" << _impl->sourceInProgress << ")";
 	if (_impl->captureStdOut) {
 		_impl->stdOutCapture += text;
 		return;
@@ -450,6 +468,11 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 			connectString << "&password=" << dbpass;
 		LOG(INFO) << connectString.str();
 		
+		string installLoc = RC2::GetPathForExecutable(getpid());
+		string::size_type pos = installLoc.rfind('/');
+		string ourCodePath = installLoc.substr(0, pos) + "/rsrc/swizzle.R";
+
+		
 		if (NULL ==  _impl->eventBase) {
 			LOG(WARNING) << "handleOpenCommand called before prepareForRunLoop()";
 			abort();
@@ -461,7 +484,6 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		}
 		_impl->tmpDir = std::move(std::unique_ptr<TemporaryDirectory>(new TemporaryDirectory(workDir, false)));
 		LOG(INFO) << "wd=" << _impl->tmpDir->getPath();
-//		_impl->fileManager->setWorkingDir(workDir);
 		auto connection = make_shared<PGDBConnection>();
 		connection->connect(connectString.str());
 		_impl->fileManager->initFileManager(workDir, connection, _impl->wspaceId, _impl->sessionRecId);
@@ -471,11 +493,12 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		setenv("R_DEFAULT_DEVICE", "png", 1);
 		_impl->R->parseEvalQNT("setwd(\"" + escape_quotes(workDir) + "\")");
 		_impl->ignoreOutput = true;
-		_impl->R->parseEvalQNT("library(rc2)");
 		_impl->R->parseEvalQNT("library(rmarkdown)");
 		_impl->R->parseEvalQNT("library(tools)");
+		_impl->R->parseEvalQNT("library(rc2)");
 		_impl->R->parseEvalQNT("rm(argv)"); //RInside creates this even though we passed NULL
 		_impl->R->parseEvalQNT("options(device = \"rc2.pngdev\", bitmapType = \"cairo\")");
+		_impl->R->parseEvalQNT("source(\"" + escape_quotes(ourCodePath) + "\", keep.source=FALSE)");
 		if (haveRData) {
 			LOG(INFO) << "loading .RData";
 			_impl->R->parseEvalQNT("load(\".RData\")");
@@ -770,6 +793,7 @@ RC2::RSession::clearFileChanges()
 {
 	json2 ignoredJson;
 	_impl->addImagesToJson(ignoredJson);
+	_impl->currentImageName = "";
 }
 
 //causes R to save any images generated and then sends the output buffer to the client

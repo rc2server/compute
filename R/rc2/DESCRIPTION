@@ -1,11 +1,10 @@
 Package: rc2
 Type: Package
 Title: Assists communication with rc2compute engine
-Version: 2.0
-Date: 2016-05-23
+Version: 3.0
+Date: 2017-03-23
 Author: Mark Lilback
 Maintainer: Mark Lilback <mark@lilback.com>
 Description:Assists rc2compute engine
 License: BSD
-Depends: stringr
 LazyLoad: yes

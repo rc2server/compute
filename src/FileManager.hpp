@@ -64,6 +64,7 @@ namespace RC2 {
 		virtual void	suspendNotifyEvents();
 		virtual void	resumeNotifyEvents();
 		
+		virtual void	setTitle(std::string title, std::string imageName);
 		//for unit testing
 		virtual void	processDBNotification(std::string message);
 

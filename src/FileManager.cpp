@@ -66,6 +66,7 @@ class RC2::FileManager::Impl : public ZeroInitializedClass {
 		int							inotifyFd_;
 		FSDirectory					rootDir_;
 		boost::regex				imgRegex_;
+		map<string, string>			imgNameToTitle_;
 		bool						ignoreFSNotifications_;
 		bool						ignoreDBNotifications_;
 
@@ -150,6 +151,10 @@ RC2::FileManager::Impl::connect(std::shared_ptr<PGDBConnection> connection, long
 long
 RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 {
+	string title = "";
+	if (imgNameToTitle_.count(fname) > 0) {
+		dbConnection_->escapeLiteral(imgNameToTitle_[fname], title);
+	}
 	string filePath = workingDir + "/" + fname;
 	size_t size;
 	unique_ptr<char[]> buffer = ReadFileBlob(filePath, size);
@@ -166,8 +171,11 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 		sessionImageBatch_ = dbConnection_->longFromQuery(batchq.str().c_str()) + 1;
 	}
 	stringstream query;
-	query << "insert into sessionimage (id,sessionid,batchid,name,imgdata) values (" << imgId 
-		<< "," << sessionRecId_ << "," << sessionImageBatch_ << ",'img" << imgId << ".png',$1::bytea)";
+	query << "insert into sessionimage (id,sessionid,batchid,name,title,imgdata) values (" << imgId 
+		<< "," << sessionRecId_ << "," << sessionImageBatch_ 
+		<< ",'img" << imgId << ".png',"
+		<< title << ","
+		<< "$1::bytea)";
 	int pformats = 1;
 	int pSizes[] = {(int)size};
  	const char *params[] = {buffer.get()};
@@ -527,7 +535,6 @@ RC2::FileManager::resetWatch()
 //	LOG(INFO) << "fm:resetWatch called: " << _impl->imageIds_.size();
 	if (_impl->imageIds_.size() > 0) {
 		_impl->sessionImageBatch_++;
-		LOG(INFO) << "incrementing batch_id:" << _impl->sessionImageBatch_;
 	}
 	_impl->imageIds_.erase(_impl->imageIds_.begin(), _impl->imageIds_.end());
 	_impl->manuallyAddedFiles_.clear();
@@ -541,9 +548,15 @@ RC2::FileManager::checkWatch(vector<long> &imageIds, long &batchId)
 //	_impl->sessionImageBatch_ = 0;
 }
 
+void RC2::FileManager::setTitle(std::string title, std::string imageName)
+{
+	_impl->imgNameToTitle_[imageName] = title;
+}
+
 void RC2::FileManager::cleanupImageWatch()
 {
 	_impl->cleanupImageWatch();
+	_impl->imgNameToTitle_.clear();
 }
 
 bool
