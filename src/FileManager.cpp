@@ -151,7 +151,7 @@ RC2::FileManager::Impl::connect(std::shared_ptr<PGDBConnection> connection, long
 long
 RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 {
-	string title = "";
+	string title = "NULL";
 	if (imgNameToTitle_.count(fname) > 0) {
 		dbConnection_->escapeLiteral(imgNameToTitle_[fname], title);
 	}

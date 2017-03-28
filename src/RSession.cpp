@@ -241,6 +241,7 @@ RC2::RSession::~RSession()
 void
 RC2::RSession::consoleCallback(const string &text, bool is_error)
 {
+	if (!_impl->open && !is_error) return;
 	if (stringHasPrefix(text, "rc2.imgstart=")) {
 		auto imgname = text.substr(13);
 		boost::algorithm::trim(imgname);
@@ -253,7 +254,7 @@ RC2::RSession::consoleCallback(const string &text, bool is_error)
 		_impl->currentImageName = "";
 		return;
 	}
-	LOG(INFO) << "write cb: " << text <<  "(ignore=" << _impl->ignoreOutput << ",vis=" << R_Visible << ",sip=" << _impl->sourceInProgress << ")";
+	LOG(INFO) << "write cb: " << text <<  "(ignore=" << _impl->ignoreOutput << ",vis=" << R_Visible << ",sip=" << _impl->sourceInProgress << ",err=" << is_error << ")";
 	if (_impl->captureStdOut) {
 		_impl->stdOutCapture += text;
 		return;
@@ -486,8 +487,6 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		LOG(INFO) << "wd=" << _impl->tmpDir->getPath();
 		auto connection = make_shared<PGDBConnection>();
 		connection->connect(connectString.str());
-		_impl->fileManager->initFileManager(workDir, connection, _impl->wspaceId, _impl->sessionRecId);
-		bool haveRData = _impl->fileManager->loadRData();
 		setenv("TMPDIR", workDir.c_str(), 1);
 		setenv("TEMP", workDir.c_str(), 1);
 		setenv("R_DEFAULT_DEVICE", "png", 1);
@@ -499,6 +498,8 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		_impl->R->parseEvalQNT("rm(argv)"); //RInside creates this even though we passed NULL
 		_impl->R->parseEvalQNT("options(device = \"rc2.pngdev\", bitmapType = \"cairo\")");
 		_impl->R->parseEvalQNT("source(\"" + escape_quotes(ourCodePath) + "\", keep.source=FALSE)");
+		_impl->fileManager->initFileManager(workDir, connection, _impl->wspaceId, _impl->sessionRecId);
+		bool haveRData = _impl->fileManager->loadRData();
 		if (haveRData) {
 			LOG(INFO) << "loading .RData";
 			_impl->R->parseEvalQNT("load(\".RData\")");
