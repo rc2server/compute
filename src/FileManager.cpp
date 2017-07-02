@@ -187,7 +187,8 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 //	LOG(INFO) << "inserted image " << imgId << " of size " << size;
 	imageIds_.push_back(imgId);
 	ignoreFSNotifications();
-	fs::remove(filePath);
+    if (NULL == getenv("RSESSION_KEEP_IMAGES"))
+        fs::remove(filePath);
 	return 0;
 }
 
