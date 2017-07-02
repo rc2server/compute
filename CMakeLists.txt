@@ -48,26 +48,10 @@ SET(Compute_Libs
 
 include(ExternalProject)
 
-ExternalProject_Add (
-	g3log
-	GIT_REPOSITORY https://github.com/KjellKod/g3log.git
-	BINARY_DIR ${rcompute2_BINARY_DIR}/g3loglib
-	BUILD_IN_SOURCE 0
-	INSTALL_COMMAND ""
-	UPDATE_COMMAND ""
-	BUILD_COMMAND make g3logger
-	CMAKE_ARGS -DADD_FATAL_EXAMPLE=OFF g3logger 
-)	
-ExternalProject_Get_Property(g3log source_dir)
-ExternalProject_Get_Property(g3log binary_dir)
-set(G3LOG_INCLUDE_DIR "${source_dir}/src")
-set(G3LOG_LIBRARY_DIR "${binary_dir}")
-link_directories(${G3LOG_LIBRARY_DIR})
 
 #R installed from sources uses /usr/local/lib/R/library while it uses /usr/local/lib/R/site-library if installed via rpm
 include_directories (${CMAKE_CURRENT_SOURCE_DIR} 
 	${CMAKE_ROOT}
-	${G3LOG_INCLUDE_DIR}
 	${CMAKE_SOURCE_DIR}/vendor
 	/usr/include
 	/usr/include/postgresql
@@ -81,6 +65,7 @@ link_directories (
 	/usr/local/lib/R/site-library/RInside/lib
 	/usr/local/lib/R/library/RInside/libs
 	/usr/local/lib/R/lib
+	/usr/local/lib
 )
 
 add_subdirectory (common)
