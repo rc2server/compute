@@ -71,7 +71,7 @@ namespace RC2 {
 			void	executeRMarkdown(string filePath, long fileId, JsonCommand& command);
 			void	executeSweave(string filePath, long fileId, JsonCommand& command);
 
-			void	scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int queryId, FileInfo *info=nullptr);
+			void	scheduleExecCompleteAcknowledgment(JsonCommand& command, int queryId, FileInfo *info=nullptr);
 			void	scheduleDelayedCommand(string json);
 			static void handleJsonStatic(struct bufferevent *bev, void *ctx);
 

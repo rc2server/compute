@@ -185,7 +185,7 @@ RC2::RSession::Impl::acknowledgeExecComplete(JsonCommand& command, int queryId, 
 
 
 void
-RC2::RSession::scheduleExecCompleteAcknowledgmenet(JsonCommand& command, int queryId,
+RC2::RSession::scheduleExecCompleteAcknowledgment(JsonCommand& command, int queryId,
 	FileInfo* info)
 {
 	ExecCompleteArgs *args = new ExecCompleteArgs(this, command, queryId, info);
@@ -549,7 +549,7 @@ RC2::RSession::handleExecuteScript(JsonCommand& command) {
 	LOG(INFO) << "parseEvalR returned " << (ans != NULL);
 	flushOutputBuffer();
 	if (result == RInside::ParseEvalResult::PE_SUCCESS) {
-		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId);
+		      scheduleExecCompleteAcknowledgment(command, _impl->currentQueryId);
 		if (sendDelta) {
 			LOG(INFO) << "scheduling list variables";
 			scheduleDelayedCommand("{\"msg\":\"listVariables\", \"delta\":true}");
@@ -638,7 +638,7 @@ RC2::RSession::executeFile(JsonCommand& command) {
 		_impl->R->parseEvalQNT(rcmd);	
 		flushOutputBuffer();
 		_impl->sourceInProgress = false;
-		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId);
+		      scheduleExecCompleteAcknowledgment(command, _impl->currentQueryId);
 		if (_impl->watchVariables)
 			scheduleDelayedCommand("{\"msg\":\"listVariables\", \"delta\":true}");
 	} else {
@@ -694,7 +694,7 @@ RC2::RSession::executeRMarkdown(string fileName, long fileId, JsonCommand& comma
 		Impl::NotifySuspender suspender(*_impl);
 		FileInfo finfo;
 		_impl->fileManager->findOrAddFile(htmlName, finfo);
-		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId, &finfo);
+		      scheduleExecCompleteAcknowledgment(command, _impl->currentQueryId, &finfo);
 	} else {
 		sendJsonToClientSource(formatErrorAsJson(kError_ExecFile_MarkdownFailed, "failed to generate html:" + _impl->stdOutCapture, _impl->currentQueryId));
 	}
@@ -720,7 +720,7 @@ RC2::RSession::executeSweave(string filePath, long fileId, JsonCommand& command)
 		_impl->R->parseEval(rcmd);
 	} catch (std::runtime_error &e) {
 		sendOutputBufferToClient(true);
-		scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId);
+		      scheduleExecCompleteAcknowledgment(command, _impl->currentQueryId);
 		return;
 	}
 	fs::path texPath(scratchPath);
@@ -786,7 +786,7 @@ RC2::RSession::executeSweave(string filePath, long fileId, JsonCommand& command)
 	_impl->ignoreOutput = false;
 	//TODO: delete scratchPath
 	flushOutputBuffer();
-	scheduleExecCompleteAcknowledgmenet(command, _impl->currentQueryId, &finfo);
+	   scheduleExecCompleteAcknowledgment(command, _impl->currentQueryId, &finfo);
 }
 
 void
