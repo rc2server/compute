@@ -56,7 +56,6 @@ RC2::DBFileSource::loadRData()
 	string filepath = _impl->workingDir_ + "/.RData";
 	ostringstream query;
 	query << "select bindata from rcworkspacedata where id = " << _impl->wspaceId_;
-	LOG(INFO) << "load:" << query.str() << std::endl;
 	DBResult res = dbcon_->executeQuery(query.str(), 0, NULL, NULL, NULL, NULL, 1);
 //	ExecStatusType rc = PQresultStatus(res);
 	if (res.dataReturned()) {
@@ -67,7 +66,6 @@ RC2::DBFileSource::loadRData()
 			rdata.open(filepath, ios::out | ios::trunc | ios::binary);
 			rdata.write(data, datalen);
 			rdata.close();
-			LOG(INFO) << ".RData loaded" << std::endl;
 			return true;
 		}
 	}

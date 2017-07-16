@@ -254,8 +254,10 @@ RC2::RSession::consoleCallback(const string &text, bool is_error)
 		_impl->currentImageName = "";
 		return;
 	}
-	LOG(INFO) << "write cb: " << text <<  "(ignore=" << _impl->ignoreOutput << ",vis=" << R_Visible << ",sip=" << _impl->sourceInProgress << ",err=" << is_error << ")";
-	if (_impl->captureStdOut) {
+	if (getenv("RC2_LOG_RSTDOUT")) {
+        LOG(INFO) << "write cb: " << text <<  "(ignore=" << _impl->ignoreOutput << ",vis=" << R_Visible << ",sip=" << _impl->sourceInProgress << ",err=" << is_error << ")";
+    }
+    if (_impl->captureStdOut) {
 		_impl->stdOutCapture += text;
 		return;
 	}
@@ -501,7 +503,7 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		_impl->fileManager->initFileManager(workDir, connection, _impl->wspaceId, _impl->sessionRecId);
 		bool haveRData = _impl->fileManager->loadRData();
 		if (haveRData) {
-			LOG(INFO) << "loading .RData";
+			LOG(G3LOG_DEBUG) << "loading .RData";
 			_impl->R->parseEvalQNT("load(\".RData\")");
 		}
 		_impl->ignoreOutput = false;

@@ -69,10 +69,13 @@ class RC2::FileManager::Impl : public ZeroInitializedClass {
 		map<string, string>			imgNameToTitle_;
 		bool						ignoreFSNotifications_;
 		bool						ignoreDBNotifications_;
+        bool                        logInotify_;
 
 		Impl()
 			: imgRegex_("rc2img(\\d+).png"), dbConnection_(new PGDBConnection())
-		{}
+		{
+            logInotify_ = getenv("RC2_LOG_INOTIFY") != NULL;
+        }
 
 		void cleanup(); //replacement for destructor
 		void connect(std::shared_ptr<PGDBConnection> connection, long wspaceId, long sessionRecId);
@@ -229,7 +232,7 @@ void RC2::FileManager::Impl::cleanupImageWatch()
 void
 RC2::FileManager::Impl::processDBNotification(string message)
 {
-	LOG(INFO) << "db notification: " << message;
+	LOG(G3LOG_DEBUG) << "db notification: " << message;
 	char type = message.c_str()[0];
 	if (!(type == 'i' || type == 'u' || type == 'd') || message.length() < 2) {
 		LOG(WARNING) << "bad db notification received:" << message;
@@ -289,7 +292,7 @@ RC2::FileManager::Impl::processDBNotification(string message)
 void
 RC2::FileManager::Impl::handleDBNotifications()
 {
-	LOG(INFO) << "handleDBNotifications called";
+	LOG(G3LOG_DEBUG) << "handleDBNotifications called";
 	ignoreFSNotifications();
 	PGnotify *notify;
 	dbConnection_->consumeInput();
@@ -387,13 +390,15 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 	size_t numRead = bufferevent_read(bev, buf, I_BUF_LEN);
 	char *p;
 	if (ignoring) {
-		LOG(INFO) << "ignoring " << numRead << "inotify events";
+        if (logInotify_)
+            LOG(INFO) << "ignoring " << numRead << "inotify events";
 		return;
 	}
 	for (p=buf; p < buf + numRead; ) {
 		struct inotify_event *event = (struct inotify_event*)p;
 		int evtype = event->mask & 0xffff; //events are in lower word, flags in upper
-		LOG(INFO) << "notify:" << std::hex << event->mask;
+		if (logInotify_)
+            LOG(INFO) << "notify:" << std::hex << event->mask;
 		try {
 			if(evtype == IN_CREATE) {
 				if (!(event->mask & IN_ISDIR)) { //we don't want these events, they are duplicates
@@ -406,11 +411,14 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 //							newFileId = insertImage(fname, what[1]);
 						} else if (manuallyAddedFiles_.find(fname) == manuallyAddedFiles_.end()) {
 							if (fileExistsWithName(fname)) {
-								LOG(INFO) << "create for existing file " << fname;
+								if (logInotify_) 
+                                    LOG(INFO) << "create for existing file " << fname;
 							} else {
-								LOG(INFO) << "inotify create for " << fname << ": " << manuallyAddedFiles_.size();
+                                if (logInotify_)
+                                    LOG(INFO) << "inotify create for " << fname << ": " << manuallyAddedFiles_.size();
 								newFileId = dbFileSource_->insertDBFile(fname);
-								LOG(INFO) << "inserted s " << newFileId;
+								if (logInotify_)
+                                    LOG(INFO) << "inserted s " << newFileId;
 							}
 						}
 						if (newFileId > 0) {
@@ -426,7 +434,8 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 					stopImageWatch(event->wd);
 				} else {
 					DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
-					LOG(INFO) << "got close write event for " << fobj->name;
+					if (logInotify_)
+                        LOG(INFO) << "got close write event for " << fobj->name;
 					dbFileSource_->updateDBFile(fobj);
 				}
 			} else if (evtype == IN_DELETE_SELF) {
@@ -439,10 +448,12 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 				inotify_rm_watch(inotifyFd_, event->wd);
 			} else if (evtype == IN_OPEN) {
 				DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
-				LOG(INFO) << "got open for " << fobj->name;
+				if (logInotify_)
+                    LOG(INFO) << "got open for " << fobj->name;
 			} else if (evtype == IN_MODIFY) {
 				DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
-				LOG(INFO) << "got write for " << fobj->name;
+                if (logInotify_)
+                    LOG(INFO) << "got write for " << fobj->name;
 			}
 		} catch(exception &ex) {
 			LOG(WARNING) << "exception in inotify code: " << ex.what();

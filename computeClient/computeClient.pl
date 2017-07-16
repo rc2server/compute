@@ -16,7 +16,7 @@ use File::Slurp;
 
 my $con_ready = AnyEvent->condvar;
 my $handle;
-my $connectStr = '{"msg":"open","argument":"","dbname":"rc2","wspaceId":100,"dbuser":"rc2","dbhost":"dbserver","sessionRecId":463}';
+my $connectStr = '{"msg":"open","argument":"","dbname":"rc2","wspaceId":1,"dbuser":"rc2","dbhost":"dbserver","sessionRecId":463}';
 tcp_connect "localhost", 7714, sub {
 	my ($fh) = @_ or return $con_ready->send;
 	
@@ -57,6 +57,7 @@ my $input; $input = AnyEvent->io (
 	cb => sub {
 		chomp(my $name = <STDIN>);
 		my $cmd = $name;
+		length($cmd) > 0 || return;
 		print STDERR "cmd = $name\n";
 		if ($name =~ m/^@(.*)/) {
 			my $fname = $1;
