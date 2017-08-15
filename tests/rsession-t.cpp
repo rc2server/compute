@@ -37,6 +37,27 @@ namespace testing {
 		ASSERT_TRUE(results1["string"] == "[1] 4\n");
 	}
 
+		TEST_F(SessionTest, basicScriptWithQueryIdAndStartTime)
+	{
+		//need to delay action until after startEventLoop()
+		std::thread t([]() {
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			session->doJson("{\"msg\":\"execScript\", \"argument\":\"rnorm(20)\", \"queryId\":3, \"startTime\": \"1502817203955\"}");
+		});
+		t.detach();
+		session->startCountdown(2);
+		session->startEventLoop();
+		ASSERT_EQ(session->_messages.size(), 2);
+		json results1 = session->popMessage();
+		ASSERT_TRUE(results1["msg"] == "results");
+		string results = results1["string"];
+		string prefix = " [1] ";
+		ASSERT_TRUE(std::equal(prefix.begin(), prefix.end(), results.begin()));
+		int queryId = results1["queryId"];
+		ASSERT_TRUE(queryId == 3);
+	}
+
+
 	TEST_F(SessionTest, execFiles)
 	{
 		session->copyFileToWorkingDirectory("test1.R");
