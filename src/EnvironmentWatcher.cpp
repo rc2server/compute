@@ -360,6 +360,7 @@ RC2::EnvironmentWatcher::setEnvironmentData ( RObject& robj, json& jobj )
 		valueToJson(varName, childVal, cobj, true);
 		childArray.push_back(cobj);
 	}
+	jobj[kClass] = "environment";
 	jobj[kValue] = childArray;
 }
 
