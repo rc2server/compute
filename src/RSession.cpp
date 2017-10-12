@@ -586,6 +586,8 @@ RC2::RSession::handleGetVariableCommand(JsonCommand &command)
 		{"value", value},
 		{"startTime", command.startTimeStr()}
 	};
+	if (!command.clientData().is_null())
+		results["clientData"] = command.clientData();
 	sendJsonToClientSource(results.dump());
 }
 
