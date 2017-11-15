@@ -83,7 +83,8 @@ namespace testing {
 		session->execScript("ctd <- as.POSIXct(\\\"2016-05-04 11:11:11 GMT\\\")");
 		json djson = watcher.toJson("ctd");
 		ASSERT_EQ(djson["class"], "POSIXct");
-		ASSERT_EQ(djson["value"], 1462385471);
+		long val = djson["value"];
+		ASSERT_EQ(1462374671, val);
 		//function
 		session->execScript("hlp <- help");
 		json funjson = watcher.toJson("hlp");
@@ -131,6 +132,17 @@ namespace testing {
 		ASSERT_EQ(df["rows"][14][1], 164.0);
 	}
 
+	TEST_F(VarTest, matrixTest) {
+		EnvironmentWatcher watcher(Rcpp::Environment::global_env(), session->getExecCallback());
+		session->execScript("mat <- matrix(data=1:8, nrow=4, ncol=2, dimnames=list(c(\\\"x\\\",\\\"y\\\",\\\"z\\\",\\\"a\\\"), c(\\\"foo\\\",\\\"bar\\\")))");
+		json mat = watcher.toJson("mat");
+		cerr << "val = " << mat.dump(4) << endl;
+		int numrows = mat["nrow"];
+		ASSERT_EQ(numrows, 4);
+		int numcols = mat["ncol"];
+		ASSERT_EQ(numcols, 2);
+	}
+	
 	TEST_F(VarTest, simpleDelta) {
 		EnvironmentWatcher watcher(Rcpp::Environment::global_env(),  session->getExecCallback());
 		session->execScript("x <- 2; y <- 4");
