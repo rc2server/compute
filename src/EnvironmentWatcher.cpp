@@ -486,7 +486,7 @@ RC2::EnvironmentWatcher::setDimNames ( RObject& robj, json& jobj )
 	if (robj.hasAttribute("dimnames")) {
 		RObject mlist(robj.attr("dimnames"));
 		json dnames;
-		for (int i=0; i < LENGTH(robj); i++) {
+		for (int i=0; i < LENGTH(mlist); i++) {
 			RObject cl(VECTOR_ELT(mlist, i));
 			dnames.push_back(rvectorToJsonArray(cl));
 		}
