@@ -31,7 +31,7 @@ inline bool isOrderedFactor(Rcpp::StringVector& classNames, RObject& robj) {
 }
 
 std::string
-columnType(RObject& robj, json& jobj, int colNum) {
+columnType(RObject& robj) {
 	if (Rf_isFactor(robj)) {
 		Rcpp::StringVector classVal(robj.attr(kClass));
 		if (isOrderedFactor(classVal, robj)) {
@@ -39,9 +39,6 @@ columnType(RObject& robj, json& jobj, int colNum) {
 		} else {
 			return "f";
 		}
-		char namebuf[16];
-		snprintf(namebuf, 16, "f%d", colNum);
-		jobj[namebuf] = Rcpp::StringVector(robj.attr("levels"));
 	} else {
 		switch(robj.sexp_type()) {
 			case LGLSXP: return "b";
@@ -54,36 +51,69 @@ columnType(RObject& robj, json& jobj, int colNum) {
 }
 
 json
-basicValue(RObject& val, int idx)
-{
-	switch(val.sexp_type()) {
+basicColumnValues(RObject &colValue, int rowCount) {
+	if(rowCount < 1) { return json::array(); }
+	switch(colValue.sexp_type()) {
 		case LGLSXP: {
-			Rcpp::LogicalVector bvector(val);
-			bool bval = bvector[idx] == 0;
-			return json(bval);
+			// Rcpp returns logical values as ints of value 0 or 1, not bool
+			Rcpp::LogicalVector bvector(colValue);
+			json jvalues;
+			for (int i = 0; i < bvector.length(); i++) {
+				if (Rcpp::LogicalVector::is_na(bvector[i])) {
+					jvalues.push_back(json(nullptr));
+				} else {
+					jvalues.push_back(json(bvector[i] == 1));
+				}
+			}
+			return jvalues;
 		}
 		case INTSXP: {
-			Rcpp::IntegerVector ivector(val);
-			return json(ivector[idx]);
-		}
-		case STRSXP: {
-			Rcpp::StringVector svector(val);
-			if (Rcpp::StringVector::is_na(svector[idx])) return json(nullptr);
-			return json(svector[idx]);
+			Rcpp::IntegerVector ivector(colValue);
+			json jvalues;
+			for (int i = 0; i < ivector.length(); i++) {
+				if (Rcpp::IntegerVector::is_na(ivector[i])) {
+					jvalues.push_back(json(nullptr));
+				} else {
+					jvalues.push_back(json(ivector[i]));
+				}
+			}
+			return jvalues;
 		}
 		case REALSXP: {
-			Rcpp::NumericVector dvals(val);
-			double d = dvals[idx];
-			if (d == R_NaN || std::isnan(d)) return json("NaN");
-			else if (d == R_PosInf || std::isinf(d)) return json("Inf");
-			else if (d == R_NegInf || d == -std::numeric_limits< double >::infinity()) return json("-Inf");
-			return json(d);
+			Rcpp::NumericVector dvals(colValue);
+			json jvalues;
+			for (int i=0; i < dvals.length(); i++) {
+				// This is the only test that really works. See https://stackoverflow.com/questions/26241085/rcpp-function-check-if-missing-value/26262984#26262984
+				if (R_IsNA(dvals[i])) {
+					jvalues.push_back(json(nullptr));
+				} else {
+					double d = dvals[i];
+					if (d == R_NaN || std::isnan(d)) { jvalues.push_back("NaN"); }
+					else if (d == R_NegInf || d == -std::numeric_limits< double >::infinity()) { jvalues.push_back("-Inf"); }
+					else if (d == R_PosInf || std::isinf(d)) { jvalues.push_back("Inf"); }
+					else { jvalues.push_back(d); }
+				}
+			}
+			return jvalues;
+		}
+		case CPLXSXP:
+		case STRSXP: {
+			Rcpp::StringVector svals(colValue);
+			json jvalues;
+			for (int i = 0; i < svals.length(); i++) {
+				if (Rcpp::StringVector::is_na(svals[i])) {
+					jvalues.push_back(json(nullptr));
+				} else {
+					jvalues.push_back(json(svals[i]));
+				}
+			}
+			return jvalues;
 		}
 		default:
-			LOG(WARNING) << "dataframe invalid col type:" << val.sexp_type() << std::endl;
+			LOG(WARNING) << "dataframe invalid col type:" << colValue.sexp_type() << std::endl;
 			return json(nullptr);
 	}
-
+	
 }
 
 RC2::EnvironmentWatcher::EnvironmentWatcher ( SEXP environ, ExecuteCallback callback )
@@ -291,48 +321,29 @@ void
 RC2::EnvironmentWatcher::setDataFrameData ( RObject& robj, json& jobj )
 {
 	int colCount = LENGTH(robj);
-	Rcpp::StringVector colNames(robj.attr("names"));
-	jobj["cols"] = colNames;
 	jobj["ncol"] = colCount;
 	RObject rowList(robj.attr("row.names"));
 	if (LENGTH(rowList) > 0) {
 		jobj["row.names"] = Rcpp::StringVector(rowList);
 	}
-	json colTypes;
-	std::vector<RObject> colObjs;
+	json columns;
+	int rowCount = 0;
+	Rcpp::StringVector colNames(robj.attr("names"));
 	for (int i=0; i < colCount; i++) {
 		RObject element(VECTOR_ELT(robj, i));
-		if (element.sexp_type() == CPLXSXP) //coerce complex to string
-			element = Rf_coerceVector(element, STRSXP);
-		colObjs.push_back(element);
-		colTypes.push_back(columnType(element, jobj, i));
-	}
-	jobj["types"] = colTypes;
-	int rowCount = LENGTH(colObjs[0]);
-	jobj["nrow"] = rowCount;
-	//create robjs for each column list
-	json rows;
-	for (int row=0; row < kMaxLen && row < rowCount; row++) {
-		json aRow;
-		for (int col=0; col < colNames.length(); col++) {
-			RObject &val = colObjs[col];
-			aRow.push_back(basicValue(val, row));
-// 			switch(val.sexp_type()) {
-// 				case LGLSXP: aRow.push_back(LOGICAL(val)[row]); break;
-// 				case INTSXP: aRow.push_back(INTEGER(val)[row]); break;
-// 				case REALSXP: aRow.push_back(REAL(val)[row]); break;
-// 				case STRSXP: 
-// 					aRow.push_back(Rcpp::StringVector(val)[row]); 
-// 					break;
-// 				default:
-// 					LOG(WARNING) << "dataframe invalid col type:" << val.sexp_type() << std::endl;
-// 					aRow.push_back(nullptr);
-// 					break;
-// 			}
+		rowCount = LENGTH(element);
+		json aCol;
+		std::string aType = columnType(element);
+		aCol["type"] = aType;
+		if(aType == "of" || aType == "f") {
+			aCol["levels"] = Rcpp::StringVector(element.attr("levels"));
 		}
-		rows.push_back(aRow);
+		aCol["values"] = basicColumnValues(element, rowCount);
+		aCol["name"] = colNames[i];
+		columns.push_back(aCol);
 	}
-	jobj["rows"] = rows;
+	jobj["columns"] = columns;
+	jobj["nrow"] = rowCount;
 }
 
 void
