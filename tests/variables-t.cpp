@@ -6,6 +6,8 @@
 #include <thread>
 #include <Rcpp.h>
 #include "common/RC2Utils.hpp"
+#define BOOST_NO_CXX11_SCOPED_ENUMS
+#include <boost/filesystem.hpp>
 #include "testlib/TestingSession.hpp"
 #include "src/EnvironmentWatcher.hpp"
 
@@ -15,6 +17,7 @@ using namespace std;
 namespace testing {
 
 	class VarTest : public BaseSessionTest {
+//		RC2::TemporaryDirectory tmpDir;
 		virtual void pureVirtual() {}
 	};
 	
@@ -132,9 +135,49 @@ namespace testing {
 		ASSERT_EQ(df["rows"][14][1], 164.0);
 	}
 
+	TEST_F(VarTest, complexDframe) {
+		EnvironmentWatcher watcher(Rcpp::Environment::global_env(), session->getExecCallback());
+		session->copyFileToWorkingDirectory("dframe.R");
+		fileManager->addFile(4, "dframe.R", 1);
+		session->executeDelayedJson("{\"msg\":\"execFile\", \"argument\":\"4\"}");
+		session->startCountdown(2);
+		session->startEventLoop();
+		ASSERT_EQ(session->_messages.size(), 2);
+		json results = session->popMessage();
+		ASSERT_TRUE(results["msg"] == "results");
+		json df = watcher.toJson("cdf");
+		cerr << "val = " << df.dump(4) << endl;
+		int nrow = df["nrow"];
+		int ncol = df["ncol"];
+		ASSERT_EQ(ncol, 4);
+		ASSERT_EQ(nrow, 6);
+		auto nameJson = df["rows"][3][2];
+		ASSERT_TRUE(nameJson.is_string());
+		string name = nameJson;
+		ASSERT_EQ(name, "Mario");
+		ASSERT_EQ(df["rows"][4][2], "Mark");
+		// check double NaN. NA returns the same
+		string dval = df["rows"][1][1];
+		ASSERT_EQ(dval, "NaN");
+		// check for string NA
+		auto sval = df["rows"][1][2];
+		ASSERT_TRUE(sval == nullptr);
+		ASSERT_EQ(df["rows"][2][2], "NA");
+	}
+	
 	TEST_F(VarTest, matrixTest) {
 		EnvironmentWatcher watcher(Rcpp::Environment::global_env(), session->getExecCallback());
 		session->execScript("mat <- matrix(data=1:8, nrow=4, ncol=2, dimnames=list(c(\\\"x\\\",\\\"y\\\",\\\"z\\\",\\\"a\\\"), c(\\\"foo\\\",\\\"bar\\\")))");
+		json mat = watcher.toJson("mat");
+		int numrows = mat["nrow"];
+		ASSERT_EQ(numrows, 4);
+		int numcols = mat["ncol"];
+		ASSERT_EQ(numcols, 2);
+	}
+	
+	TEST_F(VarTest, doubleMatrix) {
+		EnvironmentWatcher watcher(Rcpp::Environment::global_env(), session->getExecCallback());
+		session->execScript("mat <- matrix(data=c(2.1, NaN, 4.3, -Inf), nrow=2, ncol=2, dimnames=list(c(\\\"x\\\",\\\"y\\\"), c(\\\"foo\\\",\\\"bar\\\")))");
 		json mat = watcher.toJson("mat");
 		cerr << "val = " << mat.dump(4) << endl;
 		int numrows = mat["nrow"];

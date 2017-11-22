@@ -53,6 +53,39 @@ columnType(RObject& robj, json& jobj, int colNum) {
 	return "-";
 }
 
+json
+basicValue(RObject& val, int idx)
+{
+	switch(val.sexp_type()) {
+		case LGLSXP: {
+			Rcpp::LogicalVector bvector(val);
+			bool bval = bvector[idx] == 0;
+			return json(bval);
+		}
+		case INTSXP: {
+			Rcpp::IntegerVector ivector(val);
+			return json(ivector[idx]);
+		}
+		case STRSXP: {
+			Rcpp::StringVector svector(val);
+			if (Rcpp::StringVector::is_na(svector[idx])) return json(nullptr);
+			return json(svector[idx]);
+		}
+		case REALSXP: {
+			Rcpp::NumericVector dvals(val);
+			double d = dvals[idx];
+			if (d == R_NaN || std::isnan(d)) return json("NaN");
+			else if (d == R_PosInf || std::isinf(d)) return json("Inf");
+			else if (d == R_NegInf || d == -std::numeric_limits< double >::infinity()) return json("-Inf");
+			return json(d);
+		}
+		default:
+			LOG(WARNING) << "dataframe invalid col type:" << val.sexp_type() << std::endl;
+			return json(nullptr);
+	}
+
+}
+
 RC2::EnvironmentWatcher::EnvironmentWatcher ( SEXP environ, ExecuteCallback callback )
 	: _env(environ), _execCallback(callback)
 {
@@ -283,18 +316,19 @@ RC2::EnvironmentWatcher::setDataFrameData ( RObject& robj, json& jobj )
 		json aRow;
 		for (int col=0; col < colNames.length(); col++) {
 			RObject &val = colObjs[col];
-			switch(val.sexp_type()) {
-				case LGLSXP: aRow.push_back(LOGICAL(val)[row]); break;
-				case INTSXP: aRow.push_back(INTEGER(val)[row]); break;
-				case REALSXP: aRow.push_back(REAL(val)[row]); break;
-				case STRSXP: 
-					aRow.push_back(Rcpp::StringVector(val)[0]); 
-					break;
-				default:
-					LOG(WARNING) << "dataframe invalid col type:" << val.sexp_type() << std::endl;
-					aRow.push_back(nullptr);
-					break;
-			}
+			aRow.push_back(basicValue(val, row));
+// 			switch(val.sexp_type()) {
+// 				case LGLSXP: aRow.push_back(LOGICAL(val)[row]); break;
+// 				case INTSXP: aRow.push_back(INTEGER(val)[row]); break;
+// 				case REALSXP: aRow.push_back(REAL(val)[row]); break;
+// 				case STRSXP: 
+// 					aRow.push_back(Rcpp::StringVector(val)[row]); 
+// 					break;
+// 				default:
+// 					LOG(WARNING) << "dataframe invalid col type:" << val.sexp_type() << std::endl;
+// 					aRow.push_back(nullptr);
+// 					break;
+// 			}
 		}
 		rows.push_back(aRow);
 	}
