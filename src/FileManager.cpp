@@ -72,7 +72,7 @@ class RC2::FileManager::Impl : public ZeroInitializedClass {
         bool                        logInotify_;
 
 		Impl()
-			: imgRegex_("rc2img(\\d+).png"), dbConnection_(new PGDBConnection())
+			: imgRegex_("rc2img(\\d+)-(\\d+).png"), dbConnection_(new PGDBConnection())
 		{
             logInotify_ = getenv("RC2_LOG_INOTIFY") != NULL;
         }

@@ -36,7 +36,7 @@ rc2.pngdev <- function()
 {
 	imgNum <- as.integer(get("imgNum", envir=rc2:::rc2cache))
 	assign("imgNum", imgNum + 1, envir=rc2:::rc2cache)
-	fname <- sprintf("rc2img%03d.png", imgNum, envir=rc2:::rc2cache)
+	fname <- sprintf("rc2img%03d-%%d.png", imgNum, envir=rc2:::rc2cache)
 	png(fname)
 	rc2.errlog("rc2.imgstart=%s\n", fname)
 }
