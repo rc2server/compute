@@ -217,7 +217,7 @@ RC2::RSession::RSession(RSessionCallbacks *callbacks)
 	};
 	_callbacks->_writeLambda = clambda;
 	_impl->R->set_callbacks(_callbacks);
-	_impl->R->setVerbose(false);
+//	_impl->R->setVerbose(false);
 	if (!_impl->fileManager) {
 		unique_ptr<FileManager> fm(new FileManager());
 		_impl->fileManager = std::move(fm);
