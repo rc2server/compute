@@ -497,7 +497,7 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		_impl->ignoreOutput = true;
 		_impl->R->parseEvalQNT("library(rmarkdown)");
 		_impl->R->parseEvalQNT("library(tools)");
-		_impl->R->parseEvalQNT("library(rc2)");
+		_impl->R->parseEvalQNT("library(rc2, quietly = TRUE)");
 		_impl->R->parseEvalQNT("rm(argv)"); //RInside creates this even though we passed NULL
 		_impl->R->parseEvalQNT("options(device = \"rc2.pngdev\", bitmapType = \"cairo\")");
 		_impl->R->parseEvalQNT("source(\"" + escape_quotes(ourCodePath) + "\", keep.source=FALSE)");

@@ -30,7 +30,7 @@ set_property(GLOBAL PROPERTY CXX_STANDARD 11)
 set_property(GLOBAL PROPERTY CXX_STANDARD_REQUIRED ON)
 
 add_definitions(-std=c++11)
-SET(CMAKE_CXX_FLAGS "-std=c++11 -DBOOST_LOG_DYN_LINK")
+SET(CMAKE_CXX_FLAGS "-std=c++11 -DBOOST_LOG_DYN_LINK -g")
 #following fixes compile error because somehow -rdynamic is getting set as a linker flag
 SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 SET(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "-Wl,--no-export-dynamic -lstdc++")
