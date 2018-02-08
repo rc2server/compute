@@ -15,3 +15,9 @@ g3logger should be made with -DG3_SHARED_LIB=OFF and installed
 RC2_LOG_RSTDOUT : show output from each call
 
 RC2_LOG_INOTIFY
+
+## tips
+
+* use addr2line to turn an address from a deployed stack trace to a source line on the dev machine.
+
+* to build RInside use `R CMD INSTALL RInside -l /usr/local/lib/R/site-library`
