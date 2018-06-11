@@ -19,6 +19,7 @@ SET(TESTS
 	rserver
 	rsession
 	variables
+	environ
 )
 
 add_subdirectory(testlib)

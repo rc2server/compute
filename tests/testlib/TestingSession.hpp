@@ -31,6 +31,7 @@ namespace RC2 {
 		void doJson(std::string json);
 		void execScript(std::string rcode);
 		
+		RInside* getInside() const { return getRInside(); };
 		inline void emptyMessages() { while (!_messages.empty()) _messages.pop(); }
 		
 		json popMessage();

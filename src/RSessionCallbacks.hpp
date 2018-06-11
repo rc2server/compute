@@ -22,3 +22,4 @@ namespace RC2 {
 			std::function<void(const std::string&, bool)> _writeLambda;
 	};
 };
+

@@ -42,12 +42,12 @@ namespace testing {
 		cerr << "message size:" << session->_messages.size() << endl;
 		ASSERT_EQ(session->_messages.size(), 1);
 		json results = session->popMessage();
-		auto vars = results["variables"];
-		auto vals = vars["values"];
-		auto elems = mapArayToMapMap(results["variables"]);
 		ASSERT_TRUE(results["msg"] == "variableupdate");
-		ASSERT_EQ(elems["x"], 22);
-		ASSERT_EQ(elems["y"], 11);
+		auto vars = results["variables"];
+		auto xval = vars["x"];
+		auto xvals = xval["value"];
+		ASSERT_EQ(xvals[0], 22);
+		// TODO: test more values are correct
 	}
 
 	TEST_F(VarTest, basicWatcher)
@@ -181,9 +181,10 @@ namespace testing {
 		json mat = watcher.toJson("mat");
 		cerr << "val = " << mat.dump(4) << endl;
 		int numrows = mat["nrow"];
-		ASSERT_EQ(numrows, 4);
+		ASSERT_EQ(numrows, 2);
 		int numcols = mat["ncol"];
 		ASSERT_EQ(numcols, 2);
+		// TODO: test that the values are correct. This is hard b/c json wants to use stl what requires homogenous containers
 	}
 	
 	TEST_F(VarTest, simpleDelta) {

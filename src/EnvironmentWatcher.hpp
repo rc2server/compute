@@ -14,12 +14,21 @@ namespace RC2 {
 	
 class EnvironmentWatcher : private boost::noncopyable {
 public:
+	/**
+	 * @brief create a new watcher wrapping an R environment
+	 * 
+	 * @param environ the environment this watcher is wrapping
+	 * @param callback a lambda that will execute a statement and return the results without effecting the user output
+	 */
 	EnvironmentWatcher(SEXP environ, ExecuteCallback callback);
 	~EnvironmentWatcher();
 
 	json::value_type toJson();
 	json::value_type toJson(std::string varName);
 	json::value_type jsonDelta();
+	
+	Rcpp::Environment* getEnvironment() { return &_env; }
+	operator Rcpp::Environment&() { return _env; } 
 	
 	void captureEnvironment();
 	void clear() { _lastVars.erase(_lastVars.begin(), _lastVars.end()); }

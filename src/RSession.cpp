@@ -33,6 +33,11 @@
 using namespace std;
 namespace fs = boost::filesystem;
 using json2 = nlohmann::json;
+using Rcpp::Environment;
+
+namespace RC2 {
+    typedef map<long, unique_ptr<EnvironmentWatcher>> EnvironmentMap;
+}
 
 extern Rboolean R_Visible;
 
@@ -77,7 +82,8 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	RInside*						R;
 	unique_ptr<FileManager>			fileManager;
 	unique_ptr<TemporaryDirectory>	tmpDir;
-	unique_ptr<EnvironmentWatcher>	envWatcher;
+//	unique_ptr<EnvironmentWatcher>	envWatcher;
+    EnvironmentMap                  environments;
 	shared_ptr<string>				consoleOutBuffer;
 	string							stdOutCapture;
 	string							currentImageName; //watching to track title of it
@@ -93,11 +99,14 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	bool							watchVariables;
 	bool 							properlyClosed;
 
-			Impl();
-			Impl(const Impl &copy) = delete;
-			Impl& operator=(const Impl&) = delete;
-			void	addImagesToJson(json2& json);
-	string	acknowledgeExecComplete(JsonCommand &command, int queryId, bool expectShowOutput);
+				Impl();
+				Impl(const Impl &copy) = delete;
+		Impl&	operator=(const Impl&) = delete;
+		void	addImagesToJson(json2& json);
+		string	acknowledgeExecComplete(JsonCommand &command, int queryId, bool expectShowOutput);
+		EnvironmentWatcher*	env(long id);
+		ExecuteCallback getExecuteCallback();
+
 
 	static void handleExecComplete(int fd, short event_type, void *ctx) 
 	{
@@ -152,6 +161,30 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 RC2::RSession::Impl::Impl()
 	: consoleOutBuffer(new string)
 {
+}
+
+RC2::ExecuteCallback RC2::RSession::Impl::getExecuteCallback()
+{
+	return [this](const string& cmd, RObject& result) {
+		SEXP sr;
+		bool ok = false;
+		{
+			BooleanWatcher bwatch(&ignoreOutput);
+			ok = R->parseEval(cmd, sr) == 0;
+		}
+		result = sr;
+		return ok;
+	};
+}
+
+RC2::EnvironmentWatcher * 
+RC2::RSession::Impl::env(long id)
+{
+	if (environments.count(id) == 0) {
+		// need to create one
+		environments[id] = unique_ptr<EnvironmentWatcher>(new EnvironmentWatcher(Environment::global_env(), getExecuteCallback()));
+	}
+	return environments[id].get();
 }
 
 void
@@ -237,6 +270,12 @@ RC2::RSession::~RSession()
 	if (nullptr != _impl->outBuffer)
 		evbuffer_free(_impl->outBuffer);
 	LOG(INFO) << "RSession destroyed";
+}
+
+RInside*
+RC2::RSession::getRInside() const
+{
+	return _impl->R;
 }
 
 void
@@ -337,7 +376,8 @@ RC2::RSession::prepareForRunLoop()
 	}
 	_impl->outBuffer = evbuffer_new();
 	_impl->fileManager->setEventBase(_impl->eventBase);
-	_impl->envWatcher.reset(new EnvironmentWatcher(Rcpp::Environment::global_env(), getExecuteCallback()));
+// 	_impl->envWatcher.reset(new EnvironmentWatcher(Rcpp::Environment::global_env(), getExecuteCallback()));
+//     _impl->environments[0] = unique_ptr<EnvironmentWatcher>(new EnvironmentWatcher(Rcpp::Environment::global_env(), getExecuteCallback()));
 }
 
 void
@@ -410,6 +450,9 @@ RC2::RSession::handleCommand(JsonCommand& command)
 			break;
 		case CommandType::SaveData:
 			handleSaveEnvCommand();
+			break;
+		case CommandType::ClearEnvironment:
+			handleClearEnvironment(command);
 			break;
 		default:
 			LOG(WARNING) << "unknown command type";
@@ -539,23 +582,54 @@ RC2::RSession::handleSaveEnvCommand()
 }
 
 void
+RC2::RSession::handleClearEnvironment(RC2::JsonCommand& command)
+{
+	bool watching = _impl->watchVariables;
+	long envId = command.envId();
+	if (envId == 0) {
+		// clear the global environment
+		SEXP ans=NULL;
+		bool oldIgnore = _impl->ignoreOutput;
+		_impl->ignoreOutput = true;
+		_impl->R->parseEvalR("rm(list=ls())", ans);
+		_impl->ignoreOutput = oldIgnore;
+	} else {
+		_impl->environments.erase(envId);		
+	}
+	if (watching) {
+		auto envWatcher = _impl->env(command.envId());
+		json2 vars = envWatcher->toJson();
+		json2 results = {
+			{"variables", vars},
+			{"msg", "variableupdate"},
+			{"delta", false}
+		};
+		if (!command.clientData().is_null())
+			results["clientData"] = command.clientData();
+		sendJsonToClientSource(results.dump());
+	}
+}
+
+void
 RC2::RSession::handleExecuteScript(JsonCommand& command) {
 	LOG(INFO) << "exec:" << command.argument();
 	bool sendDelta = _impl->watchVariables || command.watchVariables();
+	auto envWatcher = _impl->env(command.envId());
 	if (sendDelta) {
 		LOG(INFO) << " watching for changes";
-		_impl->envWatcher->captureEnvironment();
+		envWatcher->captureEnvironment();
 	}
 	_impl->fileManager->resetWatch();
 	SEXP ans=NULL;
-	RInside::ParseEvalResult result = _impl->R->parseEvalR(command.argument(), ans);
+	RInside::ParseEvalResult result = _impl->R->parseEvalR(command.argument(), ans, envWatcher->getEnvironment());
 	LOG(INFO) << "parseEvalR returned " << (ans != NULL);
 	flushOutputBuffer();
 	if (result == RInside::ParseEvalResult::PE_SUCCESS) {
 		      scheduleExecCompleteAcknowledgment(command, _impl->currentQueryId);
 		if (sendDelta) {
 			LOG(INFO) << "scheduling list variables";
-			scheduleDelayedCommand("{\"msg\":\"listVariables\", \"delta\":true}");
+			json2 msg = { {"msg", "listVariables"}, {"delta", true}, {"contextId", command.envId()} };
+			scheduleDelayedCommand(msg.dump());
 		}
 	} else if (result == RInside::ParseEvalResult::PE_INCOMPLETE) {
 		sendTextToClient("Incomplete R statement\n", true);
@@ -565,7 +639,8 @@ RC2::RSession::handleExecuteScript(JsonCommand& command) {
 void
 RC2::RSession::handleListVariablesCommand(bool delta, JsonCommand& command)
 {
-	json2 vars = delta ? _impl->envWatcher->jsonDelta() : _impl->envWatcher->toJson();
+	auto envWatcher = _impl->env(command.envId());
+	json2 vars = delta ? envWatcher->jsonDelta() : envWatcher->toJson();
 	json2 results = {
 		{"variables", vars},
 		{"msg", "variableupdate"},
@@ -579,7 +654,7 @@ RC2::RSession::handleListVariablesCommand(bool delta, JsonCommand& command)
 void
 RC2::RSession::handleGetVariableCommand(JsonCommand &command)
 {
-	json2 value = _impl->envWatcher->toJson(command.argument());
+	json2 value = _impl->env(command.envId())->toJson(command.argument());
 	LOG(INFO) << "get variable:" <<command.argument();
 	json2 results = {
 		{"msg", "variablevalue"},
@@ -631,7 +706,7 @@ RC2::RSession::executeFile(JsonCommand& command) {
 	clearFileChanges();
 	_impl->fileManager->resetWatch();
 	if (_impl->watchVariables)
-		_impl->envWatcher->captureEnvironment();
+		_impl->env(command.envId())->captureEnvironment();
 	if (p.extension() == ".Rmd") {
 		executeRMarkdown(fpath, fileId, command);
 	} else if (p.extension() == ".Rnw") {
@@ -887,16 +962,7 @@ struct event_base* RC2::RSession::getEventBase() const
 
 RC2::ExecuteCallback RC2::RSession::getExecuteCallback()
 {
-	return [this](const string& cmd, RObject& result) {
-		SEXP sr;
-		bool ok = false;
-		{
-			BooleanWatcher bwatch(&_impl->ignoreOutput);
-			ok = _impl->R->parseEval(cmd, sr) == 0;
-		}
-		result = sr;
-		return ok;
-	};
+	 return _impl->getExecuteCallback();
 }
 
 const RC2::FileManager* RC2::RSession::getFileManager() const

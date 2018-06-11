@@ -51,6 +51,7 @@ namespace RC2 {
 			virtual void	sendJsonToClientSource(string json);
 
 		protected:
+			RInside* getRInside() const;
 			void	consoleCallback(const string &text, bool is_error);
 			string	formatStringAsJson(const string &input, bool is_error);
 			void	clearFileChanges();
@@ -65,6 +66,7 @@ namespace RC2 {
 			void	handleHelpCommand(JsonCommand& command);
 			void	handleListVariablesCommand(bool delta, JsonCommand& command);
 			void	handleGetVariableCommand(JsonCommand& command);
+			void	handleClearEnvironment(JsonCommand& command);
 
 			void	handleExecuteScript(JsonCommand& command);
 			void	executeFile(JsonCommand& command);
