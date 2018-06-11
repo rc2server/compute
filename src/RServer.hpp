@@ -25,6 +25,7 @@ public:
 private:
 	struct event_base*	_eventBase;
 	bool				_verbose;
+	bool				_shouldFork;
 	uint				_port;
 	int					_socket;
 };

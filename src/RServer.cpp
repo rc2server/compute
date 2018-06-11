@@ -100,15 +100,22 @@ RServer::handleEvent(evutil_socket_t listener, short events)
 	args[2] = pidstr;
 	args[3] = _verbose ? "-v" : nullptr;
 	args[4] = nullptr;
-	int forkResult = fork();
-	if (forkResult == 0) {
+	if (_shouldFork) {
+		int forkResult = fork();
+		if (forkResult == 0) {
+			execve(path.c_str(), (char *const *)args, environ);
+			//only get here if there was an error with execve
+			std::cerr << "Error with execve:" << errno << std::endl;
+			exit(1);
+		} else if (forkResult == -1) {
+			std::cerr << "failed to fork:" << errno << std::endl;
+			close(clientSock);
+		}
+	} else {
 		execve(path.c_str(), (char *const *)args, environ);
 		//only get here if there was an error with execve
 		std::cerr << "Error with execve:" << errno << std::endl;
-		exit(0);
-	} else if (forkResult == -1) {
-		std::cerr << "failed to fork:" << errno << std::endl;
-		close(clientSock);
+		exit(1);
 	}
 }
 
@@ -122,10 +129,12 @@ RServer::parseArgs(int argc, char** argv)
 			false, 7714, "port", cmdLine);
 		
 		TCLAP::SwitchArg switchArg("v", "verbose", "enable logging", cmdLine);
+		TCLAP::SwitchArg forkArg("f", "fork", "fork multiple sessions", cmdLine);
 			
 		cmdLine.parse(argc, argv);
 		_port = portArg.getValue();
 		_verbose = switchArg.getValue();
+		_shouldFork = forkArg.getValue();
 		
 	} catch (TCLAP::ArgException &e) {
 		std::cerr << "error:" << e.error() << std::endl;

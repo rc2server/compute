@@ -13,6 +13,7 @@ g3logger should be made with -DG3_SHARED_LIB=OFF and installed
 When RInside is installed on a development machine, need to go to `/usr/local/lib/R/library/RInside/libs` and `ln -s /usr/local/lib/R/site-library/RInside/libs/RInside.so libRInside.so`
 `pushd /usr/local/lib/R/site-library/RInside/libs;  sudo ln -s RInside.so libRInside.so`
 
+the dist is made via call to `make package`.
 ## env variables
 
 RC2_LOG_RSTDOUT : show output from each call
