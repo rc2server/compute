@@ -508,15 +508,11 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		string dbuser(cmd.valueForKey("dbuser"));
 		string dbname(cmd.valueForKey("dbname"));
 		string dbpassword(cmd.valueForKey("dbpassword"));
-		if (dbpassword.length() > 0) {
-			dbpassword = ":" + dbpassword; //prefix colon so we don't include the colon if no password
-		}
 		ostringstream connectString;
-		connectString << "postgresql://" << dbuser << dbpassword << "@" << dbhost << "/" 
+		connectString << "postgresql://" << dbuser << "@" << dbhost << "/" 
 			<< dbname << "?application_name=rsession&sslmode=disable";
-		string dbpass(cmd.valueForKey("dbpass"));
-		if (dbpass.length() > 0)
-			connectString << "&password=" << dbpass;
+		if (dbpassword.length() > 0)
+			connectString << "&password=" << dbpassword;
 		LOG(INFO) << connectString.str();
 		
 		string installLoc = RC2::GetPathForExecutable(getpid());
@@ -561,6 +557,9 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 	} catch (std::runtime_error &err) {
 		json2 error = { {"msg", "openresponse"}, {"success", false}, {"errorMessage", err.what()} };
 		sendJsonToClientSource(error.dump());
+		// close self since not able to connect
+		json2 closeMsg = { {"msg", "close"} };
+		scheduleDelayedCommand(closeMsg.dump());
 	}
 }
 
