@@ -123,16 +123,14 @@ namespace testing {
 		json df = watcher.toJson("df");
 		ASSERT_EQ(df["nrow"], 15);
 		ASSERT_EQ(df["ncol"], 2);
-		ASSERT_EQ(df["types"][0], "d");
-		ASSERT_EQ(df["types"][1], "d");
-		ASSERT_EQ(df["cols"][0], "height");
-		ASSERT_EQ(df["cols"][1], "weight");
+		ASSERT_EQ(df["columns"][0]["name"], "height");
+		ASSERT_EQ(df["columns"][0]["type"], "d");
 		ASSERT_EQ(df["row.names"][0], "1");
 		ASSERT_EQ(df["row.names"][14], "15");
-		ASSERT_EQ(df["rows"][0][0], 58.0);
-		ASSERT_EQ(df["rows"][0][1], 115.0);
-		ASSERT_EQ(df["rows"][14][0], 72.0);
-		ASSERT_EQ(df["rows"][14][1], 164.0);
+		ASSERT_EQ(df["columns"][0]["values"][0], 58.0);
+		ASSERT_EQ(df["columns"][1]["values"][0], 115.0);
+		ASSERT_EQ(df["columns"][0]["values"][14], 72.0);
+		ASSERT_EQ(df["columns"][1]["values"][1], 117.0);
 	}
 
 	TEST_F(VarTest, complexDframe) {
@@ -146,23 +144,26 @@ namespace testing {
 		json results = session->popMessage();
 		ASSERT_TRUE(results["msg"] == "results");
 		json df = watcher.toJson("cdf");
-		cerr << "val = " << df.dump(4) << endl;
+		cout << "val = " << df.dump(4) << endl;
 		int nrow = df["nrow"];
 		int ncol = df["ncol"];
 		ASSERT_EQ(ncol, 4);
 		ASSERT_EQ(nrow, 6);
-		auto nameJson = df["rows"][3][2];
-		ASSERT_TRUE(nameJson.is_string());
-		string name = nameJson;
-		ASSERT_EQ(name, "Mario");
-		ASSERT_EQ(df["rows"][4][2], "Mark");
-		// check double NaN. NA returns the same
-		string dval = df["rows"][1][1];
-		ASSERT_EQ(dval, "NaN");
-		// check for string NA
-		auto sval = df["rows"][1][2];
-		ASSERT_TRUE(sval == nullptr);
-		ASSERT_EQ(df["rows"][2][2], "NA");
+		auto columns = df["columns"];
+		auto namesCol = columns[2];
+		ASSERT_EQ(namesCol["type"], "s");
+		ASSERT_EQ(namesCol["values"][3], "Mario");
+		
+		auto c2Column = std::find_if(columns.begin(), columns.end(), [](const json& x) {
+			return x.is_object() and x.value("name", "") == "c2";
+		});
+		ASSERT_FALSE(c2Column == columns.end()); // make sure *res is the column we're looking for
+		ASSERT_EQ((*c2Column)["values"][0], 3.14);
+		ASSERT_TRUE((*c2Column)["values"][1] == nullptr);
+		ASSERT_EQ((*c2Column)["values"][2], "NaN");
+		ASSERT_EQ((*c2Column)["values"][3], 21.0);
+		ASSERT_EQ((*c2Column)["values"][4], "Inf");
+		ASSERT_EQ((*c2Column)["values"][5], "-Inf");
 	}
 	
 	TEST_F(VarTest, matrixTest) {
