@@ -145,13 +145,11 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 		:_impl(impl)
 		{
 			_impl.ignoreOutput = true;
-//			_impl.fileManager->suspendNotifyEvents();
 		}
 		
 		~NotifySuspender()
 		{
 			_impl.ignoreOutput = false;
-//			_impl.fileManager->resumeNotifyEvents();
 		}
 		
 	};
@@ -242,7 +240,6 @@ RC2::RSession::scheduleDelayedCommand(string json)
 RC2::RSession::RSession(RSessionCallbacks *callbacks)
 		: _impl(new Impl())
 {
-//	FLAGS_stderrthreshold = 0;
 	_callbacks = callbacks;
 	setenv("R_HOME", "/usr/local/lib/R", 0); //will not overwrite
 	_impl->R = new RInside(0, NULL, false, true, false);
@@ -251,7 +248,6 @@ RC2::RSession::RSession(RSessionCallbacks *callbacks)
 	};
 	_callbacks->_writeLambda = clambda;
 	_impl->R->set_callbacks(_callbacks);
-//	_impl->R->setVerbose(false);
 	if (!_impl->fileManager) {
 		unique_ptr<FileManager> fm(new FileManager());
 		_impl->fileManager = std::move(fm);
@@ -335,10 +331,6 @@ RC2::RSession::parseArguments(int argc, char *argv[])
 		if (verbose) {
 			setenv("GLOG_minloglevel", "1", 1);
 		}
-//		logging::core::get()->set_filter
-//		(
-//			logging::trivial::severity >= (verbose ? logging::trivial::info : logging::trivial::warning)
-//		);
 		
 		LOG(INFO) << "arguments parsed\n";
 		
@@ -381,8 +373,6 @@ RC2::RSession::prepareForRunLoop()
 	}
 	_impl->outBuffer = evbuffer_new();
 	_impl->fileManager->setEventBase(_impl->eventBase);
-// 	_impl->envWatcher.reset(new EnvironmentWatcher(Rcpp::Environment::global_env(), getExecuteCallback()));
-//     _impl->environments[0] = unique_ptr<EnvironmentWatcher>(new EnvironmentWatcher(Rcpp::Environment::global_env(), getExecuteCallback()));
 }
 
 void
