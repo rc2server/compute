@@ -21,15 +21,45 @@ public:
 	 * @param callback a lambda that will execute a statement and return the results without effecting the user output
 	 */
 	EnvironmentWatcher(SEXP environ, ExecuteCallback callback);
+
+	/**
+	 * @brief create a new watcher wrapping a new environment contained in the global environment
+	 * 
+	 * @param callback a lambda that will execute a statement and return the results without 
+	 * effecting the user output. This is used to execute commands to manipulate the output
+	 */
+	EnvironmentWatcher(ExecuteCallback callback);
+
 	~EnvironmentWatcher();
 
+	/**
+	 * @brief returns the current enviornment as a json object
+	 * 
+	 * @return json::value_type
+	 */
 	json::value_type toJson();
+	/**
+	 * @brief Returns the specified variable as a json object
+	 * 
+	 * @param varName name of the variable to return
+	 * @return json::value_type
+	 */
 	json::value_type toJson(std::string varName);
+	/**
+	 * @brief returns the changes since the last captureEnvironment call
+	 * 
+	 * @return json::value_type
+	 */
 	json::value_type jsonDelta();
 	
 	Rcpp::Environment* getEnvironment() { return &_env; }
 	operator Rcpp::Environment&() { return _env; } 
 	
+	/**
+	 * @brief stores the current contents of the enviornment to allow a later call to jsonDelta()
+	 * 
+	 * @return void
+	 */
 	void captureEnvironment();
 	void clear() { _lastVars.erase(_lastVars.begin(), _lastVars.end()); }
 	

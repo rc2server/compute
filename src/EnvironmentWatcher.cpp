@@ -122,6 +122,11 @@ RC2::EnvironmentWatcher::EnvironmentWatcher ( SEXP environ, ExecuteCallback call
 
 }
 
+RC2::EnvironmentWatcher::EnvironmentWatcher ( ExecuteCallback callback )
+	: _env(Rcpp::new_env(Rcpp::Environment::global_env())), _execCallback(callback)
+{
+
+}
 
 RC2::EnvironmentWatcher::~EnvironmentWatcher()
 {
