@@ -42,6 +42,7 @@ public:
 	 * @brief Returns the specified variable as a json object
 	 * 
 	 * @param varName name of the variable to return
+	 * 
 	 * @return json::value_type
 	 */
 	json::value_type toJson(std::string varName);
@@ -52,6 +53,17 @@ public:
 	 */
 	json::value_type jsonDelta();
 	
+	/**
+	 * @brief converts an RObject to a json object
+	 * 
+	 * @param varName the key to insert the json into jobc under
+	 * @param robj the robject to convert to json
+	 * @param includeListChildren should children of a list object be included
+	 * 
+	 * @return Rcpp::Environment*
+	 */
+	void valueToJson(std::string& varName, RObject& robj, json& jobj, bool includeListChildren=false);
+
 	Rcpp::Environment* getEnvironment() { return &_env; }
 	operator Rcpp::Environment&() { return _env; } 
 	
@@ -68,7 +80,6 @@ protected:
 	std::vector<Variable> _lastVars;
 	ExecuteCallback _execCallback;
 	
-	void valueToJson(std::string& varName, RObject& robj, json& jobj, bool includeListChildren=false);
 	//returns array
 	json rvectorToJsonArray(RObject& robj);
 	
