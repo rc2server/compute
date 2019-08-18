@@ -42,8 +42,10 @@ namespace RC2 {
 			virtual ~RSession();
 			
 			/**
-			 * @brief parses -s and -v command line args to specify socket to listen to and if logging should be enabled.
-			 * returns true if successfully parsed
+			 * @brief parses -s specifying the socket to listen to,  -v to enable logging,
+			 * and -d int to specify the delay in seconds before the event loop is started,
+			 * which is useful for attaching the debugger after launch. Returns true if 
+			 * successfully parsed
 			 * 
 			 * @param argc The number of arguments
 			 * @param argv the command line arguments

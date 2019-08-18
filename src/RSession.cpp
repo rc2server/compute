@@ -92,6 +92,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	int								sessionRecId;
 	int								socket;
 	int								currentQueryId;
+	int								startDelay;
 	bool							open;
 	bool							ignoreOutput;
 	bool							captureStdOut;
@@ -320,12 +321,16 @@ RC2::RSession::parseArguments(int argc, char *argv[])
 		TCLAP::CmdLine cmdLine("Handle a remote R connection", ' ', "0.1");
 		
 		TCLAP::ValueArg<int> portArg("s", "socket", "socket to listen on", 
-			true, -1, "socketnum", cmdLine);
+									 true, -1, "socketnum", cmdLine);
+		
+		TCLAP::ValueArg<int> delayArg("d", "delay", "seconds to delay start of event loop",
+									  false, 0, "integer", cmdLine);
 		
 		TCLAP::SwitchArg switchArg("v", "verbose", "enable logging", cmdLine);
 			
 		cmdLine.parse(argc, argv);
 		_impl->socket = portArg.getValue();
+		_impl->startDelay = delayArg.getValue();
 		bool verbose = switchArg.getValue();
 		if (verbose) {
 			setenv("GLOG_minloglevel", "1", 1);
@@ -383,10 +388,10 @@ RC2::RSession::prepareForRunLoop()
 void
 RC2::RSession::startEventLoop()
 {
-	//commented out lines for when trying to attach via gdb
-//LOG(INFO) << "starting event loop";
-//	sleep(40);
-//LOG(INFO) << "sleep over";
+	if (_impl->startDelay > 0) {
+		sleep(_impl->startDelay);
+		LOG(INFO) << "sleep over";
+	}
 	event_base_loop(_impl->eventBase, 0);
 }
 
