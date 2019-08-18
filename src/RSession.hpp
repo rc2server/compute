@@ -33,21 +33,85 @@ namespace RC2 {
 	class RSession : private boost::noncopyable {
 
 		public:
-					RSession(RSessionCallbacks *callbacks);
+			/**
+			 * @brief creates a session object that encapsulates a instance of R
+			 * 
+			 * @param callbacks The callbacks used for R output while a command is executing
+			 */
+			RSession(RSessionCallbacks *callbacks);
 			virtual ~RSession();
 			
+			/**
+			 * @brief parses -s and -v command line args to specify socket to listen to and if logging should be enabled.
+			 * returns true if successfully parsed
+			 * 
+			 * @param argc The number of arguments
+			 * @param argv the command line arguments
+			 * @return bool
+			 */
 			bool 	parseArguments(int argc, char *argv[]);
+			/**
+			 * @brief sets up the libevent event loop
+			 * 
+			 * @return void
+			 */
 			void	prepareForRunLoop();
+			
+			/**
+			 * @brief installs a signal handler in the event loop. NOT IMPLEMENTED
+			 * 
+			 * @param  the signal handler
+			 * @return void
+			 */
+			/**
+			 * @brief starts the libevent event loop
+			 * 
+			 * @return void
+			 */
 			void	installExitHandler(void(*)(short flags));
+			
+			/**
+			 * @brief starts the libevent event loop
+			 * 
+			 * @return void
+			 */
 			virtual void	startEventLoop();
+			/**
+			 * @brief stops the libevent event loop
+			 * 
+			 * @return void
+			 */
 			virtual void	stopEventLoop();
 
+			/**
+			 * @brief returns the current output callbacks
+			 * 
+			 * @return RC2::RSessionCallbacks*
+			 */
 			RSessionCallbacks* getCallbacks() const { return _callbacks; }
+			/**
+			 * @brief sets the callbacks used for R output during a command
+			 * 
+			 * @return void
+			 */
 			void setCallbacks(RSessionCallbacks *cbs) { _callbacks = cbs; }
 
+			/**
+			 * @brief returns the current working directory
+			 * 
+			 * @return string
+			 */
 			string getWorkingDirectory() const;
 
 			//unit test subclasses might override
+			
+			
+			/**
+			 * @brief process a json command just like if it was received over the network
+			 * 
+			 * @param json the json to parse as a command
+			 * @return void
+			 */
 			virtual void	sendJsonToClientSource(string json);
 
 		protected:
