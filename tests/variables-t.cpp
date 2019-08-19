@@ -134,6 +134,7 @@ namespace testing {
 	}
 
 	TEST_F(VarTest, complexDframe) {
+		session->emptyMessages();
 		EnvironmentWatcher watcher(Rcpp::Environment::global_env(), session->getExecCallback());
 		session->copyFileToWorkingDirectory("dframe.R");
 		fileManager->addFile(4, "dframe.R", 1);
@@ -144,7 +145,7 @@ namespace testing {
 		json results = session->popMessage();
 		ASSERT_TRUE(results["msg"] == "results");
 		json df = watcher.toJson("cdf");
-		cout << "val = " << df.dump(4) << endl;
+//		cout << "val = " << df.dump(4) << endl;
 		int nrow = df["nrow"];
 		int ncol = df["ncol"];
 		ASSERT_EQ(ncol, 4);
