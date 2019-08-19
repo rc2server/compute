@@ -209,11 +209,17 @@ RC2::EnvironmentWatcher::jsonDelta()
 void
 RC2::EnvironmentWatcher::addSummary(std::string& varName, json& jobj)
 {
+	if (varName.length() < 1) return;
 	std::string vname = varName;
 	StripQuotes(vname);
 	std::string cmd = "capture.output(str(" + vname + "))";
 	RObject result;
 	_execCallback(cmd, result);
+	if (result.isNULL()) {
+		LOG(INFO) << "summary result " << varName << " is null" << std::endl;
+		return;
+	}
+	std::cout << "var type=" << result.sexp_type() << std::endl;
 	try {
 		Rcpp::StringVector strs(result);
 		std::string summary;
