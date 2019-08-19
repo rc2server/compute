@@ -3,4 +3,4 @@ project (rcompute-common)
 
 add_library (common FormattedException.cpp RC2Utils.cpp PGDBConnection.cpp)
 
-add_dependencies(common g3log)
+#add_dependencies(common g3log)

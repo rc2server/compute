@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
@@ -26,11 +26,11 @@ set(Boost_USE_STATIC_LIBS ON)
 find_package(Boost 1.54 REQUIRED COMPONENTS regex filesystem system)
 include_directories(${Boost_INCLUDE_DIRS}) 
 
-set_property(GLOBAL PROPERTY CXX_STANDARD 11)
+set_property(GLOBAL PROPERTY CXX_STANDARD 14)
 set_property(GLOBAL PROPERTY CXX_STANDARD_REQUIRED ON)
 
-add_definitions(-std=c++11)
-SET(CMAKE_CXX_FLAGS "-std=c++11 -DBOOST_LOG_DYN_LINK -g")
+add_definitions(-std=c++14)
+SET(CMAKE_CXX_FLAGS "-DBOOST_LOG_DYN_LINK -g")
 #following fixes compile error because somehow -rdynamic is getting set as a linker flag
 SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 SET(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "-Wl,--no-export-dynamic -lstdc++")
@@ -90,7 +90,7 @@ add_executable(rsession src/RSession-main.cpp)
 
 add_executable(rserver src/RServer-main.cpp)
 
-add_dependencies(rsession g3log)
+#add_dependencies(rsession g3log)
 #set_target_properties(rsession PROPERTIES INSTALL_RPATH "\$ORIGIN/lib")
 #set_target_properties(rserver rsession PROPERTIES INSTALL_RPATH "$ORIGIN/../:$ORIGIN")
 
