@@ -62,7 +62,7 @@ public:
 	 * 
 	 * @return Rcpp::Environment*
 	 */
-	void valueToJson(std::string& varName, RObject& robj, json& jobj, bool includeListChildren=false);
+	void valueToJson(std::string varName, RObject& robj, json& jobj, bool includeListChildren=false);
 
 	Rcpp::Environment* getEnvironment() { return &_env; }
 	operator Rcpp::Environment&() { return _env; } 

@@ -229,7 +229,7 @@ RC2::EnvironmentWatcher::addSummary(std::string& varName, json& jobj)
 }
 
 void
-RC2::EnvironmentWatcher::valueToJson (std::string& varName, RObject& robj, json& jobj, bool includeListChildren )
+RC2::EnvironmentWatcher::valueToJson (std::string varName, RObject& robj, json& jobj, bool includeListChildren )
 {
 	jobj[kName] = varName;
 	if (Rf_isObject(robj)) {
