@@ -135,6 +135,7 @@ namespace RC2 {
 			void	handleClearEnvironment(JsonCommand& command);
 
 			void	handleExecuteScript(JsonCommand& command);
+			void	handleExecuteAndReturn(JsonCommand& command);
 			void	executeFile(JsonCommand& command);
 			void	executeRMarkdown(string filePath, long fileId, JsonCommand& command);
 			void	executeSweave(string filePath, long fileId, JsonCommand& command);

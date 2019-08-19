@@ -426,6 +426,9 @@ RC2::RSession::handleCommand(JsonCommand& command)
 		case CommandType::ExecScript:
 			handleExecuteScript(command);
 			break;
+		case CommandType::ExecAndReturn:
+			handleExecuteScript(command);
+			break;
 		case CommandType::ExecFile:
 			executeFile(command);
 			break;
@@ -632,6 +635,13 @@ RC2::RSession::handleExecuteScript(JsonCommand& command) {
 	} else if (result == RInside::ParseEvalResult::PE_INCOMPLETE) {
 		sendTextToClient("Incomplete R statement\n", true);
 	}
+}
+
+void
+RC2::RSession::handleExecuteAndReturn(RC2::JsonCommand& command)
+{
+	LOG(INFO) << "execAndReturn:" << command.argument();
+	
 }
 
 void

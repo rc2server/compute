@@ -5,7 +5,7 @@ using json2 = nlohmann::json;
 namespace RC2 {
 	
 	enum class CommandType {
-		Unknown=-1, Open, Close, ClearFileChanges, ExecScript, ExecFile,
+		Unknown=-1, Open, Close, ClearFileChanges, ExecScript, ExecAndReturn, ExecFile,
 		Help, ListVariables, GetVariable, ToggleWatch, SaveData, ClearEnvironment
 	};
 	
@@ -23,6 +23,7 @@ namespace RC2 {
 				if (cmdStr == "saveEnv") _type = CommandType::SaveData;
 				if (cmdStr == "clearFileChanges") _type = CommandType::ClearFileChanges;
 				if (cmdStr == "execScript") _type = CommandType::ExecScript;
+				if (cmdStr == "execAndReturn") _type = CommandType::ExecAndReturn;
 				if (cmdStr == "execFile") _type = CommandType::ExecFile;
 				if (cmdStr == "help") _type = CommandType::Help;
 				if (cmdStr == "listVariables") _type = CommandType::ListVariables;
