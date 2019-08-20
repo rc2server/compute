@@ -8,7 +8,7 @@
 #include "../../src/RSessionCallbacks.hpp"
 #include "../../src/FileManager.hpp"
 #include "../../src/RC2Logging.h"
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 using namespace std;
 using json = nlohmann::json;

@@ -4,7 +4,7 @@
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 #include "../common/RC2Utils.hpp"
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 
 namespace fs = boost::filesystem;
 using json = nlohmann::json;

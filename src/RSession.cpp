@@ -12,6 +12,7 @@
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
+#include <nlohmann/json.hpp>
 #include "RC2Logging.h"
 #include <RInside.h>
 #include <event2/buffer.h>
@@ -21,7 +22,6 @@
 #include "common/PGDBConnection.hpp"
 #include "RSession.hpp"
 #include "RSessionCallbacks.hpp"
-#include "json.hpp"
 #include "InputBufferManager.hpp"
 //#include "FormattedException.hpp"
 #include "JsonCommand.hpp"

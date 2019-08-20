@@ -5,7 +5,7 @@
 #include <thread>
 #include "../src/RC2Logging.h"
 #include "common/RC2Utils.hpp"
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 #include "../src/RSession.hpp"
 #include "../src/RSessionCallbacks.hpp"
 #define BOOST_NO_CXX11_SCOPED_ENUMS
