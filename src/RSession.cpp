@@ -171,7 +171,8 @@ RC2::ExecuteCallback RC2::RSession::Impl::getExecuteCallback()
 			BooleanWatcher bwatch(&ignoreOutput);
 			ok = R->parseEval(cmd, sr) == 0;
 		}
-		result = sr;
+		if (sr)
+			result = sr;
 		return ok;
 	};
 }
