@@ -3,7 +3,7 @@
 #include <Rcpp.h>
 #include <map>
 #include <string>
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 #include "SessionCommon.hpp"
 
 using json = nlohmann::json;
