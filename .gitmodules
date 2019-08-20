@@ -1,3 +1,6 @@
 [submodule "rc2root"]
 	path = rc2root
 	url = https://github.com/rc2server/rc2.git
+[submodule "vendor/json-schema-validator"]
+	path = vendor/json-schema-validator
+	url = https://github.com/pboettch/json-schema-validator.git

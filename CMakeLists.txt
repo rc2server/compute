@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.0)
 
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
-set(CMAKE_DISABLE_SOURCE_CHANGES ON)
+#set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 
-project(rcompute2)
+project(Rc2Compute LANGUAGES CXX)
 
 enable_testing()
 
@@ -46,13 +46,24 @@ SET(Compute_Libs
 	g3logger
 )
 
-include(ExternalProject)
 
+include(ExternalProject)
+SET(VALIDATE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/json-schema-validator/")
+SET(VALIDATE_BINARY_DIR "${CMAKE_BINARY_DIR}/vendor")
+ExternalProject_Add(jsonschema DOWNLOAD_COMMAND "" 
+	SOURCE_DIR "${VALIDATE_SOURCE_DIR}"
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/vendor #
+	BINARY_DIR "${VALIDATE_BINARY_DIR}"
+	INSTALL_COMMAND ""
+	CMAKE_ARGS "-DNLOHMANN_JSON_DIR=${CMAKE_CURRENT_SOURCE_DIR}/vendor/"
+#	BUID_ALWAYS FALSE
+)
 
 #R installed from sources uses /usr/local/lib/R/library while it uses /usr/local/lib/R/site-library if installed via rpm
 include_directories (${CMAKE_CURRENT_SOURCE_DIR} 
 	${CMAKE_ROOT}
 	${CMAKE_SOURCE_DIR}/vendor
+	${VALIDATE_SOURCE_DIR}/src/
 	/usr/include
 	/usr/include/postgresql
 	/usr/share/R/include
@@ -61,6 +72,7 @@ include_directories (${CMAKE_CURRENT_SOURCE_DIR}
 	/usr/local/lib/R/include)
 
 link_directories (
+#	${VALIDATE_BINARY_DIR}
 	${CMAKE_CURRENT_SOURCE_DIR}/src
 	/usr/local/lib/R/site-library/RInside/lib
 	/usr/local/lib/R/library/RInside/libs
@@ -78,6 +90,8 @@ add_library(boost_filesystem STATIC IMPORTED)
 add_library(boost_system STATIC IMPORTED)
 add_library(boost_regex STATIC IMPORTED)
 add_library(RInside SHARED IMPORTED)
+add_library(json-validate STATIC IMPORTED)
+set_target_properties(json-validate PROPERTIES IMPORTED_LOCATION "${VALIDATE_BINARY_DIR}/libjson-schema-validator.a")
 set_target_properties(event PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libevent.a)
 set_target_properties(event_pthreads PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libevent_pthreads.a)
 set_target_properties(boost_system PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libboost_system.a)
