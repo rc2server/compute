@@ -84,6 +84,9 @@ ExternalProject_Add(jsonschema DOWNLOAD_COMMAND ""
 	INSTALL_COMMAND ""
 	CMAKE_ARGS "-DNLOHMANN_JSON_DIR=${CMAKE_SOURCE_DIR}/vendor/"
 )
+# FIXME: very hacky. Should have in Compute_Libs, but that was always trying to use a dynamic lib. 
+# adding this to target_link_libraries is a temporary fix
+set(VALIDATE_LIBRARY ${VALIDATE_BINARY_DIR}/libjson-schema-validator.a)
 
 #R installed from sources uses /usr/local/lib/R/library while it uses /usr/local/lib/R/site-library if installed via rpm
 include_directories (
@@ -105,6 +108,7 @@ include_directories (
 link_directories (
 	${CMAKE_CURRENT_SOURCE_DIR}/src
 	${CMAKE_BINARY_DIR}/vendor
+	${CMAKE_BINARY_DIR}/vendor/json-schema_validator
 	/usr/local/lib/R/site-library/RInside/lib
 	/usr/local/lib/R/library/RInside/libs
 	/usr/local/lib/R/lib
@@ -121,8 +125,6 @@ add_library(boost_filesystem STATIC IMPORTED)
 add_library(boost_system STATIC IMPORTED)
 add_library(boost_regex STATIC IMPORTED)
 add_library(RInside SHARED IMPORTED)
-add_library(json-validate STATIC IMPORTED)
-set_target_properties(json-validate PROPERTIES IMPORTED_LOCATION "${VALIDATE_BINARY_DIR}/libjson-schema-validator.a")
 set_target_properties(event PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libevent.a)
 set_target_properties(event_pthreads PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libevent_pthreads.a)
 set_target_properties(boost_system PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libboost_system.a)
@@ -137,7 +139,7 @@ add_dependencies(common applogger)
 add_executable(rserver src/RServer-main.cpp)
 
 target_link_libraries(rserver src common ${Compute_Libs} ${Boost_LIBRARIES})
-target_link_libraries(rsession src common pthread ${Compute_Libs} ${Boost_LIBRARIES} R RInside -lm)
+target_link_libraries(rsession src common pthread ${Compute_Libs} ${Boost_LIBRARIES} ${VALIDATE_LIBRARY} R RInside -lm)
 
 install(CODE "execute_process(COMMAND \"${CMAKE_SOURCE_DIR}/prepareRInside.sh\" \"${CMAKE_BINARY_DIR}\")")
 

@@ -22,12 +22,13 @@ SET(TESTS
 	rsession
 	variables
 	environ
+	evaluate
 )
 
 add_subdirectory(testlib)
 
 FOREACH(test ${TESTS})
 	add_executable(${test}-t ${test}-t.cpp)
-	target_link_libraries(${test}-t testslib src event common R -lRInside ${Compute_Libs} ${Boost_LIBRARIES} gtest_main pthread -lm)
+	target_link_libraries(${test}-t testslib src event common R -lRInside ${Compute_Libs} ${Boost_LIBRARIES} ${VALIDATE_LIBRARY} gtest_main pthread -lm)
 	add_test(NAME ${test} COMMAND ${test}-t)
 ENDFOREACH()
