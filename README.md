@@ -2,23 +2,22 @@
 
 This is the R backend portion of the rc2 project. It builds `rserver` which listens for connection requests and then forks a copy of `rsession`. Each rsession process wraps an R session via RInside.
 
-All communication is via json. Files are managed via the PostgreSQL database. Configuration is via [etcd](). See the [overview wiki page](https://github.com/wvuRc2/rc2/wiki) for details on how etcd is configured.
-
-rserver takes a command line argument for which type of deployment to use and what srv record to look up. The default srv record is `config.rc2.io`. Once connected to the server the srv record defines, a connection is made. The key path is by another parameter, defaulting to `dev`. [cetcd](https://github.com/shafreeck/cetcd.git) is used to connect to etcd. It be installed in /usr/local.
+All communication is via json. Files are managed via the PostgreSQL database.
 
 ## building notes
 
-g3logger should be made with -DG3_SHARED_LIB=OFF and installed
+On checkout of project, use `git clone --recursive <URL> <Local Directory>` to checkout submodules, too.
+
+1. make a build directory, cd into it, run `cmake ..` then `make`
+
+In vendor/json-schema-validator need to run `git fetch && git fetch -tags` and then `git checkout 2.0.0`.
+
+In vendor/g3log run `git fetch && git fetch -tags` and then `git checkout 1.3.2`.
 
 When RInside is installed on a development machine, need to go to `/usr/local/lib/R/library/RInside/libs` and `ln -s /usr/local/lib/R/site-library/RInside/libs/RInside.so libRInside.so`
 `pushd /usr/local/lib/R/site-library/RInside/libs;  sudo ln -s RInside.so libRInside.so`
 
 the dist is made via call to `make package`.
-## env variables
-
-RC2_LOG_RSTDOUT : show output from each call
-
-RC2_LOG_INOTIFY
 
 ## tips
 
