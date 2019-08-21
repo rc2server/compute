@@ -18,10 +18,6 @@ INCLUDE(CPack)
 #    message(STATUS "${_variableName}=${${_variableName}}")
 #endforeach()
 
-#if("${rcompute2_SOURCE_DIR}" STREQUAL "${rcompute2_BINARY_DIR}")
-#   message(SEND_ERROR "In-source builds are not allowed. (${rcompute2_SOURCE_DIR}) (${rcompute2_BINARY_DIR})")
-#endif("${rcompute2_SOURCE_DIR}" STREQUAL "${rcompute2_BINARY_DIR}")
-
 set(Boost_USE_STATIC_LIBS ON)
 find_package(Boost 1.54 REQUIRED COMPONENTS regex filesystem system)
 include_directories(${Boost_INCLUDE_DIRS}) 
@@ -46,6 +42,8 @@ SET(Compute_Libs
 	g3logger
 )
 
+include(ExternalProject)
+
 # build GTest
 configure_file(vendor/GTest.CMakeLists.txt.in googletest-download/CMakeLists.txt)
 execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
@@ -64,34 +62,49 @@ add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/googletest-src
 	${CMAKE_CURRENT_BINARY_DIR}/googletest-build
 	EXCLUDE_FROM_ALL)
 
+# build g3log
+set(LOGGER_SOURCE_DIR ${CMAKE_SOURCE_DIR}/vendor/g3log)
+set(LOGGER_BINARY_DIR ${CMAKE_BINARY_DIR}/vendor)
+ExternalProject_Add(applogger
+  DOWNLOAD_COMMAND	""
+  SOURCE_DIR        "${LOGGER_SOURCE_DIR}"
+  BINARY_DIR        "${LOGGER_BINARY_DIR}"
+  PREFIX			"${CMAKE_CURRENT_BINARY_DIR}/vendor"
+  CMAKE_ARGS		"-DG3_SHARED_LIB=OFF"
+  INSTALL_COMMAND	""
+)
+
 # build json-schema-validator
-include(ExternalProject)
-SET(VALIDATE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/json-schema-validator/")
-SET(VALIDATE_BINARY_DIR "${CMAKE_BINARY_DIR}/vendor")
+SET(VALIDATE_SOURCE_DIR "${CMAKE_SOURCE_DIR}/vendor/json-schema-validator/")
+SET(VALIDATE_BINARY_DIR "${CMAKE_BINARY_DIR}/vendor/json-schema-validator/")
 ExternalProject_Add(jsonschema DOWNLOAD_COMMAND "" 
 	SOURCE_DIR "${VALIDATE_SOURCE_DIR}"
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/vendor #
+	PREFIX ${CMAKE_BINARY_DIR}/vendor #
 	BINARY_DIR "${VALIDATE_BINARY_DIR}"
 	INSTALL_COMMAND ""
-	CMAKE_ARGS "-DNLOHMANN_JSON_DIR=${CMAKE_CURRENT_SOURCE_DIR}/vendor/"
-#	BUID_ALWAYS FALSE
+	CMAKE_ARGS "-DNLOHMANN_JSON_DIR=${CMAKE_SOURCE_DIR}/vendor/"
 )
 
 #R installed from sources uses /usr/local/lib/R/library while it uses /usr/local/lib/R/site-library if installed via rpm
-include_directories (${CMAKE_CURRENT_SOURCE_DIR} 
+include_directories (
+	${CMAKE_CURRENT_SOURCE_DIR} 
 	${CMAKE_ROOT}
 	${CMAKE_SOURCE_DIR}/vendor
+	${LOGGER_BINARY_DIR}/include
 	${VALIDATE_SOURCE_DIR}/src/
+	${CMAKE_SOURCE_DIR}/vendor/g3log/src
+	${CMAKE_BINARY_DIR}/vendor/g3log/include
 	/usr/include
 	/usr/include/postgresql
 	/usr/share/R/include
 	/usr/local/lib/R/site-library/RInside/include
 	/usr/local/lib/R/site-library/Rcpp/include
-	/usr/local/lib/R/include)
+	/usr/local/lib/R/include
+)
 
 link_directories (
-#	${VALIDATE_BINARY_DIR}
 	${CMAKE_CURRENT_SOURCE_DIR}/src
+	${CMAKE_BINARY_DIR}/vendor
 	/usr/local/lib/R/site-library/RInside/lib
 	/usr/local/lib/R/library/RInside/libs
 	/usr/local/lib/R/lib
@@ -119,16 +132,12 @@ set_target_properties(uuid PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gn
 set_target_properties(RInside PROPERTIES IMPORTED_LOCATION /usr/local/lib/R/site-library/RInside/libs/RInside.so)
 
 add_executable(rsession src/RSession-main.cpp)
-
+add_dependencies(rsession applogger)
+add_dependencies(common applogger)
 add_executable(rserver src/RServer-main.cpp)
 
-#add_dependencies(rsession g3log)
-#set_target_properties(rsession PROPERTIES INSTALL_RPATH "\$ORIGIN/lib")
-#set_target_properties(rserver rsession PROPERTIES INSTALL_RPATH "$ORIGIN/../:$ORIGIN")
-
 target_link_libraries(rserver src common ${Compute_Libs} ${Boost_LIBRARIES})
-target_link_libraries(rsession src common pthread ${Compute_Libs} ${Boost_LIBRARIES} R RInside libg3logger.a -lm)
-#target_compile_options(rsession PRIVATE RInside.so)
+target_link_libraries(rsession src common pthread ${Compute_Libs} ${Boost_LIBRARIES} R RInside -lm)
 
 install(CODE "execute_process(COMMAND \"${CMAKE_SOURCE_DIR}/prepareRInside.sh\" \"${CMAKE_BINARY_DIR}\")")
 
