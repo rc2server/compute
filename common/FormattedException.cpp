@@ -8,3 +8,8 @@ FormattedException::FormattedException(const char *format, ...)
 	vsnprintf(_emsg, MAX_ERROR_LEN, format, args);
 	va_end(args);
 }
+
+GenericException::GenericException(std::string message)
+	:_msg(message)
+{
+}
