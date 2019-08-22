@@ -114,6 +114,18 @@ TestingSession::execScript ( string rcode )
 	handleJsonCommand(json);
 }
 
+string 
+TestingSession::incomingJsonSchemaPath()
+{
+	string installLoc = RC2::GetPathForExecutable(getpid());
+	string::size_type parentDirIndex = installLoc.rfind('/');
+	string parentDir = installLoc.substr(0, parentDirIndex) + "..";
+	string incomingSchemaPath = parentDir + "/compute-to.schema.json";
+	return incomingSchemaPath;
+}
+
+
+
 TestingFileManager::TestingFileManager() {
 }
 

@@ -150,6 +150,10 @@ namespace RC2 {
 			ExecuteCallback getExecuteCallback();
 			bool loadEnvironment();
 			
+			// testing subclasses need to override this since the executable 
+			// directory is not the same as rsession
+			virtual string incomingJsonSchemaPath();
+			
 			FileManager const* getFileManager() const; //should not be deallocated
 			void setFileManager(FileManager *manager);
 

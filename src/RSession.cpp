@@ -7,12 +7,14 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <cassert>
 #include <boost/log/utility/setup/file.hpp>
 #include <boost/algorithm/string.hpp>
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
 #include <nlohmann/json.hpp>
+#include "json-schema.hpp"
 #include "RC2Logging.h"
 #include <RInside.h>
 #include <event2/buffer.h>
@@ -27,6 +29,7 @@
 #include "JsonCommand.hpp"
 #include "common/RC2Utils.hpp"
 #include "common/ZeroInitializedStruct.hpp"
+#include "common/FormattedException.hpp"
 #include "FileManager.hpp"
 #include "EnvironmentWatcher.hpp"
 
@@ -87,6 +90,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	shared_ptr<string>				consoleOutBuffer;
 	string							stdOutCapture;
 	string							currentImageName; //watching to track title of it
+	json							incomingJsonSchema;
 	double							consoleLastWrite;
 	int								wspaceId;
 	int								sessionRecId;
@@ -107,6 +111,10 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 		string	acknowledgeExecComplete(JsonCommand &command, int queryId, bool expectShowOutput);
 		EnvironmentWatcher*	env(long id);
 		ExecuteCallback getExecuteCallback();
+		/**
+			 * @brief validates all received json against the configured json schema 
+			 * @throws exceptions */
+		void	validateIncomingJson(json jsonObj);
 
 
 	static void handleExecComplete(int fd, short event_type, void *ctx) 
@@ -187,6 +195,24 @@ RC2::RSession::Impl::env(long id)
 	return environments[id].get();
 }
 
+void 
+RC2::RSession::Impl::validateIncomingJson(json jsonObj)
+{
+	if (incomingJsonSchema.is_null()) return;
+ 	assert(jsonObj.is_null() == false);
+	LOG(INFO) << "validating incoming json" << endl;
+	nlohmann::json_schema::json_validator validator;
+	try {
+		validator.set_root_schema(incomingJsonSchema);
+		validator.validate(jsonObj);
+		LOG(INFO) << "incoming json validated" << endl;
+	} catch (const std::exception &e) {
+		string errStr = "error validationg incoming json: ";
+		errStr += e.what();
+		throw GenericException(errStr);
+	}
+}
+
 void
 RC2::RSession::Impl::addImagesToJson(json2& json)
 {
@@ -249,10 +275,14 @@ RC2::RSession::RSession(RSessionCallbacks *callbacks)
 	};
 	_callbacks->_writeLambda = clambda;
 	_impl->R->set_callbacks(_callbacks);
-	if (!_impl->fileManager) {
+	if (!_impl->fileManager) { // might have been set by subclass
 		unique_ptr<FileManager> fm(new FileManager());
 		_impl->fileManager = std::move(fm);
 	}
+	// initialize json schema
+	string incomingPath = incomingJsonSchemaPath();
+	string incomingSchemaString = SlurpFile(incomingPath.c_str());
+	_impl->incomingJsonSchema = json::parse(incomingJsonSchemaPath(), nullptr, false);
 }
 
 RC2::RSession::~RSession()
@@ -463,6 +493,7 @@ void
 RC2::RSession::handleJsonCommand(string json)
 {
 	try {
+		_impl->validateIncomingJson(json);
 		if (json.length() < 1)
 			return;
 		LOG(INFO) << "json=" << json;
@@ -502,6 +533,11 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 	}
 	_impl->wspaceId = cmd.raw()["wspaceId"];
 	try {
+		string installLoc = RC2::GetPathForExecutable(getpid());
+		string::size_type parentDirIndex = installLoc.rfind('/');
+		string parentDir = installLoc.substr(0, parentDirIndex);
+		string swizzlePath = parentDir + "/rsrc/swizzle.R";
+
 		_impl->sessionRecId = cmd.raw()["sessionRecId"];
 		string dbhost(cmd.valueForKey("dbhost"));
 		string dbuser(cmd.valueForKey("dbuser"));
@@ -514,10 +550,6 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 			connectString << "&password=" << dbpassword;
 		LOG(INFO) << connectString.str();
 		
-		string installLoc = RC2::GetPathForExecutable(getpid());
-		string::size_type pos = installLoc.rfind('/');
-		string ourCodePath = installLoc.substr(0, pos) + "/rsrc/swizzle.R";
-
 		
 		if (NULL ==  _impl->eventBase) {
 			LOG(WARNING) << "handleOpenCommand called before prepareForRunLoop()";
@@ -542,7 +574,7 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		_impl->R->parseEvalQNT("library(rc2, quietly = TRUE)");
 		_impl->R->parseEvalQNT("rm(argv)"); //RInside creates this even though we passed NULL
 		_impl->R->parseEvalQNT("options(device = \"rc2.pngdev\", bitmapType = \"cairo\")");
-		_impl->R->parseEvalQNT("source(\"" + escape_quotes(ourCodePath) + "\", keep.source=FALSE)");
+		_impl->R->parseEvalQNT("source(\"" + escape_quotes(swizzlePath) + "\", keep.source=FALSE)");
 		_impl->fileManager->initFileManager(workDir, connection, _impl->wspaceId, _impl->sessionRecId);
 		bool haveRData = _impl->fileManager->loadRData();
 		if (haveRData) {
@@ -985,6 +1017,15 @@ void RC2::RSession::setFileManager ( RC2::FileManager* manager )
 	_impl->fileManager = std::move(fm);
 }
 
+string 
+RC2::RSession::incomingJsonSchemaPath()
+{
+	string installLoc = RC2::GetPathForExecutable(getpid());
+	string::size_type parentDirIndex = installLoc.rfind('/');
+	string parentDir = installLoc.substr(0, parentDirIndex);
+	string incomingSchemaPath = parentDir + "/compute-to.schema.json";
+	return incomingSchemaPath;
+}
 
 bool 
 RC2::RSession::loadEnvironment()

@@ -13,6 +13,9 @@ set(CPACK_GENERATOR TGZ)
 set(CPACK_PACKAGE_FILE_NAME "rc2compute")
 INCLUDE(CPack)
 
+set(INCOMING_SCHEMA_NAME compute.incoming.schema.json)
+set(INCOMING_SCHEMA_PATH rc2root/documentation)
+
 #get_cmake_property(_variableNames VARIABLES)
 #foreach (_variableName ${_variableNames})
 #    message(STATUS "${_variableName}=${${_variableName}}")
@@ -133,6 +136,16 @@ set_target_properties(boost_regex PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-l
 set_target_properties(uuid PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libuuid.a)
 set_target_properties(RInside PROPERTIES IMPORTED_LOCATION /usr/local/lib/R/site-library/RInside/libs/RInside.so)
 
+set(sc_path ${CMAKE_BINARY_DIR}/src)
+set(tests_path ${CMAKE_BINARY_DIR}/tests)
+file(COPY ${INCOMING_SCHEMA_PATH}/${INCOMING_SCHEMA_NAME} DESTINATION ${sc_path} FILE_PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+file(COPY ${INCOMING_SCHEMA_PATH}/${INCOMING_SCHEMA_NAME} DESTINATION ${tests_path} FILE_PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+
+# the rename fucks up and creates a directory
+#file(RENAME ${sc_path}/${INCOMING_SCHEMA_NAME} ${CMAKE_BINARY_DIR}/src/${INCOMING_SCHEMA_NAME})
+#message("renaming ${CMAKE_BINARY_DIR}/src/${INCOMING_SCRC_NAME} to  ${CMAKE_BINARY_DIR}/src/${INCOMING_SCHEMA_NAME}")
+#file(RENAME ${CMAKE_BINARY_DIR}/src/${INCOMING_SCRC_NAME} ${CMAKE_BINARY_DIR}/src/${INCOMING_SCHEMA_NAME})
+
 add_executable(rsession src/RSession-main.cpp)
 add_dependencies(rsession applogger)
 add_dependencies(common applogger)
@@ -147,3 +160,4 @@ install(TARGETS rserver rsession  RUNTIME DESTINATION .)
 install(DIRECTORY ${CMAKE_BINARY_DIR}/RInside DESTINATION . ${INSTALL_PATH})
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/R/rc2 DESTINATION . ${INSTALL_PATH})
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/rsrc DESTINATION . ${INSTALL_PATH})
+install(FILES ${SOURCE_DIR}/${INCOMING_SCHEMA_PATH}/${INCOMING_SCHEMA_NAME} DESTINATION . RENAME ${INCOMING_SCHEMA_NAME})

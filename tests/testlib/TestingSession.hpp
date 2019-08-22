@@ -42,6 +42,8 @@ namespace RC2 {
 		ExecuteCallback getExecCallback() { return getExecuteCallback(); }
 		bool doLoadEnvironment() { return loadEnvironment(); }
 		
+		virtual string incomingJsonSchemaPath();
+		
 		event_base* cheatBase() { return getEventBase(); }
 		queue<string> _messages;
 		bool countingDown;
