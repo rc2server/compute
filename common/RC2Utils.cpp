@@ -8,8 +8,11 @@ typedef char* uuid_string_t;
 #endif
 #include <sys/stat.h>
 #include <cerrno>
+#include <iostream>
 #include <fstream>
 #include <boost/filesystem.hpp>
+#include <boost/system/error_code.hpp>
+namespace fs = boost::filesystem;
 
 RC2::TemporaryDirectory::TemporaryDirectory(bool erase)
 {
@@ -40,11 +43,19 @@ RC2::SlurpFile(const char *filename)
 {
 	std::ifstream in(filename, std::ios::in | std::ios::binary);
 	if (in) {
+		fs::path filePath(filename);
+		boost::system::error_code code;
+		auto fileStatus = fs::status(filePath, code);
+		auto exists = fs::exists(filePath);
+		auto regular = fs::is_regular_file(filePath);
+		assert(exists && regular);
+		std::cout << filePath << std::endl;
 		std::string contents;
 		in.seekg(0, std::ios::end);
-		contents.resize(in.tellg());
+		int len = fs::file_size(filePath);
+		contents.resize(len);
 		in.seekg(0, std::ios::beg);
-		in.read(&contents[0], contents.size());
+		in.read(&contents[0], len);
 		in.close();
 		return (contents);
 	}
