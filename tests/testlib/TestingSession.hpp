@@ -21,7 +21,7 @@ namespace RC2 {
 	class TestingSession : public RSession {
 	public:
 		
-		TestingSession(RSessionCallbacks *callbacks, FileManager *fm=nullptr);
+		explicit TestingSession(RSessionCallbacks *callbacks, FileManager *fm=nullptr);
 		
 		virtual void	sendJsonToClientSource(std::string json);
 		
@@ -100,13 +100,19 @@ namespace testing {
 		static TestingSession *session;
 		static TestingFileManager *fileManager;
 //		static unique_ptr<TestLogging> testLogger;
-		
+		static void initStaticObjects();
+
 		static void SetUpTestCase() {
 			cerr << "setting up..." << endl;
+			initStaticObjects();
 			evthread_use_pthreads();
-			fileManager = new TestingFileManager();
-			callbacks = new RSessionCallbacks();
-			session = new TestingSession(callbacks, fileManager);
+// 			try {
+// 				fileManager = new TestingFileManager();
+// 				callbacks = new RSessionCallbacks();
+// 				session = new TestingSession(callbacks, fileManager);
+// 			} catch (std::exception &e) {
+// 				cout << "exception in setup:" << e.what() << endl;
+// 			}
 			using namespace g3;
 			static std::unique_ptr<LogWorker> logworker{ LogWorker::createLogWorker() };
 			auto sinkHandle = logworker->addSink(std2::make_unique<RC2::CustomSink>(),
@@ -116,14 +122,14 @@ namespace testing {
 			initializeLogging(logworker.get());
 			event_set_log_callback(myevent_logger);
 			session->prepareForRunLoop();
-			session->doJson("{\"msg\":\"open\", \"argument\": \"\", \"wspaceId\":1, \"sessionRecId\":1, \"dbhost\":\"localhost\", \"dbuser\":\"rc2\", \"dbname\":\"rc2test\", \"dbpass\":\"rc2\"}");
+			session->doJson(R"({"msg":"open", "argument": "", "wspaceId":1, "sessionRecId":1, "dbhost":"localhost", "dbuser":"rc2", "dbname":"rc2test", "dbpassword":"rc2"})");
 			cerr << "setup complete" << endl;
 //			fileManager->setWorkingDir(session->getWorkingDirectory());
 		}
 		
 		static void TearDownTestCase() {
 			try {
-				session->doJson("{\"msg\":\"close\"}");
+				session->doJson("{\"msg\":\"close\", \"argument\": \"\"}");
 				delete session;
 				session = NULL;
 				delete callbacks;
@@ -132,6 +138,7 @@ namespace testing {
 		}
 		
 		virtual void SetUp() {
+			if (session == nullptr) return;
 			session->emptyMessages();
 		}
 		

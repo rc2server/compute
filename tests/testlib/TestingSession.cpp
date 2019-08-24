@@ -24,7 +24,7 @@ namespace RC2 {
 		string val(msg);
 // 		stderr << val << endl;
 	}
-	
+
 
 	TestingSession::TestingSession (RSessionCallbacks *callbacks, FileManager* fm)
 	: RSession(callbacks)
@@ -110,7 +110,11 @@ TestingSession::doJson(std::string json) {
 void 
 TestingSession::execScript ( string rcode )
 {
-	string json = "{\"msg\":\"execScript\", \"argument\": \"" + rcode + "\"}";
+	const char *jsonStart = R"foo( {
+	"msg": "execScript", "queryId:": 1, "argument": ")foo";
+	string jsonStartStr = jsonStart;
+	string json = jsonStartStr + rcode + "\")}foo)";
+//	string json =  "{\"msg\":\"execScript\", \"argument\": \"" + rcode + "\"}";
 	handleJsonCommand(json);
 }
 
@@ -120,7 +124,7 @@ TestingSession::incomingJsonSchemaPath()
 	string installLoc = RC2::GetPathForExecutable(getpid());
 	string::size_type parentDirIndex = installLoc.rfind('/');
 	string parentDir = installLoc.substr(0, parentDirIndex) + "..";
-	string incomingSchemaPath = parentDir + "/compute-to.schema.json";
+	string incomingSchemaPath = parentDir + "/compute.incoming.schema.json";
 	return incomingSchemaPath;
 }
 
@@ -222,9 +226,19 @@ TestingFileManager::addFile ( long int fileId, string name, long int version )
 };
 
 namespace testing {
-	RSessionCallbacks* BaseSessionTest::callbacks = nullptr;
-	TestingSession* BaseSessionTest::session = nullptr;
-	TestingFileManager* BaseSessionTest::fileManager = nullptr;
-//	unique_ptr<TestLogging> BaseSessionTest::testLogger(new TestLogging());
+	void BaseSessionTest::initStaticObjects() {
+		try {
+		BaseSessionTest::callbacks = new RSessionCallbacks();
+		BaseSessionTest::fileManager = new TestingFileManager();
+		BaseSessionTest::session = new TestingSession(BaseSessionTest::callbacks, BaseSessionTest::fileManager);
+		} catch (std::exception &e) {
+			cerr << "exception setting up testing: " << e.what() << endl;
+			FAIL();
+		}
+	}
 	
+RSessionCallbacks* BaseSessionTest::callbacks;// = new RSessionCallbacks();
+TestingFileManager* BaseSessionTest::fileManager;// = new TestingFileManager();
+TestingSession* BaseSessionTest::session;// = new TestingSession(callbacks, fileManager);
+//	unique_ptr<TestLogging> BaseSessionTest::testLogger(new TestLogging());
 };
