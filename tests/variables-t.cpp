@@ -23,9 +23,11 @@ namespace testing {
 	
 	TEST_F(VarTest, getVariable)
 	{
-		session->doJson("{\"msg\":\"execScript\", \"argument\":\"testVar<-22\"}");
+		session->execScript("testVar<-22");
 		session->emptyMessages();
-		session->doJson("{\"msg\":\"getVariable\", \"argument\":\"testVar\"}");
+		string msg = R"foo({"msg":"getVariable", "argument":"testVar"})foo";
+		cerr << "HERE sending: " << msg << endl;
+		session->doJson(msg);
 		ASSERT_EQ(session->_messages.size(), 1);
 		json results = session->popMessage();
 		ASSERT_TRUE(results["msg"] == "variablevalue");
@@ -136,6 +138,7 @@ namespace testing {
 	TEST_F(VarTest, complexDframe) {
 		session->emptyMessages();
 		EnvironmentWatcher watcher(Rcpp::Environment::global_env(), session->getExecCallback());
+		// CRASH: using tmp dir before created in session open
 		session->copyFileToWorkingDirectory("dframe.R");
 		fileManager->addFile(4, "dframe.R", 1);
 		session->executeDelayedJson("{\"msg\":\"execFile\", \"argument\":\"4\"}");
