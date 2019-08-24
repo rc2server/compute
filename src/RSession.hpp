@@ -38,7 +38,7 @@ namespace RC2 {
 			 * 
 			 * @param callbacks The callbacks used for R output while a command is executing
 			 */
-			RSession(RSessionCallbacks *callbacks);
+			explicit RSession(RSessionCallbacks *callbacks);
 			virtual ~RSession();
 			
 			/**

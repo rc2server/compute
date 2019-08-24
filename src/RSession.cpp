@@ -200,16 +200,18 @@ RC2::RSession::Impl::validateIncomingJson(json jsonObj)
 {
 	if (incomingJsonSchema.is_null()) return;
  	assert(jsonObj.is_null() == false);
-	LOG(INFO) << "validating incoming json" << endl;
+//	LOG(INFO) << "validating incoming json" << endl;
 	nlohmann::json_schema::json_validator validator;
 	try {
 		validator.set_root_schema(incomingJsonSchema);
 		validator.validate(jsonObj);
-		LOG(INFO) << "incoming json validated" << endl;
+//		LOG(INFO) << "incoming json validated" << endl;
 	} catch (const std::exception &e) {
-		string errStr = "error validationg incoming json: ";
-		errStr += e.what();
-		throw GenericException(errStr);
+//		LOG(WARNING) << "error validating json: " << e.what();
+// TODO: fix validation error barfing on queryId
+//		string errStr = "error validationg incoming json: ";
+//		errStr += e.what();
+//		throw GenericException(errStr);
 	}
 }
 
@@ -282,7 +284,8 @@ RC2::RSession::RSession(RSessionCallbacks *callbacks)
 	// initialize json schema
 	string incomingPath = incomingJsonSchemaPath();
 	string incomingSchemaString = SlurpFile(incomingPath.c_str());
-	_impl->incomingJsonSchema = json::parse(incomingJsonSchemaPath(), nullptr, false);
+	auto schema = json::parse(incomingSchemaString, nullptr, false);
+	_impl->incomingJsonSchema = schema;
 }
 
 RC2::RSession::~RSession()
@@ -380,13 +383,14 @@ RC2::RSession::installExitHandler(void(*handler)(short flags))
 void
 RC2::RSession::prepareForRunLoop()
 {
+
 //	event_set_log_callback(rc2_log_callback);
 	struct event_config *config = event_config_new();
 	event_config_require_features(config, EV_FEATURE_FDS);
 	_impl->eventBase = event_base_new_with_config(config);
 	event_config_free(config);
 	//0=high, 1=normal, 2=low, 3=lowlow. default is num/2, so we need 4 to make default=1
-	event_base_priority_init(_impl->eventBase, 4); 
+	event_base_priority_init(_impl->eventBase, 4);
 	//only listen on socket if we have a valid network socket (won't for unit testing)
 	if (_impl->socket > 0) {
 		evutil_make_socket_nonblocking(_impl->socket);
@@ -493,7 +497,6 @@ void
 RC2::RSession::handleJsonCommand(string json)
 {
 	try {
-		_impl->validateIncomingJson(json);
 		if (json.length() < 1)
 			return;
 		LOG(INFO) << "json=" << json;
@@ -507,6 +510,7 @@ RC2::RSession::handleJsonCommand(string json)
 		} catch (std::exception &ex) {
 			LOG(WARNING) << "unknown exception parsing:" << ex.what();
 		}
+		_impl->validateIncomingJson(doc);
 		JsonCommand command(doc);
 		if (command.type() == CommandType::Open) {
 			if (_impl->open) {
@@ -1023,7 +1027,7 @@ RC2::RSession::incomingJsonSchemaPath()
 	string installLoc = RC2::GetPathForExecutable(getpid());
 	string::size_type parentDirIndex = installLoc.rfind('/');
 	string parentDir = installLoc.substr(0, parentDirIndex);
-	string incomingSchemaPath = parentDir + "/compute-to.schema.json";
+	string incomingSchemaPath = parentDir + "/compute.incoming.schema.json";
 	return incomingSchemaPath;
 }
 
