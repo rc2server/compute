@@ -16,6 +16,7 @@
 #include <nlohmann/json.hpp>
 #include "json-schema.hpp"
 #include "RC2Logging.h"
+#include <Rcpp.h>
 #include <RInside.h>
 #include <event2/buffer.h>
 #include <event2/event.h>
@@ -92,6 +93,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	string							currentImageName; //watching to track title of it
 	json							incomingJsonSchema;
 	double							consoleLastWrite;
+	int								apiVersion;
 	int								wspaceId;
 	int								sessionRecId;
 	int								socket;
@@ -536,6 +538,7 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		return;
 	}
 	_impl->wspaceId = cmd.raw()["wspaceId"];
+	_impl->apiVersion = cmd.apiVersion();
 	try {
 		string installLoc = RC2::GetPathForExecutable(getpid());
 		string::size_type parentDirIndex = installLoc.rfind('/');
@@ -636,12 +639,11 @@ RC2::RSession::handleClearEnvironment(RC2::JsonCommand& command)
 	}
 	if (watching) {
 		auto envWatcher = _impl->env(command.envId());
-		json2 vars = envWatcher->toJson();
 		json2 results = {
-			{"variables", vars},
 			{"msg", "variableupdate"},
 			{"delta", false}
 		};
+		envWatcher->addVariables(results, false, _impl->apiVersion);
 		if (!command.clientData().is_null())
 			results["clientData"] = command.clientData();
 		sendJsonToClientSource(results.dump());
@@ -685,12 +687,11 @@ void
 RC2::RSession::handleListVariablesCommand(bool delta, JsonCommand& command)
 {
 	auto envWatcher = _impl->env(command.envId());
-	json2 vars = delta ? envWatcher->jsonDelta() : envWatcher->toJson();
 	json2 results = {
-		{"variables", vars},
 		{"msg", "variableupdate"},
 		{"delta", delta}
 	};
+	envWatcher->addVariables(results, false, _impl->apiVersion);
 	if (!command.clientData().is_null())
 		results["clientData"] = command.clientData();
 	sendJsonToClientSource(results.dump());
@@ -992,6 +993,18 @@ RC2::RSession::formatStringAsJson(const string &input, bool is_error)
 	if (_impl->currentQueryId > 0)
 		response["queryId"] = _impl->currentQueryId;
 	return response.dump();
+}
+
+int
+RC2::RSession::getApiVersion() const
+{
+	return _impl->apiVersion;
+}
+
+void
+RC2::RSession::setApiVersion(int version) {
+	assert(version >= 0 && version <= 1);
+	_impl->apiVersion = version;
 }
 
 string

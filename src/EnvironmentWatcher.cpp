@@ -147,6 +147,69 @@ RC2::EnvironmentWatcher::captureEnvironment()
 	std::sort(_lastVars.begin(), _lastVars.end(), compareVariablesByName);
 }
 
+void
+RC2::EnvironmentWatcher::addVariables(json::value_type &jsonContainer, bool delta, int apiVersion)
+{
+	if (apiVersion > 0) {
+		if (delta) {
+			addDelta(jsonContainer);
+		} else {
+			json results;
+			Rcpp::StringVector names(_env.ls(false));
+			std::for_each(names.begin(), names.end(), [&](const char* aName) { 
+				results[aName] = toJson(aName);
+			});
+			jsonContainer["variables"] = results;
+		}
+	} else if (delta) {
+		addDelta(jsonContainer);
+	} else {
+		json results;
+		Rcpp::StringVector names(_env.ls(false));
+		std::for_each(names.begin(), names.end(), [&](const char* aName) { 
+			results[aName] = toJson(aName);
+		});
+		jsonContainer["variables"] = results;
+	}
+}
+
+void
+RC2::EnvironmentWatcher::addDelta(json::value_type &container) {
+	std::vector<Variable> added;
+	std::vector<Variable> removed;
+	
+	//get new variables
+	Rcpp::StringVector names(_env.ls(false));
+	std::vector<Variable> newVars;
+	std::for_each(names.begin(), names.end(), [&](const char *aName) {
+		newVars.push_back(Variable(aName, _env.get(aName))); 
+	});
+	std::sort(newVars.begin(), newVars.end(), compareVariablesByName);
+
+	//sort old variables
+	std::sort(_lastVars.begin(), _lastVars.end(), compareVariablesByName);
+
+	//figure out what was removed
+	std::set_difference(_lastVars.begin(), _lastVars.end(), 
+						newVars.begin(), newVars.end(),
+						std::back_inserter(removed), compareVariablesByName);
+	//figure out what was added
+	std::set_difference(newVars.begin(), newVars.end(),
+						_lastVars.begin(), _lastVars.end(), 
+						std::back_inserter(added));
+	//craft into json
+	std::vector<std::string> removedNames;
+	get_var_names(removed, removedNames);
+	json variables, jsonAdded;
+	container["variablesRemoved"] = removedNames;
+	std::for_each(added.begin(), added.end(), [&](Variable aVar) {
+		json varValue;
+		valueToJson(aVar.first, aVar.second, varValue, false);
+		jsonAdded[aVar.first] = varValue;
+	});
+	container["variablesAdded"] = jsonAdded;
+}
+
 json::value_type 
 RC2::EnvironmentWatcher::toJson ( std::string varName )
 {
@@ -156,6 +219,7 @@ RC2::EnvironmentWatcher::toJson ( std::string varName )
 	return results;
 }
 
+// DEPRECATED
 json::value_type 
 RC2::EnvironmentWatcher::toJson()
 {
@@ -167,6 +231,7 @@ RC2::EnvironmentWatcher::toJson()
 	return results;
 }
 
+// DEPRECATED
 json::value_type 
 RC2::EnvironmentWatcher::jsonDelta()
 {

@@ -105,8 +105,14 @@ namespace RC2 {
 			 */
 			string getWorkingDirectory() const;
 
-			//unit test subclasses might override
+			/**
+			 * @brief returns the current apiVersion
+			 * 
+			 * @return api version
+			*/
+			int getApiVersion() const;
 			
+			//unit test subclasses might override
 			
 			/**
 			 * @brief process a json command just like if it was received over the network
@@ -149,6 +155,9 @@ namespace RC2 {
 			struct event_base*	getEventBase() const;
 			ExecuteCallback getExecuteCallback();
 			bool loadEnvironment();
+			
+			//tests need to be able to set this
+			void setApiVersion(int);
 			
 			// testing subclasses need to override this since the executable 
 			// directory is not the same as rsession

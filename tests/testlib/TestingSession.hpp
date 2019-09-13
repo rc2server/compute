@@ -42,6 +42,8 @@ namespace RC2 {
 		ExecuteCallback getExecCallback() { return getExecuteCallback(); }
 		bool doLoadEnvironment() { return loadEnvironment(); }
 		
+		void setApi(int version) { setApiVersion(version); }
+		
 		virtual string incomingJsonSchemaPath();
 		
 		event_base* cheatBase() { return getEventBase(); }

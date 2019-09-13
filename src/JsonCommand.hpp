@@ -34,6 +34,7 @@ namespace RC2 {
 			
 			CommandType type() const { return _type; }
 			json2::value_type raw() const { return _cmd; }
+			int apiVersion() { return _cmd.value("apiVersion", 0); }
 			std::string argument() const { return _cmd.value("argument", ""); }
 			std::string startTimeStr() const {
 				return _cmd.value("startTime", ""); 

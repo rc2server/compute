@@ -37,7 +37,9 @@ public:
 	 * 
 	 * @return json::value_type
 	 */
+	[[deprecated]]
 	json::value_type toJson();
+
 	/**
 	 * @brief Returns the specified variable as a json object
 	 * 
@@ -46,12 +48,25 @@ public:
 	 * @return json::value_type
 	 */
 	json::value_type toJson(std::string varName);
+	
 	/**
 	 * @brief returns the changes since the last captureEnvironment call
 	 * 
 	 * @return json::value_type
 	 */
+	[[deprecated]]
 	json::value_type jsonDelta();
+	
+	/**
+	* @brief adds variables to jsonContainer. If apiVersion > 0, adds "variables" (map of name to value), 
+	* "variablesAdded" (map to new variables), "veriablesRemoved" (array of variable names)
+	* If apiVersion == 0, returns old format of variables map with added and removed keys
+	* 
+	* @param jsonContainer the container to add values to
+	* @param delta should this be changes, or everyting
+	* @param apiVersion the apiVersion to use. version 1 changed format
+	*/
+	void addVariables(json::value_type &jsonContainer, bool delta, int apiVersion);
 	
 	/**
 	 * @brief converts an RObject to a json object
@@ -79,7 +94,10 @@ protected:
 	Rcpp::Environment _env;
 	std::vector<Variable> _lastVars;
 	ExecuteCallback _execCallback;
-	
+
+	// addds delta entries (variables, variablesAdded, avariablesRemoved) to container
+	void addDelta(json::value_type &container);	
+
 	//returns array
 	json rvectorToJsonArray(RObject& robj);
 	
