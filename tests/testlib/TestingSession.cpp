@@ -113,7 +113,7 @@ TestingSession::execScript ( string rcode )
 	const char *jsonStart = R"foo( {
 	"msg": "execScript", "queryId:": 1, "argument": ")foo";
 	string jsonStartStr = jsonStart;
-	string json = jsonStartStr + rcode + "\")}foo)";
+	string json = jsonStartStr + rcode + "\"}";
 //	string json =  "{\"msg\":\"execScript\", \"argument\": \"" + rcode + "\"}";
 	handleJsonCommand(json);
 }

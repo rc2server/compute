@@ -25,7 +25,7 @@ namespace testing {
 	{
 		session->execScript("testVar<-22");
 		session->emptyMessages();
-		string msg = R"foo({"msg":"getVariable", "argument":"testVar"})foo";
+		string msg = "{\"msg\":\"getVariable\", \"argument\":\"testVar\"}";
 		cerr << "HERE sending: " << msg << endl;
 		session->doJson(msg);
 		ASSERT_EQ(session->_messages.size(), 1);
@@ -36,8 +36,27 @@ namespace testing {
 
 	TEST_F(VarTest, listVariables)
 	{
-		session->doJson("{\"msg\":\"execScript\", \"argument\":\"rm(list=ls())\"}");
+		session->doJson("{\"msg\":\"execScript\", \"argument\":\"rm(list=ls())\")");
 		session->doJson("{\"msg\":\"execScript\", \"argument\":\"z <- c('foo','bar')\"}");
+		session->doJson("{\"msg\":\"execScript\", \"argument\":\"x<-22;y<-11\"}");
+		session->emptyMessages();
+		session->doJson("{\"msg\":\"listVariables\", \"argument\":\"\", \"watch\":true}");
+		cerr << "message size:" << session->_messages.size() << endl;
+		ASSERT_EQ(session->_messages.size(), 1);
+		json results = session->popMessage();
+		ASSERT_TRUE(results["msg"] == "variableupdate");
+		auto vars = results["variables"];
+		auto xval = vars["x"];
+		auto xvals = xval["value"];
+		ASSERT_EQ(xvals[0], 22);
+		// TODO: test more values are correct
+	}
+
+	TEST_F(VarTest, listVariablesV1)
+	{
+		session->setApi(1);
+		session->doJson("{\"msg\":\"execScript\", \"argument\":\"rm(list=ls())\"}");
+		session->doJson("{\"msg\":\"execScript\", \"argument\":\"z <- c('foo','bar')\")");
 		session->doJson("{\"msg\":\"execScript\", \"argument\":\"x<-22;y<-11\"}");
 		session->emptyMessages();
 		session->doJson("{\"msg\":\"listVariables\", \"argument\":\"\", \"watch\":true}");
@@ -197,16 +216,40 @@ namespace testing {
 		session->execScript("x <- 2; y <- 4");
 		watcher.captureEnvironment();
 		session->execScript("x <- y / 4");
-		json delta = watcher.jsonDelta();
-		ASSERT_EQ(delta["assigned"].size(), 1);
-		ASSERT_EQ(delta["removed"].size(), 0);
-		ASSERT_EQ(delta["assigned"]["x"]["type"], "d");
+		json delta = {};
+		watcher.addVariables(delta, true, 1);
+		cout << delta.dump() << endl;
+		ASSERT_EQ(delta["variablesAdded"].size(), 1);
+		ASSERT_EQ(delta["variablesRemoved"].size(), 0);
+		ASSERT_EQ(delta["variablesAdded"]["x"]["type"], "d");
+		watcher.captureEnvironment();
+		delta.clear();
+		session->execScript("rm(y)");
+		watcher.addVariables(delta, true, 0);
+		ASSERT_EQ(delta["variablesAdded"].size(), 0);
+		ASSERT_EQ(delta["variablesRemoved"].size(), 1);
+		ASSERT_EQ(delta["variablesRemoved"][0], "y");
+	}
+
+	TEST_F(VarTest, simpleDeltaV1) {
+		session->setApi(1);
+		EnvironmentWatcher watcher(Rcpp::Environment::global_env(),  session->getExecCallback());
+		session->execScript("x <- 2; y <- 4");
+		watcher.captureEnvironment();
+		session->execScript("x <- y / 4");
+		json delta = R"({"foo": "bar"})"_json;;
+		watcher.addVariables(delta, true, 1);
+		cout << delta << endl;
+		ASSERT_EQ(delta["variablesAdded"].size(), 1);
+		ASSERT_EQ(delta["variablesRemoved"].size(), 0);
+		ASSERT_EQ(delta["variablesAdded"]["x"]["type"], "d");
 		watcher.captureEnvironment();
 		session->execScript("rm(y)");
-		delta = watcher.jsonDelta();
-		ASSERT_EQ(delta["assigned"].size(), 0);
-		ASSERT_EQ(delta["removed"].size(), 1);
-		ASSERT_EQ(delta["removed"][0], "y");
+		delta.clear();
+		watcher.addVariables(delta, true, 1);
+		ASSERT_EQ(delta["variablesAdded"].size(), 0);
+		ASSERT_EQ(delta["variablesRemoved"].size(), 1);
+		ASSERT_EQ(delta["variablesRemoved"][0], "y");
 	}
 };
 
