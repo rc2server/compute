@@ -689,7 +689,8 @@ RC2::RSession::handleListVariablesCommand(bool delta, JsonCommand& command)
 	auto envWatcher = _impl->env(command.envId());
 	json2 results = {
 		{"msg", "variableupdate"},
-		{"delta", delta}
+		{"delta", delta},
+		{"contextId", command.envId()}
 	};
 	envWatcher->addVariables(results, false, _impl->apiVersion);
 	if (!command.clientData().is_null())
@@ -706,6 +707,7 @@ RC2::RSession::handleGetVariableCommand(JsonCommand &command)
 		{"msg", "variablevalue"},
 		{"name", command.argument()},
 		{"value", value},
+		{"contextId", command.envId()},
 		{"startTime", command.startTimeStr()}
 	};
 	if (!command.clientData().is_null())
