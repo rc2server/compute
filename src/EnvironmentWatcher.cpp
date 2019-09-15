@@ -13,6 +13,7 @@ const char *kClass = "class";
 const char *kValue = "value";
 const char *kName = "name";
 const char *kType = "type";
+const char *vNoType = "-";
 
 namespace RC2 {
 void get_var_names(std::vector<Variable> &vars, std::vector<std::string> &names) {
@@ -336,6 +337,7 @@ RC2::EnvironmentWatcher::setListData ( RObject& robj, json& jobj, bool includeLi
 	json nameArray = rvectorToJsonArray(names);
 	jobj["names"] = nameArray;
 	jobj["length"] = len;
+	jobj[kType] = vNoType;
 	std::string emptyStr;
 	if (includeListChildren) {
 		json children;
@@ -369,14 +371,14 @@ RC2::EnvironmentWatcher::setObjectData ( RObject& robj, json& jobj )
 		char datebuf[16];
 		snprintf(datebuf, 16, "%4d-%02d-%02d", date.getYear(), date.getMonth(), date.getDay());
 		jobj[kValue] = datebuf;
-		jobj["type"] = "date";
+		jobj[kType] = "date";
 	} else if (jobj[kClass] == "POSIXct") {
 		jobj[kValue] = REAL(robj)[0];
-		jobj["type"] = "date";
+		jobj[kType] = "date";
 	} else if (jobj[kClass] == "POSIXlt") {
 		Rcpp::Datetime dt(robj);
 		jobj[kValue] = dt.getFractionalTimestamp();
-		jobj["type"] = "date";
+		jobj[kType] = "date";
 	}  else if (jobj[kClass] == "data.frame") {
 		setDataFrameData(robj, jobj);
 	} else {
@@ -387,7 +389,7 @@ RC2::EnvironmentWatcher::setObjectData ( RObject& robj, json& jobj )
 void 
 RC2::EnvironmentWatcher::setFactorData ( RObject& robj, json& jobj )
 {
-	jobj["type"] = "f";
+	jobj[kType] = "f";
 	Rcpp::StringVector levs(robj.attr("levels"));
 	jobj["levels"] = levs;
 	jobj[kValue] = Rcpp::IntegerVector(robj);
@@ -396,6 +398,7 @@ RC2::EnvironmentWatcher::setFactorData ( RObject& robj, json& jobj )
 void 
 RC2::EnvironmentWatcher::setDataFrameData ( RObject& robj, json& jobj )
 {
+	jobj[kType] = "d";
 	int colCount = LENGTH(robj);
 	jobj["ncol"] = colCount;
 	RObject rowList(robj.attr("row.names"));
@@ -410,7 +413,7 @@ RC2::EnvironmentWatcher::setDataFrameData ( RObject& robj, json& jobj )
 		rowCount = LENGTH(element);
 		json aCol;
 		std::string aType = columnType(element);
-		aCol["type"] = aType;
+		aCol[kType] = aType;
 		if(aType == "of" || aType == "f") {
 			aCol["levels"] = Rcpp::StringVector(element.attr("levels"));
 		}
