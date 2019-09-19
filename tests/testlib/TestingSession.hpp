@@ -37,12 +37,13 @@ namespace RC2 {
 		json popMessage();
 		
 		void startCountdown(int count);
-		void executeDelayedJson(string msg);
+		void executeDelayedJson(string msg, int delay = 1);
 		
 		ExecuteCallback getExecCallback() { return getExecuteCallback(); }
 		bool doLoadEnvironment() { return loadEnvironment(); }
 		
 		void setApi(int version) { setApiVersion(version); }
+		void clearGlobalEnvironment();
 		
 		virtual string incomingJsonSchemaPath();
 		

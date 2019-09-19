@@ -40,7 +40,7 @@ void TestingSession::startCountdown ( int count )
 	countingDown = true;
 }
 
-void TestingSession::executeDelayedJson ( string msg )
+void TestingSession::executeDelayedJson ( string msg, int delay )
 {
 	struct DelayJson {
 		TestingSession *session;
@@ -49,7 +49,7 @@ void TestingSession::executeDelayedJson ( string msg )
 	DelayJson *arg = new DelayJson();
 	arg->session = this;
 	arg->msg = msg;
-	struct timeval delay = {0, 1};
+	struct timeval delayTV = {0, delay};
 	event_callback_fn closure = [](int f, short fl, void* arg) { 
 		DelayJson *msg = (DelayJson*)arg;
 		msg->session->doJson(msg->msg); 
@@ -57,7 +57,7 @@ void TestingSession::executeDelayedJson ( string msg )
 	};
 	struct event *ev = event_new(getEventBase(), -1, 0, closure, arg);
 	event_priority_set(ev, 0);
-	event_add(ev, &delay);
+	event_add(ev, &delayTV);
 }
 
 
@@ -128,7 +128,11 @@ TestingSession::incomingJsonSchemaPath()
 	return incomingSchemaPath;
 }
 
-
+void
+TestingSession::clearGlobalEnvironment() {
+	auto json = "{ \"msg\": \"clearEnvironment\", \"contextId\": 0 }";
+	handleJsonCommand(json);
+}
 
 TestingFileManager::TestingFileManager() {
 }
