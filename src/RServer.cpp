@@ -129,7 +129,7 @@ RServer::parseArgs(int argc, char** argv)
 			false, 7714, "port", cmdLine);
 		
 		TCLAP::SwitchArg switchArg("v", "verbose", "enable logging", cmdLine);
-		TCLAP::SwitchArg forkArg("f", "fork", "fork multiple sessions", cmdLine);
+		TCLAP::SwitchArg forkArg("f", "fork", "fork multiple sessions", cmdLine, true);
 			
 		cmdLine.parse(argc, argv);
 		_port = portArg.getValue();
