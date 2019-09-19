@@ -549,9 +549,11 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		string dbhost(cmd.valueForKey("dbhost"));
 		string dbuser(cmd.valueForKey("dbuser"));
 		string dbname(cmd.valueForKey("dbname"));
+		string dbport(cmd.valueForKey("dbport"));
 		string dbpassword(cmd.valueForKey("dbpassword"));
+		if (dbport.length() < 4) { dbport = "5432"; }
 		ostringstream connectString;
-		connectString << "postgresql://" << dbuser << "@" << dbhost << "/" 
+		connectString << "postgresql://" << dbuser << "@" << dbhost << ":" << dbport << "/" 
 			<< dbname << "?application_name=rsession&sslmode=disable";
 		if (dbpassword.length() > 0)
 			connectString << "&password=" << dbpassword;
@@ -990,7 +992,7 @@ RC2::RSession::formatStringAsJson(const string &input, bool is_error)
 	json2 response = {
 		{"msg", "results"},
 		{"string", output},
-		{is_error ? "stderr" : "stdout", true}
+		{"is_error", is_error}
 	};
 	if (_impl->currentQueryId > 0)
 		response["queryId"] = _impl->currentQueryId;
