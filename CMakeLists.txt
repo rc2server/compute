@@ -30,9 +30,10 @@ set_property(GLOBAL PROPERTY CXX_STANDARD_REQUIRED ON)
 
 add_definitions(-std=c++14)
 SET(CMAKE_CXX_FLAGS "-DBOOST_LOG_DYN_LINK -g")
+SET(CMAKE_C_FLAGS "-export-dynamic")
 #following fixes compile error because somehow -rdynamic is getting set as a linker flag
 SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
-SET(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "-Wl,--no-export-dynamic -lstdc++")
+SET(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "-Wl,--export-dynamic -lstdc++")
 SET(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib:/usr/local/lib/R/lib:/usr/local/lib/R/site-library/RInside/libs/:")
 SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 

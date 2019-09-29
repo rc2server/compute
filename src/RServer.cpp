@@ -103,12 +103,16 @@ RServer::handleEvent(evutil_socket_t listener, short events)
 	if (_shouldFork) {
 		int forkResult = fork();
 		if (forkResult == 0) {
+			close(_socket); // close our copy of listening socket
 			execve(path.c_str(), (char *const *)args, environ);
 			//only get here if there was an error with execve
 			std::cerr << "Error with execve:" << errno << std::endl;
 			exit(1);
 		} else if (forkResult == -1) {
 			std::cerr << "failed to fork:" << errno << std::endl;
+			close(clientSock);
+		} else {
+			// parent process continuing. close our copy of new socket
 			close(clientSock);
 		}
 	} else {
