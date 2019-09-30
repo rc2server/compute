@@ -63,6 +63,7 @@ class RC2::FileManager::Impl : public ZeroInitializedClass {
 		string						workingDir;
 		struct event_base*			eventBase_;
 		struct bufferevent*			inotifyEvent_;
+		struct event*				dbnotifyEvent_;
 		int							inotifyFd_;
 		FSDirectory					rootDir_;
 		boost::regex				imgRegex_;
@@ -295,7 +296,17 @@ RC2::FileManager::Impl::handleDBNotifications()
 	LOG(G3LOG_DEBUG) << "handleDBNotifications called";
 	ignoreFSNotifications();
 	PGnotify *notify;
-	dbConnection_->consumeInput();
+	try {
+		dbConnection_->consumeInput();
+	} catch (DBException &dbexception) {
+		if (!dbConnection_->connectionOpen()) {
+			LOG(WARNING) << "db connection closed while handling a handleDBNotification?" << endl;
+			event_free(dbnotifyEvent_);
+			return;
+		}
+		LOG(WARNING) << "error consuming input: " << dbexception.what() << endl;
+		return;
+	}
 	string name, channel;
 	while (dbConnection_->checkForNotification(name, channel)) {
 		LOG(INFO) << "got notification " << channel;
@@ -507,6 +518,7 @@ RC2::FileManager::initFileManager(std::string workingDir, std::shared_ptr<PGDBCo
 		EV_READ|EV_PERSIST, RC2::FileManager::Impl::handleDBNotify, this);
 	event_priority_set(evt, 2); //so inotify events handled first
 	event_add(evt, NULL);
+	_impl->dbnotifyEvent_ = evt;
 }
 
 void RC2::FileManager::suspendNotifyEvents()
