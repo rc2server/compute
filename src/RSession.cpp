@@ -274,7 +274,7 @@ RC2::RSession::RSession(RSessionCallbacks *callbacks)
 {
 	_callbacks = callbacks;
 	setenv("R_HOME", "/usr/local/lib/R", 0); //will not overwrite
-	_impl->R = new RInside(0, NULL, false, true, false);
+	_impl->R = new RInside(0, NULL, false, false, false);
 	auto clambda = [&](const string &text, bool is_error) -> void {
 		consoleCallback(text, is_error);
 	};
