@@ -6,6 +6,8 @@
 #include "EnvironmentWatcher.hpp"
 #include "../common/RC2Utils.hpp"
 
+// documentation of code flow is in rc2root:/documentation/varaibleFormat.md
+
 const int kMaxLen = 100;
 const char *kNotAVector = "notAVector";
 const char *kPrimitive = "primitive";
@@ -548,6 +550,15 @@ RC2::EnvironmentWatcher::setPrimitiveData ( RObject& robj, json& jobj )
 //				std::vector<char> bytes = 
 //				jobj[kValue] = raw.asStdVectorInt();
 			}
+			break;
+		case SYMSXP: //not actually a primitive type, but handle here for convience
+			{
+				Rcpp::Symbol sym(robj);
+				jobj[kName] = sym.c_str();
+			}
+			jobj[kClass] = "symbol";
+			notVector = true;
+			jobj[kPrimitive] = false;
 			break;
 		default:
 			jobj[kClass] = "unsupported type";
