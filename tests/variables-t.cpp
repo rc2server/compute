@@ -67,6 +67,24 @@ namespace testing {
 		ASSERT_EQ(xvals[0], 22);
 		// TODO: test more values are correct
 	}
+	
+	TEST_F(VarTest, symbol)
+	{
+		EnvironmentWatcher watcher(session->getExecCallback());
+		auto inside = session->getInside();
+		SEXP answer = NULL;
+		string query = "library(rlang)";
+		RInside::ParseEvalResult result = inside->parseEvalR(query, answer, watcher.getEnvironment());
+		inside->parseEvalQ(query);
+		ASSERT_EQ(result, RInside::ParseEvalResult::PE_SUCCESS);
+		query = "sy <- rlang::sym(\"foo\")";
+		result = inside->parseEvalR(query, answer, watcher.getEnvironment());
+		ASSERT_EQ(result, RInside::ParseEvalResult::PE_SUCCESS);
+		json symJson = watcher.toJson("sy");
+		ASSERT_TRUE(symJson.is_object());
+		ASSERT_EQ(symJson["name"], "foo");
+		ASSERT_EQ(symJson["class"], "symbol");
+	}
 
 	TEST_F(VarTest, basicWatcher)
 	{
