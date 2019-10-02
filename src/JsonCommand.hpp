@@ -6,7 +6,7 @@ namespace RC2 {
 	
 	enum class CommandType {
 		Unknown=-1, Open, Close, ClearFileChanges, ExecScript, ExecAndReturn, ExecFile,
-		Help, ListVariables, GetVariable, ToggleWatch, SaveData, ClearEnvironment
+		Help, ListVariables, GetVariable, ToggleWatch, SaveData, ClearEnvironment, CreateEnvironment
 	};
 	
 	class JsonCommand {
@@ -30,6 +30,7 @@ namespace RC2 {
 				if (cmdStr == "getVariable") _type = CommandType::GetVariable;
 				if (cmdStr == "toggleVariableWatch") _type = CommandType::ToggleWatch;
 				if (cmdStr == "clearEnvironment") _type = CommandType::ClearEnvironment;
+				if (cmdStr == "creaetEnvironment") _type = CommandType::CreateEnvironment;
 			}
 			
 			CommandType type() const { return _type; }

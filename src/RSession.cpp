@@ -88,6 +88,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	unique_ptr<TemporaryDirectory>	tmpDir;
 //	unique_ptr<EnvironmentWatcher>	envWatcher;
     EnvironmentMap                  environments;
+	int								environmentCounter;
 	shared_ptr<string>				consoleOutBuffer;
 	string							stdOutCapture;
 	string							currentImageName; //watching to track title of it
@@ -489,6 +490,9 @@ RC2::RSession::handleCommand(JsonCommand& command)
 		case CommandType::ClearEnvironment:
 			handleClearEnvironment(command);
 			break;
+		case CommandType::CreateEnvironment:
+			handleCreateEnvironment(command);
+			break;
 		default:
 			LOG(WARNING) << "unknown command type";
 			break;
@@ -653,6 +657,28 @@ RC2::RSession::handleClearEnvironment(RC2::JsonCommand& command)
 }
 
 void
+RC2::RSession::handleCreateEnvironment(RC2::JsonCommand& command)
+{
+	string transId = command.argument();
+	if (transId.length() < 1) {
+		//error
+		sendJsonToClientSource(formatErrorAsJson(kError_MissingTransactionId, "missing transactionId", 0));
+		return;
+	}
+	int newId = _impl->environmentCounter;
+	while (_impl->environments.count(newId) > 0) {
+		newId++;
+	}
+	_impl->environmentCounter += 1;
+	_impl->environments[newId] = unique_ptr<EnvironmentWatcher>(new EnvironmentWatcher(Environment::global_env(), getExecuteCallback()));
+	json results = { { "msg", "envCreated" }, {"contextId", newId }, {"transactionId", transId} };
+	sendJsonToClientSource(results.dump()
+		
+	);
+}
+
+
+void
 RC2::RSession::handleExecuteScript(JsonCommand& command) {
 	LOG(INFO) << "exec:" << command.argument();
 	bool sendDelta = _impl->watchVariables || command.watchVariables();
@@ -749,7 +775,7 @@ RC2::RSession::executeFile(JsonCommand& command) {
 	if (!_impl->fileManager->filePathForId(fileId, fpath)) {
 		ostringstream errbuff;
 		errbuff << "unknown file:" << fileId;
-		sendJsonToClientSource(formatErrorAsJson(kErrfor_UnknownFile, errbuff.str(), _impl->currentQueryId));
+		sendJsonToClientSource(formatErrorAsJson(kError_UnknownFile, errbuff.str(), _impl->currentQueryId));
 		return;
 	}
 	fs::path p(fpath);

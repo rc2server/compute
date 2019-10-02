@@ -18,7 +18,9 @@ class RInside;
 #define kError_Open_CreateDirFailed 102
 #define kError_Execfile_InvalidInput 103
 #define kError_ExecFile_MarkdownFailed 104
-#define kErrfor_UnknownFile 105
+#define kError_UnknownFile 105
+#define kError_MissingTransactionId 106
+#define kError_MissingQueryId 107
 
 typedef std::function<void(string&)> OutputCallback;
 //typedef void (^OutputCallback)(string &str);
@@ -139,6 +141,7 @@ namespace RC2 {
 			void	handleListVariablesCommand(bool delta, JsonCommand& command);
 			void	handleGetVariableCommand(JsonCommand& command);
 			void	handleClearEnvironment(JsonCommand& command);
+			void	handleCreateEnvironment(JsonCommand& command);
 
 			void	handleExecuteScript(JsonCommand& command);
 			void	handleExecuteAndReturn(JsonCommand& command);
