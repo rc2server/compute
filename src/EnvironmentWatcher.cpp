@@ -312,7 +312,10 @@ RC2::EnvironmentWatcher::valueToJson (std::string varName, RObject& robj, json& 
 		return;
 	}
 	switch(robj.sexp_type()) {
-		case VECSXP:
+		case LISTSXP: // 1
+			setPairListData(robj, jobj);
+			break;
+		case VECSXP: // 19
 			setListData(robj, jobj, includeListChildren);
 			addSummary(varName, jobj);
 			break;
@@ -330,14 +333,23 @@ RC2::EnvironmentWatcher::valueToJson (std::string varName, RObject& robj, json& 
 	}
 }
 
+void 
+RC2::EnvironmentWatcher::setPairListData(Rcpp::RObject& robj, json& jobj)
+{
+	// PairLists can be automatically converted to a plain list
+	setListData(robj, jobj, true);
+	jobj[kClass] = "pairlist";
+}
+
 void
 RC2::EnvironmentWatcher::setListData ( RObject& robj, json& jobj, bool includeListChildren )
 {
-	int len = LENGTH(robj);
+	Rcpp::List list(robj);
+	int len = list.length();
 	jobj[kClass] = "list";
-	RObject names(robj.attr("names"));
-	json nameArray = rvectorToJsonArray(names);
-	jobj["names"] = nameArray;
+	Rcpp::StringVector names(robj.attr("names"));
+//	json nameArray = rvectorToJsonArray(names);
+	jobj["names"] = names;
 	jobj["length"] = len;
 	jobj[kType] = vNoType;
 	std::string emptyStr;
@@ -345,10 +357,10 @@ RC2::EnvironmentWatcher::setListData ( RObject& robj, json& jobj, bool includeLi
 		json children;
 		int maxLen = len < kMaxLen ? len : kMaxLen;
 		for (int i=0; i < maxLen; i++) {
-			RObject aChild(VECTOR_ELT(robj, i));
+			RObject aChild(list[i]);
 			json childObj;
-			valueToJson(emptyStr,  aChild, childObj, false);
-			childObj[kName] = nameArray[i];
+			valueToJson(emptyStr, aChild, childObj, false);
+			childObj[kName] = names[i];
 			children.push_back(childObj);
 		}
 		jobj[kValue] = children;

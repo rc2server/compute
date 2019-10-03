@@ -68,6 +68,22 @@ namespace testing {
 		// TODO: test more values are correct
 	}
 	
+	TEST_F(VarTest, pairlist)
+	{
+		EnvironmentWatcher watcher(session->getExecCallback());
+		auto inside = session->getInside();
+		SEXP answer = NULL;
+		string query = "pl <- pairlist(\"foo\"=\"bar\", \"age\"=21)";
+		RInside::ParseEvalResult result = inside->parseEvalR(query, answer, watcher.getEnvironment());
+		ASSERT_EQ(result, RInside::ParseEvalResult::PE_SUCCESS);
+		json value = watcher.toJson("pl");
+		ASSERT_TRUE(value.is_object());
+		ASSERT_EQ(value["class"], "pairlist");
+		ASSERT_EQ(value["length"], 2);
+		ASSERT_EQ(value["names"][0], "foo");
+		ASSERT_EQ(value["value"][1]["value"][0], 21);
+	}
+	
 	TEST_F(VarTest, symbol)
 	{
 		EnvironmentWatcher watcher(session->getExecCallback());

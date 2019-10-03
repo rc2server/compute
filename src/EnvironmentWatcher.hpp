@@ -110,6 +110,7 @@ protected:
 	void setPrimitiveData(RObject& robj, json& jobj);
 	void setDimNames(RObject& robj, json& jobj);
 	void setListData(RObject& robj, json& jobj, bool includeListChildren);
+	void setPairListData(RObject& robj, json& jobj);
 	
 	void addSummary(std::string& varName, json& jobj);
 };
