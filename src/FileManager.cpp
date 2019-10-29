@@ -596,6 +596,15 @@ RC2::FileManager::saveRData()
 }
 
 void
+RC2::FileManager::allFiles(std::vector<shared_ptr<FileInfo>> &all)
+{
+	for (const auto f : _impl->dbFileSource_->filesById_) {
+		std::shared_ptr<FileInfo> finfo = std::make_shared<FileInfo>(FileInfo(f.second.get()->id, f.second.get()->version, f.second.get()->name));
+		all.push_back(finfo);
+	}
+}
+
+void
 RC2::FileManager::findOrAddFile(std::string fname, FileInfo &info)
 {
 	auto & fileMap = _impl->dbFileSource_->filesById_;

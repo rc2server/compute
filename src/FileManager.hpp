@@ -18,6 +18,9 @@ namespace RC2 {
 		FileInfo(long anId, long aVersion, std::string aName)
 		: id(anId), version(aVersion), name(aName)
 		{}
+		FileInfo(const FileInfo &f2) 
+		: id(f2.id), version(f2.version), name(f2.name)
+		{ }
 		FileInfo(const FileInfo* ptr) 
 		: id(0), version(0), name("")
 		{
@@ -35,6 +38,7 @@ namespace RC2 {
 		}
 	};
 	
+	typedef FileInfo& FileInfoRef;
 	class DBFileSource;
 	
 	class FileManager {
@@ -60,6 +64,7 @@ namespace RC2 {
 		virtual bool	filePathForId(long fileId, std::string& filePath);
 		virtual void	findOrAddFile(std::string fname, FileInfo &info);
 		virtual bool	fileInfoForId(long fileId, FileInfo &info);
+				void	allFiles(std::vector<std::shared_ptr<FileInfo>> &all);
 		
 		virtual void	suspendNotifyEvents();
 		virtual void	resumeNotifyEvents();
