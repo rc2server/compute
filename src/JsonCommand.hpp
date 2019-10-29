@@ -49,13 +49,24 @@ namespace RC2 {
 				return _cmd["clientData"]; 
 				
 			}
-			json2::string_t valueForKey(std::string key) {
-				if (_cmd[key].is_null()) return "";
-				try { 
-					return _cmd[key];
-				} catch (std::out_of_range &oe) {
-					return "";
-				}
+			bool valueIsNull(std::string key) const {
+				return _cmd.count(key) == 0 || _cmd[key].is_null();
+			}
+			json2::string_t valueForKey(std::string key, std::string defaultValue = "") const {
+				if (_cmd.count(key) == 0) return defaultValue;
+				if (_cmd[key].is_string()) return _cmd[key];
+				return defaultValue;
+			}
+			bool boolValueForKey(std::string key, bool defaultValue = false) const {
+				if (_cmd.count(key) == 0) return defaultValue;
+				if (_cmd[key].is_boolean()) return _cmd[key];
+				return defaultValue;
+			}
+			
+			int intValueForKey(std::string key, int defaultValue = 0) const {
+				if (_cmd.count(key) == 0) return defaultValue;
+				if (_cmd[key].is_number_integer()) return _cmd[key];
+				return defaultValue;
 			}
 			long envId() const {
 				return _cmd.value("contextId", 0);
