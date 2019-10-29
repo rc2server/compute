@@ -131,6 +131,12 @@ RC2::EnvironmentWatcher::EnvironmentWatcher ( ExecuteCallback callback )
 
 }
 
+RC2::EnvironmentWatcher::EnvironmentWatcher(const RC2::EnvironmentWatcher *const parent)
+	: _env(parent->_env), _execCallback(parent->_execCallback)
+{
+}
+
+
 RC2::EnvironmentWatcher::~EnvironmentWatcher()
 {
 
@@ -148,6 +154,12 @@ RC2::EnvironmentWatcher::captureEnvironment()
 		_lastVars.push_back(Variable(name, _env.get(name)));
 	});
 	std::sort(_lastVars.begin(), _lastVars.end(), compareVariablesByName);
+}
+
+void
+RC2::EnvironmentWatcher::assign(std::string name, RObject &value)
+{
+	_env.assign(name, value);
 }
 
 void

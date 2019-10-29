@@ -1,3 +1,5 @@
+#pragma once
+
 #include <boost/noncopyable.hpp>
 #define STRICT_R_HEADERS
 #include <Rcpp.h>
@@ -22,6 +24,13 @@ public:
 	 */
 	EnvironmentWatcher(SEXP environ, ExecuteCallback callback);
 
+	/**
+	 * @brief creates a new environmnet inside parent
+	 * 
+	 * @param parent the parent environment
+	 */
+	EnvironmentWatcher(const EnvironmentWatcher * const parent);
+	
 	/**
 	 * @brief create a new watcher wrapping a new environment contained in the global environment
 	 * 
@@ -56,6 +65,14 @@ public:
 	 */
 	[[deprecated]]
 	json::value_type jsonDelta();
+	
+	/**
+	 * @brief assigns a value in the environment
+	 * 
+	 * @param name the name to assign value to
+	 * @param value the value to assign to name
+	 */
+	void assign(std::string name, RObject &value);
 	
 	/**
 	* @brief adds variables to jsonContainer. If apiVersion > 0, adds "variables" (map of name to value), 
