@@ -43,7 +43,6 @@ rc2.pngdev <- function()
 
 rc2.pngoff <- function()
 {
-	rc2.errlog("dev off")
 	if (dev.cur()[1] != 1)
 		dev.off();
 }
