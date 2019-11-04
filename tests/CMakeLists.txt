@@ -6,6 +6,8 @@ project (rcompute2-tests)
 #	${CMAKE_SOURCE_DIR}
 #)
 
+SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 configure_file(test1.Rmd test1.Rmd COPYONLY)
 configure_file(test1.Rnw test1.Rnw COPYONLY)
 configure_file(test1.R test1.R COPYONLY)
