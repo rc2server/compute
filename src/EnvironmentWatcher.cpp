@@ -299,7 +299,6 @@ RC2::EnvironmentWatcher::addSummary(std::string& varName, json& jobj)
 		LOG(INFO) << "summary result " << varName << " is null" << std::endl;
 		return;
 	}
-	std::cout << "var type=" << result.sexp_type() << std::endl;
 	try {
 		Rcpp::StringVector strs(result);
 		std::string summary;
@@ -348,8 +347,31 @@ RC2::EnvironmentWatcher::valueToJson (std::string varName, RObject& robj, json& 
 void 
 RC2::EnvironmentWatcher::setPairListData(Rcpp::RObject& robj, json& jobj)
 {
-	// PairLists can be automatically converted to a plain list
-	setListData(robj, jobj, true);
+	std::string emptyStr("");
+	// Rcpp discards the names when a pairlist is converted to a vector.
+	// couldn't figure out how to get names via Rcpp::PairList, so
+	// manually walk through using lower-level R api
+	SEXP s = robj;
+	std::vector<std::string> names;
+	while (TYPEOF(s) == LISTSXP) {
+		json child;
+		if (TAG(s) != R_NilValue && Rf_isSymbol(TAG(s))) {
+			Rcpp::Symbol tagS(TAG(s));
+			names.push_back(tagS.c_str());
+		} else {
+			names.push_back("<NA>");
+		}
+		s = CDR(s);
+	}
+	// attaching names to robj wasn't working when passed to setListData.
+	// works when jumping through these hoops. Not sure why, but it works.
+	Rcpp::List slist(robj);
+	Rcpp::StringVector snames(names.size());
+	snames = names;
+	slist.attr("names") = snames;
+	RObject sobj((SEXP)slist);
+	
+	setListData(sobj, jobj, true);
 	jobj[kClass] = "pairlist";
 }
 
@@ -359,8 +381,10 @@ RC2::EnvironmentWatcher::setListData ( RObject& robj, json& jobj, bool includeLi
 	Rcpp::List list(robj);
 	int len = list.length();
 	jobj[kClass] = "list";
-	Rcpp::StringVector names(robj.attr("names"));
-//	json nameArray = rvectorToJsonArray(names);
+	Rcpp::StringVector names;
+	if (robj.hasAttribute("names")) {
+		names = robj.attr("names");
+	}
 	jobj["names"] = names;
 	jobj["length"] = len;
 	jobj[kType] = vNoType;
@@ -372,7 +396,9 @@ RC2::EnvironmentWatcher::setListData ( RObject& robj, json& jobj, bool includeLi
 			RObject aChild(list[i]);
 			json childObj;
 			valueToJson(emptyStr, aChild, childObj, false);
-			childObj[kName] = names[i];
+			if (names.size() > 0) {
+				childObj[kName] = names[i];
+			}
 			children.push_back(childObj);
 		}
 		jobj[kValue] = children;
@@ -556,10 +582,11 @@ RC2::EnvironmentWatcher::setPrimitiveData ( RObject& robj, json& jobj )
 				jobj[kValue] = jvals;
 			}
 			break;
-		case STRSXP: //16
+		case STRSXP: { //16
 			jobj[kClass] = "string";
 			jobj[kType] = "s";
 			jobj[kValue] = Rcpp::StringVector(robj);
+		}
 			break;
 		case CPLXSXP:
 			jobj[kClass] = "complex";
@@ -653,3 +680,19 @@ RC2::EnvironmentWatcher::setDimNames ( RObject& robj, json& jobj )
 	}
 }
 
+void
+RC2::EnvironmentWatcher::getAttributes (RObject &robj, json& results) {
+	auto attrNames = robj.attributeNames();
+	json nameArray;
+	json valueArray;
+	std::for_each(attrNames.begin(), attrNames.end(),[&](std::string aName) {
+		if (aName == kClass) return;
+		nameArray.push_back(aName);
+		Rcpp::RObject attrVal(robj.attr(aName));
+		json attrJval;
+		valueToJson(aName, attrVal, attrJval, true);
+		attrJval[kName] = aName;
+		valueArray.push_back(attrJval);
+	});
+	results = valueArray;
+}

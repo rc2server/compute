@@ -118,6 +118,8 @@ protected:
 	//returns array
 	json rvectorToJsonArray(RObject& robj);
 	
+	void getAttributes(RObject &robj, json& results);
+	
 	void setObjectData(RObject& robj, json& jobj);
 	void setFactorData(RObject& robj, json& jobj);
 	void setDataFrameData(RObject& robj, json& jobj);
