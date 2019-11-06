@@ -26,7 +26,7 @@ namespace testing {
 		//need to delay action until after startEventLoop()
 		std::thread t([]() {
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-			session->doJson("{\"msg\":\"execScript\", \"argument\":\"2*2\"}");
+			session->doJson("{\"msg\":\"execScript\", \"argument\":\"tt <- 2*2\", \"queryId\": 2}");
 		});
 		t.detach();
 		session->startCountdown(2);
@@ -141,7 +141,7 @@ namespace testing {
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			session->doJson("{\"msg\":\"execScript\", \"argument\":\"rm(list = ls())\"}");
 			session->doJson("{\"msg\":\"execScript\", \"argument\":\"x <- 2\"}");
-			session->doJson("{\"msg\":\"toggleVariableWatch\", \"watch\":true}");
+			session->doJson(R"({"msg": "toggleVariableWatch", "argument": "", "watch": true})");
 			session->emptyMessages();
 			session->doJson("{\"msg\":\"execScript\", \"argument\":\"x <- 4\"}");
 		});
