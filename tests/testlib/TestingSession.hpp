@@ -8,6 +8,7 @@
 #include "../../src/RSessionCallbacks.hpp"
 #include "../../src/FileManager.hpp"
 #include "../../src/RC2Logging.h"
+#include "../../src/EnvironmentWatcher.hpp"
 #include <nlohmann/json.hpp>
 
 using namespace std;
@@ -38,6 +39,9 @@ namespace RC2 {
 		
 		void startCountdown(int count);
 		void executeDelayedJson(string msg, int delay = 1);
+		
+		RInside::ParseEvalResult parseEvalR(std::string query, SEXP &answer, EnvironmentWatcher &watcher);
+
 		
 		ExecuteCallback getExecCallback() { return getExecuteCallback(); }
 		bool doLoadEnvironment() { return loadEnvironment(); }

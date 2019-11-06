@@ -25,10 +25,9 @@ namespace testing {
 	TEST_F(EvaluateTest, basicEvaluate)
 	{
 		EnvironmentWatcher watcher(session->getExecCallback());
-		auto inside = session->getInside();
 		SEXP answer=NULL;
 		string query("library(evaluate); evaluate(\"doofus()\")");
-		RInside::ParseEvalResult result = inside->parseEvalR(query, answer, watcher.getEnvironment());
+		RInside::ParseEvalResult result = session->parseEvalR(query, answer, watcher);
 		ASSERT_EQ(result, RInside::ParseEvalResult::PE_SUCCESS);
 		RObject resultObjecct;
 		resultObjecct = answer;

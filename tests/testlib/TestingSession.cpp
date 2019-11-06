@@ -107,6 +107,14 @@ TestingSession::doJson(std::string json) {
 	handleJsonCommand(json);
 }
 
+RInside::ParseEvalResult 
+TestingSession::parseEvalR(std::string query, SEXP &answer, EnvironmentWatcher &watcher)
+{
+	Rcpp::Environment myenv;
+	watcher.getEnvironment(myenv);
+	return getInside()->parseEvalR(query, answer, &myenv);
+}
+
 void 
 TestingSession::execScript ( string rcode )
 {
@@ -163,6 +171,7 @@ TestingFileManager::initFileManager(std::string connectString, int wspaceId, int
 bool
 TestingFileManager::loadRData() 
 {
+	return false;
 }
 
 void
