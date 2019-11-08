@@ -40,7 +40,7 @@ using json2 = nlohmann::json;
 using Rcpp::Environment;
 
 namespace RC2 {
-    typedef map<long, unique_ptr<EnvironmentWatcher>> EnvironmentMap;
+    typedef map<long, shared_ptr<EnvironmentWatcher>> EnvironmentMap;
 }
 
 extern Rboolean R_Visible;
@@ -157,7 +157,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 		Impl&	operator=(const Impl&) = delete;
 		void	addImagesToJson(json2& json);
 		string	acknowledgeExecComplete(JsonCommand &command, int queryId, bool expectShowOutput);
-		EnvironmentWatcher*	env(long id);
+		EnvironmentWatcher*	env(long id); //defaults to global_env if not found
 		ExecuteCallback getExecuteCallback();
 		/**
 			 * @brief validates all received json against the configured json schema 
@@ -245,8 +245,8 @@ RC2::EnvironmentWatcher *
 RC2::RSession::Impl::env(long id)
 {
 	if (environments.count(id) == 0) {
-		// need to create one
-		environments[id] = unique_ptr<EnvironmentWatcher>(new EnvironmentWatcher(Environment::global_env(), getExecuteCallback()));
+		// global environment then
+		return environments[0].get();
 	}
 	return environments[id].get();
 }
@@ -729,6 +729,8 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 			_impl->R->parseEvalQNT("load(\".RData\")");
 		}
 		_impl->ignoreOutput = false;
+		shared_ptr<EnvironmentWatcher> globalEnv(new EnvironmentWatcher(Environment::global_env(), getExecuteCallback()));
+		_impl->environments[0] = globalEnv;
 		json2 response =  { {"msg", "openresponse"}, {"success", true} };
 		sendJsonToClientSource(response.dump());
 		_impl->isOpen = true;
@@ -790,25 +792,32 @@ RC2::RSession::handleClearEnvironment(RC2::JsonCommand& command)
 	}
 }
 
-void
+void 
 RC2::RSession::handleCreateEnvironment(RC2::JsonCommand& command)
 {
+	std::string nameParam = "varName";
 	string transId = command.argument();
 	if (transId.length() < 1) {
 		//error
 		sendJsonToClientSource(formatErrorAsJson(kError_MissingTransactionId, "missing transactionId", 0));
 		return;
 	}
+	int parentId = command. intValueForKey("contextId");
 	int newId = _impl->environmentCounter;
 	while (_impl->environments.count(newId) > 0) {
 		newId++;
 	}
 	_impl->environmentCounter += 1;
-	_impl->environments[newId] = unique_ptr<EnvironmentWatcher>(new EnvironmentWatcher(Environment::global_env(), getExecuteCallback()));
+	shared_ptr<EnvironmentWatcher> parent(_impl->environments[parentId]);
+	shared_ptr<EnvironmentWatcher> newEnv(new EnvironmentWatcher(parent.get()));
+	_impl->environments[newId] = newEnv;
+	if (!command.valueIsNull(nameParam)) {
+		// couldn't figure out correct conversion in one line with refs and ptrs, so do it this way
+		RObject parObj(newEnv.get()->getEnvironment()->get__());
+		_impl->environments[parentId].get()->assign(command.valueForKey(nameParam), parObj);
+	}
 	json results = { { "msg", "envCreated" }, {"contextId", newId }, {"transactionId", transId} };
-	sendJsonToClientSource(results.dump()
-		
-	);
+	sendJsonToClientSource(results.dump());
 }
 
 

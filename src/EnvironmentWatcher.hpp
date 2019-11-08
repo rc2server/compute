@@ -96,8 +96,9 @@ public:
 	 */
 	void valueToJson(std::string varName, RObject& robj, json& jobj, bool includeListChildren=false);
 
-	Rcpp::Environment* getEnvironment() { return &_env; }
-	operator Rcpp::Environment&() { return _env; } 
+	Rcpp::Environment const * getEnvironment() const { return &_env; }
+	void getEnvironment(Rcpp::Environment &env) { env = _env.get__(); }
+//	operator Rcpp::Environment&() const { return _env; } 
 	
 	/**
 	 * @brief stores the current contents of the enviornment to allow a later call to jsonDelta()
@@ -108,7 +109,7 @@ public:
 	void clear() { _lastVars.erase(_lastVars.begin(), _lastVars.end()); }
 	
 protected:
-	Rcpp::Environment _env;
+	const Rcpp::Environment _env;
 	std::vector<Variable> _lastVars;
 	ExecuteCallback _execCallback;
 
