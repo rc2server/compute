@@ -45,6 +45,24 @@ namespace RC2 {
 
 extern Rboolean R_Visible;
 
+enum KnitExceptionCode { none, forkError=100, execvError, pathError, pdfError, errorInLogFile, unknownError };
+enum PdfStatus { successPdfStatus, killedPdfStatus, otherPdfStatus };
+
+int clientErrorForKnitExceptionCode(KnitExceptionCode code) {
+	switch (code) {
+		case forkError:
+		case execvError:
+		case pathError:
+		case pdfError:
+			return kError_SweaveError;			
+		case errorInLogFile:
+			return kError_SweaveErrorInLogFile;
+		case unknownError:
+		default:
+			return kError_Unknown;
+	}
+}
+
 static string escape_quotes(const string before);
 static string formatErrorAsJson(int errorCode, string details, int queryId=0);
 static void rc2_log_callback(int severity, const char *msg);
@@ -59,24 +77,50 @@ inline double currentFractionalSeconds() {
 	return tv.tv_sec + (round(tv.tv_usec/1000.0)/1000.0);
 }
 
+namespace RC2 {
+
 struct ExecCompleteArgs {
-	RC2::RSession *session;
-	RC2::JsonCommand command;
-	RC2::FileInfo finfo;
+	RSession *session;
+	JsonCommand command;
+	FileInfo finfo;
 	int queryId;
 	//object ptr points to does not have to exist past this call. just to allow null value
-	ExecCompleteArgs(RC2::RSession *inSession, RC2::JsonCommand inCommand, int inQueryId, RC2::FileInfo *info) 
+	ExecCompleteArgs(RSession *inSession, JsonCommand inCommand, int inQueryId, FileInfo *info) 
 		: session(inSession), queryId(inQueryId), command(inCommand), finfo(info)
 	{}
 };
 
 struct DelayCommandArgs {
-	RC2::RSession *session;
+	RSession *session;
 	string json;
 	DelayCommandArgs(RC2::RSession *inSession, string inJson)
 		: session(inSession), json(inJson)
 	{}
 };
+
+struct BoolResetter {
+	BoolResetter(bool *ptr, bool valueToSet) { _ptr = ptr; _valToSet = valueToSet; *_ptr = valueToSet; }
+	~BoolResetter() { *_ptr = !_valToSet; }
+private:
+	bool *_ptr;
+	bool _valToSet;
+};
+
+struct SweavePdfData {
+	JsonCommand command;
+	RSession *session;
+	pid_t pid;
+	fs::path srcPath;
+	fs::path scratchPath;
+	string baseName;
+	int queryId;
+	PdfStatus pstatus = successPdfStatus;
+	SweavePdfData (JsonCommand cmd, RSession *s, pid_t p, fs::path spath, fs::path tpath, string name, int qid = 0) 
+	: command(cmd), session(s), pid(p), srcPath(spath), scratchPath(tpath), baseName(name), queryId(qid)
+	{};
+};
+
+} // namespace
 
 struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	struct event_base*				eventBase;
@@ -100,7 +144,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	int								socket;
 	int								currentQueryId;
 	int								startDelay;
-	bool							open;
+	bool							isOpen;
 	bool							ignoreOutput;
 	bool							captureStdOut;
 	bool							sourceInProgress;
@@ -203,14 +247,14 @@ RC2::RSession::Impl::validateIncomingJson(json jsonObj)
 {
 	if (incomingJsonSchema.is_null()) return;
  	assert(jsonObj.is_null() == false);
-//	LOG(INFO) << "validating incoming json" << endl;
 	nlohmann::json_schema::json_validator validator;
 	try {
+//		LOG(INFO) << "validating " << jsonObj.dump(4);
 		validator.set_root_schema(incomingJsonSchema);
 		validator.validate(jsonObj);
 //		LOG(INFO) << "incoming json validated" << endl;
 	} catch (const std::exception &e) {
-//		LOG(WARNING) << "error validating json: " << e.what();
+		LOG(WARNING) << "error validating json: " << e.what();
 // TODO: fix validation error barfing on queryId
 //		string errStr = "error validationg incoming json: ";
 //		errStr += e.what();
@@ -229,6 +273,88 @@ RC2::RSession::Impl::addImagesToJson(json2& json)
 	if (batchId > 0)
 		json["imgBatch"] = batchId;
 }
+
+pid_t
+RC2::RSession::Impl::knit(string texPath)
+{
+	char exe[32];
+	strncpy(exe, "/usr/bin/texi2pdf", 32);
+	char path[2048];
+	if (texPath.length() > sizeof(path)) 
+		throw GenericException("texPath too long", pathError);
+	strncpy(path, texPath.c_str(), sizeof(path));
+	char batchFlag[4];
+	strncpy(batchFlag, "-b", 4);
+	char *args[] = {exe, batchFlag, path, NULL};
+	pid_t pid = fork();
+	if (pid == -1) {
+		LOG(WARNING) << "fork() failed for texi2dvi";
+		throw FormattedException("fork() failed: %i", errno).code(forkError);
+	} else if (pid > 0) {
+		return pid;
+	} else {
+		// setup our atdin, stdout, stderr
+		int oldStdErr = dup(2);
+		FILE *parentErr = fdopen(oldStdErr, "w");
+		int devnull = open("/dev/null", O_WRONLY);
+		dup2(devnull, 1);
+		dup2(devnull, 2);
+		close(0);
+		int rc = execve("/usr/bin/texi2pdf", args, environ);
+		dprintf(oldStdErr, "sweave execve returned %d", rc);
+		throw FormattedException("sweave execve returned %d", rc).code(execvError);
+	}
+}
+
+void 
+RC2::RSession::Impl::handleSweaveOutput(SweavePdfData *data)
+{
+	switch (data->pstatus) {
+		case otherPdfStatus:
+		data->session->sendJsonToClientSource(formatErrorAsJson(kError_SweaveError, "unknown error generating pdf", data->queryId));
+			return;
+		case killedPdfStatus:
+			data->session->sendJsonToClientSource(formatErrorAsJson(kError_SweaveError, "error generating pdf", data->queryId));
+			return;
+		case successPdfStatus:
+			break;
+	}
+	FileInfo finfo;
+	string basePdfName = data->baseName + ".pdf";
+	fs::path genPdfPath(data->scratchPath);
+	genPdfPath /= basePdfName;
+	fs::path destPdfPath(tmpDir->getPath());
+	destPdfPath /= basePdfName;
+	boost::system::error_code ec;
+	if (fs::exists(genPdfPath) && fs::file_size(genPdfPath, ec) > 0) {
+		fs::copy_file(genPdfPath, destPdfPath, fs::copy_option::overwrite_if_exists);
+		fileManager->findOrAddFile(basePdfName, finfo);
+	} else {
+		LOG(INFO) << "genPdfPath empty:" << genPdfPath;
+		// look for error file
+		string logName = data->baseName + ".log";
+		fs::path errorPath(data->scratchPath);
+		errorPath /= logName;
+		if (fs::exists(errorPath)) {
+			fs::path logPath(data->srcPath.parent_path());
+			logPath /= logName;
+			fs::copy_file(errorPath, logPath, fs::copy_option::overwrite_if_exists);
+			throw GenericException(logName, errorInLogFile);
+		}
+		//report error with no details
+		data->session->sendJsonToClientSource(formatErrorAsJson(kError_SweaveError, "unknown error generating pdf", data->queryId));
+		return;
+	}
+	{
+		BoolResetter reset(&ignoreOutput, true);
+		string rcmd = "setwd('" + escape_quotes(data->scratchPath.parent_path().string()) + "')";
+		R->parseEvalNT(rcmd);
+	}
+	data->session->flushOutputBuffer();
+	data->session->scheduleExecCompleteAcknowledgment(data->command, data->queryId, &finfo);
+
+}
+
 
 string
 RC2::RSession::Impl::acknowledgeExecComplete(JsonCommand& command, int queryId, bool expectShowOutput) 
@@ -315,7 +441,8 @@ RC2::RSession::getRInside() const
 void
 RC2::RSession::consoleCallback(const string &text, bool is_error)
 {
-	if (!_impl->open && !is_error) return;
+//	LOG(INFO) << "callback:" << text;
+	if (!_impl->isOpen && !is_error) return;
 	if (stringHasPrefix(text, "rc2.imgstart=")) {
 		auto imgname = text.substr(13);
 		boost::algorithm::trim(imgname);
@@ -449,7 +576,7 @@ RC2::RSession::handleJsonStatic(struct bufferevent *bev, void *ctx)
 void
 RC2::RSession::handleCommand(JsonCommand& command)
 {
-	if (!_impl->open) {
+	if (!_impl->isOpen ) {
 		LOG(WARNING) << "R not open";
 		return;
 	}
@@ -519,7 +646,7 @@ RC2::RSession::handleJsonCommand(string json)
 		_impl->validateIncomingJson(doc);
 		JsonCommand command(doc);
 		if (command.type() == CommandType::Open) {
-			if (_impl->open) {
+			if (_impl->isOpen ) {
 				LOG(WARNING) << "duplicate open message received";
 				return;
 			}
@@ -537,10 +664,11 @@ RC2::RSession::handleJsonCommand(string json)
 void
 RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 {
-	if (_impl->open) {
+	if (_impl->isOpen ) {
 		LOG(WARNING) << "duplicate open message received";
 		return;
 	}
+	LOG(INFO) << cmd.raw() << endl;
 	_impl->wspaceId = cmd.raw()["wspaceId"];
 	_impl->apiVersion = cmd.apiVersion();
 	try {
@@ -597,7 +725,7 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		_impl->ignoreOutput = false;
 		json2 response =  { {"msg", "openresponse"}, {"success", true} };
 		sendJsonToClientSource(response.dump());
-		_impl->open = true;
+		_impl->isOpen = true;
 	} catch (std::runtime_error &err) {
 		json2 error = { {"msg", "openresponse"}, {"success", false}, {"errorMessage", err.what()} };
 		sendJsonToClientSource(error.dump());
@@ -859,7 +987,7 @@ RC2::RSession::executeRMarkdown(string fileName, long fileId, JsonCommand& comma
 void
 RC2::RSession::executeSweave(string filePath, long fileId, JsonCommand& command)
 {
-	FileInfo finfo;
+	BoolResetter reset(&(_impl->ignoreOutput), true);
 	fs::path srcPath(_impl->tmpDir->getPath());
 	srcPath /= filePath;
 	string baseName = srcPath.stem().native();
@@ -881,68 +1009,58 @@ RC2::RSession::executeSweave(string filePath, long fileId, JsonCommand& command)
 	}
 	fs::path texPath(scratchPath);
 	texPath /= baseName + ".tex";
+	sigset_t blockMask, emptyMask;
+	try {
+		SignalSuspender(SIGCHLD);
 	if (!fs::exists(texPath)) {
 		//there was an error
-		LOG(WARNING) << "sweave failed";
-	} else {
-		_impl->ignoreOutput = true;
+			throw GenericException("sweave failed", pdfError);
+		}
 		pid_t parent = getpid();
-		pid_t pid = fork();
-		if (pid == -1) {
-			LOG(WARNING) << "fork() failed for texi2dvi";
-		} else if (pid > 0) {
-			int status=0;
-			LOG(INFO) << "calling waitpid:" << pid;
-			waitpid(pid, &status, 0);
-			LOG(INFO) << "finished waitpid:" << status;
-		} else {
-			int oldStdErr = dup(2);
-			FILE *parentErr = fdopen(oldStdErr, "w");
-			int devnull = open("/dev/null", O_WRONLY);
-			dup2(devnull, 1);
-			dup2(devnull, 2);
-			close(0);
-			fprintf(parentErr, "closed stdin\n");
-			char exe[32];
-			strncpy(exe, "/usr/bin/texi2pdf", 32);
-			char path[1024];
-			strncpy(path, texPath.string().c_str(), 1024);
-			char batchFlag[4];
-			strncpy(batchFlag, "-b", 4);
-			char *args[] = {exe, batchFlag, path, NULL};
-			fprintf(parentErr, "calling execve\n");
-			execve("/usr/bin/texi2pdf", args, environ);
-			fprintf(parentErr, "IMPOSSIBLE\n");
+		pid_t pid;
+		{
+			pid = _impl->knit(texPath.native());
+			LOG(INFO) << "launched sweave: " << pid;
 		}
-		_impl->ignoreOutput = false;
-		fs::path genPdfPath(scratchPath);
-		genPdfPath /= basePdfName;
-		fs::path destPdfPath(_impl->tmpDir->getPath());
-		destPdfPath /= basePdfName;
-		boost::system::error_code ec;
-		if (fs::exists(genPdfPath) && fs::file_size(genPdfPath, ec) > 0) {
-			fs::copy_file(genPdfPath, destPdfPath, fs::copy_option::overwrite_if_exists);
-			_impl->fileManager->findOrAddFile(basePdfName, finfo);
-		} else {
-			LOG(INFO) << "genPdfPath empty:" << genPdfPath;
-			fs::path errorPath(scratchPath);
-			errorPath /= baseName + ".log";
-			if (fs::exists(errorPath)) {
-				fs::path logPath(srcPath.parent_path());
-				logPath /= baseName = ".log";
-				fs::copy_file(errorPath, logPath, fs::copy_option::overwrite_if_exists);
-				//TODO: send message saying to look at the log file
-			} else {
-				//report error with no details
+		// start timer to kill pid if takes too long
+		auto callback = [](evutil_socket_t fd, short flags, void *param) {
+			pid_t *pid = (pid_t*)param;
+			LOG(INFO) << "timeout on sweave process: " << *pid;
+			kill(*pid, SIGKILL);
+		};
+		struct timeval timeoutInterval = {5, 0};
+		struct event *timerEvt =  event_new(_impl->eventBase, -1, EV_TIMEOUT, callback, &pid);
+		event_add(timerEvt, &timeoutInterval);
+		// and child signal handler
+		// callback when a SIGCHLD is received
+		auto sigCallback = [](int signal, short flags, void *param) {
+			SweavePdfData *data = (SweavePdfData*)param;
+			int status;
+			int childPid = waitpid(data->pid, &status, 0);
+			assert(childPid == data->pid);
+			PdfStatus pstat = successPdfStatus;
+			if (WIFSIGNALED(status)) {
+				int sigStatus = WTERMSIG(status);
+				LOG(WARNING) << "pdf generation received signal: " << sigStatus;
+				pstat = killedPdfStatus;
+			} else if (!(WIFEXITED(status))) {
+				LOG(WARNING) << "waitpid returned abnormal status: " << status;
+				pstat = otherPdfStatus;
 			}
-		}
+			data->session->_impl->handleSweaveOutput(data);
+			delete data;
+		};
+		SweavePdfData *sigData = new SweavePdfData (command, this, pid, srcPath, scratchPath, baseName, _impl->currentQueryId);
+		struct event *sigEvt = event_new(_impl->eventBase, SIGCHLD, EV_SIGNAL, sigCallback, sigData);
+		event_add(sigEvt, NULL);
+	} catch (GenericException &ge) {
+		int clientErrorCode = clientErrorForKnitExceptionCode((KnitExceptionCode)ge.code());
+		LOG(WARNING) << "error generating sweave pdf:" << ge.code() << " : " << ge.what();
+		sendJsonToClientSource(formatErrorAsJson(clientErrorCode, ge.what(), _impl->currentQueryId));
+	} catch (std::exception &e) {
+		LOG(WARNING) << "unknown exception generating sweave pdf: " << e.what();
+		sendJsonToClientSource(formatErrorAsJson(kError_Unknown, e.what(), _impl->currentQueryId));
 	}
-	rcmd = "setwd('" + escape_quotes(scratchPath.parent_path().string()) + "')";
-	_impl->R->parseEvalNT(rcmd);
-	_impl->ignoreOutput = false;
-	//TODO: delete scratchPath
-	flushOutputBuffer();
-	   scheduleExecCompleteAcknowledgment(command, _impl->currentQueryId, &finfo);
 }
 
 void
