@@ -26,8 +26,11 @@ struct CustomSink {
     void ReceiveLogMessage(g3::LogMessageMover logEntry) {
         auto level = logEntry.get()._level;
         auto color = GetColor(level);
-        
-        std::cout << logEntry.get().toString() << std::endl;
+		std::string msg = logEntry.get().message();
+//		if (msg.length() > 40)
+//			msg = msg.substr(0, 37) + "\u2026";
+        std::cout << logEntry.get().timestamp("%H:%M:%S") << " " << logEntry.get().level() << " [" << logEntry.get().file() << "->" << logEntry.get().function() << ":" << logEntry.get().line() << "] "		 << msg << std::endl;
+//        std::cout << logEntry.get().toString() << std::endl;
 //        std::cout << "\033[" << color << "m" 
 //        << logEntry.get().toString() << "\033[m" << std::endl;
     }
