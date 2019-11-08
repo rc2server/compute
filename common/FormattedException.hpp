@@ -6,15 +6,6 @@
 
 #define MAX_ERROR_LEN 512
 
-class FormattedException : public std::exception {
-	public:
-		FormattedException(const char *format, ...);
-		virtual ~FormattedException() throw() {};
-		virtual const char *what() const throw() { return _emsg; };
-		
-	private:
-		char _emsg[MAX_ERROR_LEN];
-};
 
 /**
  * @brief An exception that has a message string associated with it.
@@ -22,10 +13,25 @@ class FormattedException : public std::exception {
  */
 class GenericException : public std::exception {
 public:
-	GenericException(std::string message);
+	GenericException(std::string message = "", int code = 0);
 	virtual ~GenericException() throw() {};
 	virtual const char *what() const throw() { return _msg.c_str(); };
-private:
+	int code() const { return _code; };
+protected:
 	std::string _msg;
+	int _code;
 	
+};
+
+class FormattedException : public GenericException {
+	public:
+		FormattedException(const char *format, ...);
+		FormattedException(int code, const char *format, ...);
+		virtual ~FormattedException() throw() {};
+		virtual const char *what() const throw() { return _emsg; };
+		/** @brief allow chaining with initializer */
+		FormattedException& code(int code) { _code = code; return *this; };
+		
+	private:
+		char _emsg[MAX_ERROR_LEN];
 };
