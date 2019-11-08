@@ -176,9 +176,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	{
 		ExecCompleteArgs *args = reinterpret_cast<ExecCompleteArgs*>(ctx);
 		bool gotFileInfo = args->finfo.id > 0;
-		LOG(INFO) << "got ack with file " << gotFileInfo;
 		string s = args->session->_impl->acknowledgeExecComplete(args->command, args->queryId, gotFileInfo);
-		LOG(INFO) << "handleExecComplete got json:" << s;
 		args->session->sendJsonToClientSource(s);
 		if (gotFileInfo) {
 			args->session->_impl->fileManager->fileInfoForId(args->finfo.id, args->finfo);
