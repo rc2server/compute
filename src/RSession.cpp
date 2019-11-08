@@ -155,6 +155,13 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 				Impl(const Impl &copy) = delete;
 		Impl&	operator=(const Impl&) = delete;
 		void	addImagesToJson(json2& json);
+		/** @brief forks devi2pdf and returns the child pid. 
+		 *  @throws GenericException with code from KnitExceptionCode
+		 */
+		pid_t	knit(string texPath);
+		void	sweavePdfFinished(pid_t pid);
+		void	handleSweaveOutput (SweavePdfData *data);
+		
 		string	acknowledgeExecComplete(JsonCommand &command, int queryId, bool expectShowOutput);
 		EnvironmentWatcher*	env(long id);
 		ExecuteCallback getExecuteCallback();
