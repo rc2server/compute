@@ -838,8 +838,11 @@ RC2::RSession::handleExecuteScript(JsonCommand& command) {
 		envWatcher->captureEnvironment();
 	}
 	_impl->fileManager->resetWatch();
+	const Rcpp::Environment *constEnv = envWatcher->getEnvironment();
+
+	Rcpp::Environment *env = const_cast<Rcpp::Environment*>(constEnv);
 	SEXP ans=NULL;
-	RInside::ParseEvalResult result = _impl->R->parseEvalR(command.argument(), ans, envWatcher->getEnvironment());
+	RInside::ParseEvalResult result = _impl->R->parseEvalR(command.argument(), ans, env);
 	LOG(INFO) << "parseEvalR returned " << (ans != NULL);
 	flushOutputBuffer();
 	if (result == RInside::ParseEvalResult::PE_SUCCESS) {
