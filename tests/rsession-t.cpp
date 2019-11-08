@@ -15,7 +15,7 @@
 using json = nlohmann::json;
 using namespace std;
 namespace fs = boost::filesystem;
-
+auto sleepTime = std::chrono::milliseconds(10);
 namespace testing {
 	class SessionTest : public BaseSessionTest {
 		virtual void pureVirtual() {}
@@ -25,10 +25,10 @@ namespace testing {
 	{
 		//need to delay action until after startEventLoop()
 		std::thread t([]() {
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-			session->doJson("{\"msg\":\"execScript\", \"argument\":\"tt <- 2*2\", \"queryId\": 2}");
+			std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime));
+			session->doJson("{\"msg\":\"execScript\", \"argument\":\"4\", \"queryId\": 2}");
 		});
-		t.detach();
+		t.detach();		
 		session->startCountdown(2);
 		session->startEventLoop();
 		ASSERT_EQ(session->_messages.size(), 2);
@@ -41,7 +41,7 @@ namespace testing {
 	{
 		//need to delay action until after startEventLoop()
 		std::thread t([]() {
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime));
 			session->doJson("{\"msg\":\"execScript\", \"argument\":\"rnorm(20)\", \"queryId\":3, \"startTime\": \"1502817203955\"}");
 		});
 		t.detach();
