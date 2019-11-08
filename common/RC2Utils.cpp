@@ -27,7 +27,10 @@ RC2::TemporaryDirectory::TemporaryDirectory(bool erase)
 RC2::TemporaryDirectory::TemporaryDirectory(std::string path, bool erase)
 	: _path(path), _eraseOnDeath(erase)
 {
-	if (RC2::MakeDirectoryPath(_path, 0700) != 0) {
+	bool exists = fs::exists(path);
+	if (!exists && !fs::is_directory(path))
+		throw std::runtime_error("path exists and is not a directory: " + path);
+	if (!exists && RC2::MakeDirectoryPath(_path, 0700) != 0) {
 		throw std::runtime_error("failed to create directory:" + _path);
 	}
 }

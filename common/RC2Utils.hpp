@@ -4,6 +4,7 @@
 #include <memory>
 #include <algorithm>
 #include <stdlib.h>
+#include <signal.h>
 #include <functional>
 
 namespace RC2 {
@@ -18,12 +19,13 @@ inline void StripQuotes(std::string& str) {
 	str.erase(std::remove(str.begin(), str.end(), '\"'), str.end());
 }
 
-//returns the return code from last call to mkdir
+/** @brief returns the return code from last call to mkdir */
 int MakeDirectoryPath(std::string s, mode_t mode);
 
 class TemporaryDirectory {
 	public:
 					TemporaryDirectory(bool erase=true);
+					/** @brief path will be created if it doesn't exist */
 					TemporaryDirectory(std::string path, bool erase=false);
 		virtual		~TemporaryDirectory();
 		
@@ -46,6 +48,22 @@ private:
 	std::function<void (void)> f_;
 };
 
+/** temporarily suspend a signal. Useful with a fork call to prevent race conditions */
+struct SignalSuspender {
+	SignalSuspender(int signal) {
+		sigset_t mask;
+		sigemptyset(&mask);
+		sigaddset(&mask, signal);
+		if (sigprocmask(SIG_SETMASK, &mask, NULL) == -1)
+			throw std::runtime_error("sigproc mask failed");
+	}
+	
+	~SignalSuspender() {
+		sigset_t mask;
+		sigemptyset(&mask);
+		sigprocmask(SIG_UNBLOCK, &mask, NULL);
+	}
+};
 
 struct BooleanWatcher {
 	BooleanWatcher(bool* ptr)
