@@ -63,10 +63,22 @@ void TestingSession::executeDelayedJson ( string msg, int delay )
 
 void
 TestingSession::sendJsonToClientSource(std::string jsonStr) {
+	json2 parsed = json::parse(jsonStr);
 	_messages.push(jsonStr + "\n");
 	LOG(INFO) <<"t-json:" <<  jsonStr << " (" << countDown << ")";
+	if (parsed["msg"] == "error") {
+		LOG(INFO) << "recieved error";
+		stopEventLoop();
+		return;
+	}
+//	LOG(INFO) << "cnt1=" << countDown;
 	if (countingDown) {
+		// end the countdown if got execComplete but no expectShowOutput
+		json msg = json::parse(jsonStr);
+//		if (msg["msg"] == "execComplete" && !msg["expectShowOutput"]) { countDown = 1; LOG(INFO) << "decrement"; }
+//		LOG(INFO) << "cnt2 = " << countDown;
 		countDown--;
+//		LOG(INFO) << "cnt3 = " << countDown;
 		if (countDown <= 0) {
 			stopEventLoop();
 		}
@@ -129,11 +141,7 @@ TestingSession::execScript ( string rcode )
 string 
 TestingSession::incomingJsonSchemaPath()
 {
-	string installLoc = RC2::GetPathForExecutable(getpid());
-	string::size_type parentDirIndex = installLoc.rfind('/');
-	string parentDir = installLoc.substr(0, parentDirIndex) + "..";
-	string incomingSchemaPath = parentDir + "/compute.incoming.schema.json";
-	return incomingSchemaPath;
+	return RSession::incomingJsonSchemaPath();
 }
 
 void
