@@ -130,6 +130,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	RInside*						R;
 	unique_ptr<FileManager>			fileManager;
 	unique_ptr<TemporaryDirectory>	tmpDir;
+	string							rc2home; // home directory. specified by RC2_HOME env var. Defaults to dir containing executable
 //	unique_ptr<EnvironmentWatcher>	envWatcher;
     EnvironmentMap                  environments;
 	int								environmentCounter;
@@ -215,6 +216,14 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 RC2::RSession::Impl::Impl()
 	: consoleOutBuffer(new string)
 {
+	const char *envHome = getenv("RC2_HOME");
+	if (envHome) {
+		rc2home = envHome;
+	} else {
+		string installLoc = RC2::GetPathForExecutable(getpid());
+		string::size_type parentDirIndex = installLoc.rfind('/');
+		rc2home = installLoc.substr(0, parentDirIndex);
+	}
 }
 
 RC2::ExecuteCallback RC2::RSession::Impl::getExecuteCallback()
@@ -672,10 +681,7 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 	_impl->wspaceId = cmd.raw()["wspaceId"];
 	_impl->apiVersion = cmd.apiVersion();
 	try {
-		string installLoc = RC2::GetPathForExecutable(getpid());
-		string::size_type parentDirIndex = installLoc.rfind('/');
-		string parentDir = installLoc.substr(0, parentDirIndex);
-		string swizzlePath = parentDir + "/rsrc/swizzle.R";
+		string swizzlePath = _impl->rc2home + "/rsrc/swizzle.R";
 
 		_impl->sessionRecId = cmd.raw()["sessionRecId"];
 		string dbhost(cmd.valueForKey("dbhost"));
@@ -1185,11 +1191,18 @@ void RC2::RSession::setFileManager ( RC2::FileManager* manager )
 string 
 RC2::RSession::incomingJsonSchemaPath()
 {
-	string installLoc = RC2::GetPathForExecutable(getpid());
-	string::size_type parentDirIndex = installLoc.rfind('/');
-	string parentDir = installLoc.substr(0, parentDirIndex);
-	string incomingSchemaPath = parentDir + "/compute.incoming.schema.json";
-	return incomingSchemaPath;
+	// when installed, should have beeen copied to home
+	static const char *schemaFileName = "/compute.incoming.schema.json";
+	fs::path filePath(_impl->rc2home);
+	filePath /= schemaFileName;
+	if (fs::exists(filePath)) return filePath.native();
+	// if not copied, look for a checkout of the rc2.git project in rc2home
+	filePath = _impl->rc2home;
+	filePath /= "rc2root/documentation";
+	filePath /= schemaFileName;
+	// if doesn't exist here, we can't find it
+	assert(fs::exists(filePath));
+	return filePath.native();
 }
 
 bool 
