@@ -135,13 +135,6 @@ namespace testing {
 		}
 		
 		static void TearDownTestCase() {
-			try {
-				session->doJson("{\"msg\":\"close\", \"argument\": \"\"}");
-				delete session;
-				session = NULL;
-				delete callbacks;
-			} catch (...) {
-			}
 		}
 		
 		virtual void SetUp() {
