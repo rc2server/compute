@@ -65,7 +65,6 @@ int clientErrorForKnitExceptionCode(KnitExceptionCode code) {
 
 static string escape_quotes(const string before);
 static string formatErrorAsJson(int errorCode, string details, int queryId=0);
-static void rc2_log_callback(int severity, const char *msg);
 
 inline bool stringHasPrefix(string str, const char* prefix) {
 	return strncmp(str.c_str(), prefix, strlen(prefix)) == 0;
@@ -86,7 +85,7 @@ struct ExecCompleteArgs {
 	int queryId;
 	//object ptr points to does not have to exist past this call. just to allow null value
 	ExecCompleteArgs(RSession *inSession, JsonCommand inCommand, int inQueryId, FileInfo *info) 
-		: session(inSession), queryId(inQueryId), command(inCommand), finfo(info)
+		: session(inSession), command(inCommand), finfo(info), queryId(inQueryId)
 	{}
 };
 
@@ -172,7 +171,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 		void	validateIncomingJson(json jsonObj);
 
 
-	static void handleExecComplete(int fd, short event_type, void *ctx) 
+	static void handleExecComplete(int, short, void *ctx) 
 	{
 		ExecCompleteArgs *args = reinterpret_cast<ExecCompleteArgs*>(ctx);
 		bool gotFileInfo = args->finfo.id > 0;
@@ -191,7 +190,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 		delete args;
 	}
 	
-	static void handleDelayedCommand(int fd, short event_type, void *ctx) 
+	static void handleDelayedCommand(int, short, void *ctx) 
 	{
 		DelayCommandArgs *args = reinterpret_cast<DelayCommandArgs*>(ctx);
 		args->session->handleJsonCommand(args->json);
@@ -309,7 +308,7 @@ RC2::RSession::Impl::knit(string texPath)
 	} else {
 		// setup our atdin, stdout, stderr
 		int oldStdErr = dup(2);
-		FILE *parentErr = fdopen(oldStdErr, "w");
+//		FILE *parentErr = fdopen(oldStdErr, "w");
 		int devnull = open("/dev/null", O_WRONLY);
 		dup2(devnull, 1);
 		dup2(devnull, 2);
@@ -522,6 +521,7 @@ void
 RC2::RSession::installExitHandler(void(*handler)(short flags))
 {
 	//TODO: implement
+	(void)handler;
 }
 
 void
@@ -712,7 +712,9 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		if (rc != 0) {
 			throw std::runtime_error("failed to create working directory");
 		}
-		_impl->tmpDir = std::move(std::unique_ptr<TemporaryDirectory>(new TemporaryDirectory(workDir, false)));
+		auto newtmp = std2::make_unique<TemporaryDirectory>(workDir, false);
+		_impl->tmpDir = std::move(newtmp);
+//		_impl->tmpDir = std::move(std::unique_ptr<TemporaryDirectory>(new TemporaryDirectory(workDir, false)));
 		LOG(INFO) << "wd=" << _impl->tmpDir->getPath();
 		auto connection = make_shared<PGDBConnection>();
 		connection->connect(connectString.str());
@@ -957,6 +959,7 @@ RC2::RSession::executeFile(JsonCommand& command) {
 void
 RC2::RSession::executeRMarkdown(string fileName, long fileId, JsonCommand& command)
 {
+	(void)fileId;
 	TemporaryDirectory tmp(false);
 	bool fileGenerated = false;
 
@@ -1008,7 +1011,7 @@ RC2::RSession::executeRMarkdown(string fileName, long fileId, JsonCommand& comma
 }
 
 void
-RC2::RSession::executeSweave(string filePath, long fileId, JsonCommand& command)
+RC2::RSession::executeSweave(string filePath, long, JsonCommand& command)
 {
 	BoolResetter reset(&(_impl->ignoreOutput), true);
 	fs::path srcPath(_impl->tmpDir->getPath());
@@ -1032,21 +1035,19 @@ RC2::RSession::executeSweave(string filePath, long fileId, JsonCommand& command)
 	}
 	fs::path texPath(scratchPath);
 	texPath /= baseName + ".tex";
-	sigset_t blockMask, emptyMask;
 	try {
 		SignalSuspender(SIGCHLD);
 	if (!fs::exists(texPath)) {
 		//there was an error
 			throw GenericException("sweave failed", pdfError);
 		}
-		pid_t parent = getpid();
 		pid_t pid;
 		{
 			pid = _impl->knit(texPath.native());
 			LOG(INFO) << "launched sweave: " << pid;
 		}
 		// start timer to kill pid if takes too long
-		auto callback = [](evutil_socket_t fd, short flags, void *param) {
+		auto callback = [](evutil_socket_t, short, void *param) {
 			pid_t *pid = (pid_t*)param;
 			LOG(INFO) << "timeout on sweave process: " << *pid;
 			kill(*pid, SIGKILL);
@@ -1056,7 +1057,7 @@ RC2::RSession::executeSweave(string filePath, long fileId, JsonCommand& command)
 		event_add(timerEvt, &timeoutInterval);
 		// and child signal handler
 		// callback when a SIGCHLD is received
-		auto sigCallback = [](int signal, short flags, void *param) {
+		auto sigCallback = [](int, short, void *param) {
 			SweavePdfData *data = (SweavePdfData*)param;
 			int status;
 			int childPid = waitpid(data->pid, &status, 0);
@@ -1258,11 +1259,5 @@ formatErrorAsJson(int errorCode, string details, int queryId)
 	if (queryId > 0)
 		response["queryId"] = queryId;
 	return response.dump();
-}
-
-void 
-rc2_log_callback(int severity, const char *msg)
-{
-	LOG(WARNING) << "logging " << severity << ":" << msg;
 }
 
