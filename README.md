@@ -4,6 +4,21 @@ This is the R backend portion of the rc2 project. It builds `rserver` which list
 
 All communication is via json. Files are managed via the PostgreSQL database.
 
+## antlr
+
+### to compile the runtime
+* cd vendor/antlr
+* rm -rf build/* run/* antlr-src/*
+* unzip -d ./antlr-src/ antlr4-cpp-runtime-4.8-source.zip 
+* cd build
+* cmake ../antlr4-src
+* DESTDIR=../run make install
+* cd ..; mv run/usr/local/* to .; rm lib/libantlr4-runtime.so*
+
+### to generate the souce
+* cd vendor/antlr
+* `java -Xmx500M -cp ./antlr-4.8-complete.jar org.antlr.v4.Tool -Dlanguage=Cpp -Xexact-output-dir -o ../../parser/generated/ -visitor ../../Rc2Parser/Rc2Lexer.g4 ../../Rc2Parser/Rc2RawParser.g4`
+
 ## building notes
 
 On checkout of project, use `git clone --recursive <URL> <Local Directory>` to checkout submodules, too.

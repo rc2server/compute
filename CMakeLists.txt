@@ -91,6 +91,7 @@ ExternalProject_Add(jsonschema DOWNLOAD_COMMAND ""
 # FIXME: very hacky. Should have in Compute_Libs, but that was always trying to use a dynamic lib. 
 # adding this to target_link_libraries is a temporary fix
 set(VALIDATE_LIBRARY ${VALIDATE_BINARY_DIR}/libjson-schema-validator.a)
+set(ANTLR_RTIME ${CMAKE_CURRENT_SOURCE_DIR}/vendor/antlr/lib/libantlr4-runtime.a)
 
 #R installed from sources uses /usr/local/lib/R/library while it uses /usr/local/lib/R/site-library if installed via rpm
 include_directories (
@@ -119,6 +120,7 @@ link_directories (
 	/usr/local/lib
 )
 
+add_subdirectory (parser)
 add_subdirectory (common)
 add_subdirectory (src)
 add_subdirectory (tests)
@@ -153,7 +155,7 @@ add_dependencies(common applogger)
 add_executable(rserver src/RServer-main.cpp)
 
 target_link_libraries(rserver src common ${Compute_Libs} ${Boost_LIBRARIES})
-target_link_libraries(rsession src common pthread ${Compute_Libs} ${Boost_LIBRARIES} ${VALIDATE_LIBRARY} R RInside -lm)
+target_link_libraries(rsession src common pthread ${Compute_Libs} ${Boost_LIBRARIES} ${VALIDATE_LIBRARY} ${ANTLR_RTIME} R RInside -lm)
 
 install(CODE "execute_process(COMMAND \"${CMAKE_SOURCE_DIR}/prepareRInside.sh\" \"${CMAKE_BINARY_DIR}\")")
 
