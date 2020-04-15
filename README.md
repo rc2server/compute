@@ -16,8 +16,7 @@ All communication is via json. Files are managed via the PostgreSQL database.
 * cd ..; mv run/usr/local/* to .; rm lib/libantlr4-runtime.so*
 
 ### to generate the souce
-* cd vendor/antlr
-* `java -Xmx500M -cp ./antlr-4.8-complete.jar org.antlr.v4.Tool -Dlanguage=Cpp -Xexact-output-dir -o ../../parser/generated/ -visitor ../../Rc2Parser/Rc2Lexer.g4 ../../Rc2Parser/Rc2RawParser.g4`
+`java -Xmx500M -cp vendor/antlr/antlr-4.8-complete.jar org.antlr.v4.Tool -Dlanguage=Cpp -Xexact-output-dir -o parser/generated/ -visitor Rc2Parser/Rc2Lexer.g4 Rc2Parser/Rc2RawParser.g4 Rc2Parser/R.g4 parser/RFilter.g4`
 
 ## building notes
 

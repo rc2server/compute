@@ -1,5 +1,5 @@
 
-// Generated from ../../Rc2Parser/Rc2Lexer.g4 by ANTLR 4.8
+// Generated from Rc2Parser/Rc2Lexer.g4 by ANTLR 4.8
 
 
 #include "Rc2Lexer.h"
