@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include "Chunk.hpp"
 
 namespace RC2 {
 
@@ -8,6 +9,8 @@ namespace RC2 {
 	public:
 		RmdParser();
 		~RmdParser();
+		
+		std::vector<std::reference_wrapper<Chunk>> parseRmdSource(std::string source);
 		
 		/**
 		* @brief Get all the quoted strings in source
