@@ -4,6 +4,8 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 #set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 
 project(Rc2Compute LANGUAGES CXX)
+set_property(GLOBAL PROPERTY CXX_STANDARD 14)
+set_property(GLOBAL PROPERTY CXX_STANDARD_REQUIRED ON)
 
 enable_testing()
 
@@ -25,10 +27,7 @@ set(Boost_USE_STATIC_LIBS ON)
 find_package(Boost 1.54 REQUIRED COMPONENTS regex filesystem system)
 include_directories(${Boost_INCLUDE_DIRS}) 
 
-set_property(GLOBAL PROPERTY CXX_STANDARD 14)
-set_property(GLOBAL PROPERTY CXX_STANDARD_REQUIRED ON)
-
-add_definitions(-std=c++14)
+#add_definitions(-std=c++14)
 SET(CMAKE_CXX_FLAGS "-DBOOST_LOG_DYN_LINK -g")
 SET(CMAKE_C_FLAGS "-export-dynamic")
 #following fixes compile error because somehow -rdynamic is getting set as a linker flag
