@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <common/ZeroInitializedStruct.hpp>
 #include "PrivateChunks.hpp"
 #include "generated/Rc2RawParserBaseListener.h"
 
@@ -28,14 +29,12 @@ struct ErrorReporter {
 	std::vector<ListenerError> errors;
 };
 
-class Rc2ParserListener: public Rc2RawParserBaseListener {
+class Rc2ParserListener: public Rc2RawParserBaseListener, public ZeroInitializedClass {
 public:
 	
-	Rc2ParserListener(ErrorReporter* reporter)
-		: errorReporter_(reporter)
-		{}
+	Rc2ParserListener(ErrorReporter* reporter);
 		
-	vector<reference_wrapper<Chunk>> chunks() const;
+	vector<Chunk*> chunks() const;
 	
 	void enterChunk(Rc2RawParser::ChunkContext * ctx);
 	void exitChunk(Rc2RawParser::ChunkContext * ctx);

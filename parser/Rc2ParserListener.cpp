@@ -5,12 +5,17 @@
 
 using std::make_unique;
 
-vector<reference_wrapper<Chunk> > 
+Rc2ParserListener::Rc2ParserListener(ErrorReporter* reporter)
+		: ZeroInitializedClass(), errorReporter_(reporter), curMarkdownChunk_(nullptr)
+{
+}
+
+vector<Chunk*> 
 Rc2ParserListener::chunks() const
 {
-	vector<reference_wrapper<Chunk> > chunks;
-	for (auto &ptr: chunks_) {
-		chunks.push_back(std::ref(*ptr));
+	vector<Chunk*> chunks;
+	for (auto ck = chunks_.begin(); ck != chunks_.end(); ++ck) {
+		chunks.push_back((*ck).get());
 	}
 	return chunks;
 }
@@ -21,7 +26,7 @@ Rc2ParserListener::enterChunk(Rc2RawParser::ChunkContext* ctx)
 	curContext_ = ctx;
 	antlr4::Token *start = ctx->getStart();
 	if (start == nullptr) return;
-	Chunk* aChunk;
+	Chunk* aChunk = nullptr;
 	
 	switch (start->getType()) {
 		case Rc2Lexer::MDOWN:
@@ -37,27 +42,29 @@ Rc2ParserListener::enterChunk(Rc2RawParser::ChunkContext* ctx)
 			}
 			break;
 		case Rc2Lexer::IC_START: {
-			auto ck = make_unique<InlineCodeChunk>(ctx);
-			aChunk = ck.get();
-			chunks_.push_back(std::move(ck));
+			auto icc = make_unique<InlineCodeChunk>(ctx);
+			aChunk = icc.get();
+			curMarkdownChunk_->append(icc.get());
 			break;
 		}
 		case Rc2Lexer::IEQ_START: {
-			auto ck = make_unique<InlineEquationChunk>(ctx);
-			aChunk = ck.get();
-			chunks_.push_back(std::move(ck));
+			auto iec = make_unique<InlineEquationChunk>(ctx);
+			aChunk = iec.get();
+			curMarkdownChunk_->append(iec.get());
 			break;
 		}
 		case Rc2Lexer::CODE_START: {
 			auto ck = make_unique<CodeChunkImpl>(ctx);
 			aChunk = ck.get();
 			chunks_.push_back(std::move(ck));
+			curMarkdownChunk_ = nullptr;
 			break;
 		}
 		case Rc2Lexer::EQ_START: {
 			auto ck = make_unique<EquationChunkImpl>(ctx);
 			aChunk = ck.get();
 			chunks_.push_back(std::move(ck));
+			curMarkdownChunk_ = nullptr;
 			break;
 		}
 		default:
@@ -69,16 +76,12 @@ Rc2ParserListener::enterChunk(Rc2RawParser::ChunkContext* ctx)
 		auto err = ListenerError(invalidChunkAtRoot, aChunk->startLine(), aChunk->startCharIndex(), "inline chunk found at top level");
 		errorReporter_->errors.push_back(err);
 	}
-	if(aChunk->isInline()) {
-		curMarkdownChunk_->append(aChunk);
-	}
 	curChunk_ = aChunk;
 }
 
 void 
 Rc2ParserListener::exitChunk(Rc2RawParser::ChunkContext* ctx)
 {
-	std::cout << "chunks count: " << chunks_.size() << std::endl;
 	if (curChunk_ == nullptr) {
 		curContext_ = nullptr;
 		return;

@@ -1,7 +1,6 @@
 #include "PrivateChunks.hpp"
 
 MarkdownChunkImpl::MarkdownChunkImpl(Rc2RawParser::ChunkContext* ctx)
-	: MarkdownChunk()
 {
 	antlr4::Token *token = ctx->getStart();
 	if (token == nullptr) abort();
@@ -12,6 +11,16 @@ MarkdownChunkImpl::MarkdownChunkImpl(Rc2RawParser::ChunkContext* ctx)
 	endCharIndex_ = token->getStopIndex();
 	type_ = markdown;
 }
+
+// vector<InlineChunk*> 
+// MarkdownChunkImpl::inlineChunks() const
+// {
+// 	vector<InlineChunk*> ichunks;
+// 	for (auto ck = inlineChunks_.begin(); ck != inlineChunks_.end(); ++ck) {
+// 		ichunks.push_back(ck->get());
+// 	}
+// 	return ichunks;
+// }
 
 void MarkdownChunkImpl::append(Rc2RawParser::MdownContext* ctx)
 {
@@ -28,9 +37,9 @@ void MarkdownChunkImpl::append(Chunk* childChunk)
 	auto eqC = dynamic_cast<InlineEquationChunk*>(childChunk);
 	// FIXME: problem is a shared pointer can't be created for an InlineChunk because it is abstract. Does it need to be non-abstract? Likely by making constructor protected.
 	if (codeC != nullptr) {
-		inlineChunks_.push_back(std::make_shared<InlineCodeChunk>(*codeC));
+		inlineChunks_.push_back(std::make_unique<InlineCodeChunk>(*codeC));
 	} else if (eqC != nullptr) {
-		inlineChunks_.push_back(std::make_shared<InlineEquationChunk>(*eqC));
+		inlineChunks_.push_back(std::make_unique<InlineEquationChunk>(*eqC));
 	}
 }
 

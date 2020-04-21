@@ -10,7 +10,7 @@ namespace RC2 {
 		RmdParser();
 		~RmdParser();
 		
-		std::vector<std::reference_wrapper<Chunk>> parseRmdSource(std::string source);
+		std::vector<Chunk*> parseRmdSource(std::string source);
 		
 		/**
 		* @brief Get all the quoted strings in source

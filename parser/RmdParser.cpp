@@ -17,62 +17,47 @@ namespace RC2 {
 
 RmdParser::RmdParser() {
 }
-	
+
 RmdParser::~RmdParser() {
 }
-	
-vector<std::reference_wrapper<Chunk>> 
-RmdParser::parseRmdSource(std::string source)
-{
+
+vector<Chunk*>
+RmdParser::parseRmdSource ( std::string source ) {
 	vector<std::reference_wrapper<Chunk>> chunks;
-	
-	antlr4::ANTLRInputStream input(source);
-	Rc2Lexer lexer(&input);
 
-	auto allTokens = lexer.getAllTokens();
-	auto vocab = lexer.getVocabulary();
-	for (auto aToken = allTokens.begin(); aToken != allTokens.end(); ++aToken) {
-		auto name = vocab.getDisplayName((*aToken)->getType());
-		std::cout << name << " = " << (*aToken)->getText() << std::endl;
-	}
-	lexer.reset();
-	
-	antlr4::CommonTokenStream tokens(&lexer);
+	antlr4::ANTLRInputStream input ( source );
+	Rc2Lexer lexer ( &input );
 
-	RFilter filter(&tokens);
+	antlr4::CommonTokenStream tokens ( &lexer );
+
+	RFilter filter ( &tokens );
 	filter.stream();
 	tokens.reset();
 
-	Rc2RawParser parser(&tokens);
+	Rc2RawParser parser ( &tokens );
 	auto doc = parser.document();
 	antlr4::tree::ParseTreeWalker walker;
 	ErrorReporter errors;
-	Rc2ParserListener listener(&errors);
-	walker.walk(&listener, doc);
-	
+	Rc2ParserListener listener ( &errors );
+	walker.walk ( &listener, doc );
 	return listener.chunks();
 }
 
-	
-std::vector<std::string> 
-RmdParser::stringsInRCode(std::string source)
-{
-	antlr4::ANTLRInputStream input(source);
-	RLexer lexer(&input);
-	antlr4::CommonTokenStream tokens(&lexer);
-	RFilter filter(&tokens);
+
+std::vector<std::string>
+RmdParser::stringsInRCode ( std::string source ) {
+	antlr4::ANTLRInputStream input ( source );
+	RLexer lexer ( &input );
+	antlr4::CommonTokenStream tokens ( &lexer );
+	RFilter filter ( &tokens );
 	filter.stream();
 	tokens.reset();
-	
-	RParser parser(&tokens);
+
+	RParser parser ( &tokens );
 	antlr4::tree::ParseTree *tree = parser.prog();
 	RStringVisitor visitor;
-	visitor.visit(tree);
-	
-//	std::cout << "strings:" << std::endl;
-//	for (auto i = visitor.strings.begin(); i != visitor.strings.end(); ++i)
-//		std::cout << *i << std::endl;
-	
+	visitor.visit ( tree );
+
 	return visitor.strings;
 }
 

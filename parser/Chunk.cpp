@@ -1,4 +1,50 @@
 #include "Chunk.hpp"
+#include <memory>
+#include <algorithm>
+#include "PrivateChunks.hpp"
+
+Chunk::Chunk()
+{
+}
+
+
+MarkdownChunk::MarkdownChunk()
+	: inlineChunks_()
+{
+}
+
+MarkdownChunk::MarkdownChunk(MarkdownChunk& other)
+	: Chunk(other)
+{
+	other.inlineChunks_.reserve(inlineChunks_.size());
+	
+	std::transform(
+		std::begin(inlineChunks_),
+		std::end(inlineChunks_),
+		std::back_inserter(inlineChunks_),
+		[](const std::unique_ptr<InlineChunk>& myptr) {
+			if(typeid(&myptr) == typeid(InlineEquationChunk)) {
+				InlineEquationChunk *aChunk = (InlineEquationChunk*)&myptr;
+				return std::unique_ptr<InlineChunk>(myptr ? new InlineEquationChunk(*aChunk) : nullptr);
+			} else if(typeid(&myptr) == typeid(InlineCodeChunk)) {
+				InlineCodeChunk *aChunk = (InlineCodeChunk*)&myptr;
+				return std::unique_ptr<InlineChunk>(myptr ? new InlineCodeChunk(*aChunk) : nullptr);
+		}
+			abort();
+		});
+	
+}
+
+std::vector<InlineChunk*> 
+MarkdownChunk::inlineChunks() const
+{
+	std::vector<InlineChunk*> ichunks;
+	for (auto ck = inlineChunks_.begin(); ck != inlineChunks_.end(); ++ck) {
+		ichunks.push_back(ck->get());
+	}
+	return ichunks;
+}
+
 
 ostream& operator<<(ostream& os, const NSRange range) {
 	os << "{loc=" << range.location << ",len=" << range.length << "}";

@@ -5,6 +5,8 @@
 #include <iostream>
 #include <sstream>
 #include <memory>
+#include "Chunk.hpp"
+#include <common/ZeroInitializedStruct.hpp>
 
 using std::string;
 using std::ostream;
@@ -22,32 +24,36 @@ ostream& operator<<(ostream& os, const NSRange range);
 enum ChunkType { markdown, code, equation, inlineEquation, inlineCode };
 ostream& operator<<(ostream& os, const ChunkType type);
 
-class Chunk {
+class InlineChunk; //forward declaration
+
+class Chunk : public ZeroInitializedClass {
 public:
 	Chunk(ChunkType type, string content, int startLine, int startChar, int endChar, NSRange innerRange)
 		: type_(type), content_(content), startLine_(startLine), 
 		startCharIndex_(startChar), endCharIndex_(endChar), innerRange_(innerRange)
 		{};
-		
-	virtual ChunkType type() const { return type_; }
-	virtual string content() const { return content_; }
-	virtual int startLine() const { return startLine_; }
-	virtual int startCharIndex() const { return startCharIndex_; }
-	virtual int endCharIndex() const { return endCharIndex_; }
-	virtual NSRange range() const { return NSRange(startCharIndex_, endCharIndex_ - startCharIndex_ + 1); }
-	virtual NSRange innerRange() const { return innerRange_; }
+	Chunk(const Chunk& other) = default;
+	virtual ~Chunk() = default;
+	ChunkType type() const { return type_; }
+	string content() const { return content_; }
+	int startLine() const { return startLine_; }
+	int startCharIndex() const { return startCharIndex_; }
+	int endCharIndex() const { return endCharIndex_; }
+	NSRange range() const { return NSRange(startCharIndex_, endCharIndex_ - startCharIndex_ + 1); }
+	NSRange innerRange() const { return innerRange_; }
 			bool isInline() const { return type_ == inlineCode || type_ == inlineEquation; }
 			bool isCode() const { return type_ == code || type_ == inlineCode; }
-			
-	virtual string description() const {
+				
+	string description() const {
 		std::ostringstream st;
 		st << type_ << " " << range();
 		return st.str();
 		return "";
 	}
 	
+	virtual string cname() const { return "Chunk"; }
 protected:
-	Chunk() {};
+	Chunk();
 	
 	ChunkType 	type_;
 	string		content_;
@@ -58,6 +64,8 @@ protected:
 };
 
 class InlineChunk: public Chunk {
+public:
+	InlineChunk(InlineChunk& other) : Chunk(other) {}
 protected:
 	InlineChunk() {};
 };
@@ -80,9 +88,11 @@ protected:
 
 class MarkdownChunk: public Chunk {
 public:
-	std::vector<std::shared_ptr<InlineChunk>> inlineChunks() const { return inlineChunks_; }
+	MarkdownChunk();
+	MarkdownChunk(MarkdownChunk& other);
+	std::vector<InlineChunk*> inlineChunks() const;
+	virtual void append(Chunk *chunk) {};
+	virtual string cname() const { return "MarkdownChunk"; }
 protected:
-	std::vector<std::shared_ptr<InlineChunk>> inlineChunks_;
-	
-	virtual void dummy() const = 0;
+	std::vector<std::unique_ptr<InlineChunk> > inlineChunks_;
 };
