@@ -7,12 +7,16 @@
 typedef char* uuid_string_t;
 #endif
 #include <sys/stat.h>
+#include <system_error>
 #include <cerrno>
 #include <iostream>
 #include <fstream>
 #include <boost/filesystem.hpp>
+#include <boost/exception/exception.hpp>
 #include <boost/system/error_code.hpp>
+
 namespace fs = boost::filesystem;
+namespace errc =  boost::system::errc;
 
 RC2::TemporaryDirectory::TemporaryDirectory(bool erase)
 {
@@ -38,12 +42,13 @@ RC2::TemporaryDirectory::TemporaryDirectory(std::string path, bool erase)
 RC2::TemporaryDirectory::~TemporaryDirectory()
 {
 	if (_eraseOnDeath)
-		boost::filesystem::remove_all(_path);
+		fs::remove_all(_path);
 }
 
 std::string
 RC2::SlurpFile(const char *filename)
 {
+	// boost calls will throw filesystem_errors
 	std::ifstream in(filename, std::ios::in | std::ios::binary);
 	if (in) {
 		fs::path filePath(filename);
@@ -52,7 +57,6 @@ RC2::SlurpFile(const char *filename)
 		auto exists = fs::exists(filePath);
 		auto regular = fs::is_regular_file(filePath);
 		assert(exists && regular);
-		std::cout << filePath << std::endl;
 		std::string contents;
 		in.seekg(0, std::ios::end);
 		int len = fs::file_size(filePath);
@@ -62,7 +66,8 @@ RC2::SlurpFile(const char *filename)
 		in.close();
 		return (contents);
 	}
-	throw(errno);
+	auto code = errc::make_error_code(errc::no_such_file_or_directory);
+	throw fs::filesystem_error("file not found", code);
 }
 
 std::unique_ptr<char[]>
