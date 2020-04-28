@@ -24,6 +24,7 @@ class RInside;
 #define kError_MissingQueryId 107
 #define kError_SweaveError 108
 #define kError_SweaveErrorInLogFile 109
+#define kError_InvalidArgument 110
 
 typedef std::function<void(string&)> OutputCallback;
 //typedef void (^OutputCallback)(string &str);
@@ -145,6 +146,9 @@ namespace RC2 {
 			void	handleGetVariableCommand(JsonCommand& command);
 			void	handleClearEnvironment(JsonCommand& command);
 			void	handleCreateEnvironment(JsonCommand& command);
+			void	handleInitPreview(JsonCommand& command);
+			void	handleUpdatePreview(JsonCommand& command);
+			void	handleRemovePreview(JsonCommand& command);
 
 			void	handleExecuteScript(JsonCommand& command);
 			void	handleExecuteAndReturn(JsonCommand& command);

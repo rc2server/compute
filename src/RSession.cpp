@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <iostream>
+#include <stdexcept>
 #include <tclap/CmdLine.h>
 #include <execinfo.h>
 #include <fcntl.h>
@@ -33,6 +34,7 @@
 #include "common/FormattedException.hpp"
 #include "FileManager.hpp"
 #include "EnvironmentWatcher.hpp"
+#include "PreviewData.hpp"
 
 using namespace std;
 namespace fs = boost::filesystem;
@@ -40,7 +42,8 @@ using json2 = nlohmann::json;
 using Rcpp::Environment;
 
 namespace RC2 {
-    typedef map<long, shared_ptr<EnvironmentWatcher>> EnvironmentMap;
+	typedef map<long, shared_ptr<EnvironmentWatcher>> EnvironmentMap;
+	typedef map<int, unique_ptr<PreviewData>> PreviewMap;
 }
 
 extern Rboolean R_Visible;
@@ -130,9 +133,10 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	unique_ptr<FileManager>			fileManager;
 	unique_ptr<TemporaryDirectory>	tmpDir;
 	string							rc2home; // home directory. specified by RC2_HOME env var. Defaults to dir containing executable
-//	unique_ptr<EnvironmentWatcher>	envWatcher;
     EnvironmentMap                  environments;
 	int								environmentCounter;
+	PreviewMap						previews;
+	int								previewsCounter;
 	shared_ptr<string>				consoleOutBuffer;
 	string							stdOutCapture;
 	string							currentImageName; //watching to track title of it
@@ -634,6 +638,14 @@ RC2::RSession::handleCommand(JsonCommand& command)
 		case CommandType::CreateEnvironment:
 			handleCreateEnvironment(command);
 			break;
+		case CommandType::InitPreview:
+			handleInitPreview(command);
+			break;
+		case CommandType::UpdatePreview:
+			handleUpdatePreview(command);
+			break;
+		case CommandType::RemovePreview:
+			handleRemovePreview(command);
 		default:
 			LOG(WARNING) << "unknown command type";
 			break;
@@ -919,6 +931,51 @@ RC2::RSession::handleHelpCommand(JsonCommand& command)
 		LOG(WARNING) << "help got error:" << err.what();
 	}
 	_impl->ignoreOutput = false;
+}
+
+void
+RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
+{
+	try {
+		int fileId = command.intValueForKey("fileId");
+		FileInfo finfo;
+		if (!_impl->fileManager->fileInfoForId(fileId, finfo)) {
+			throw invalid_argument("file not found");
+		}
+		int newId = _impl->previewsCounter;
+		while (_impl->previews.count(newId) > 0) {
+			newId++;
+		}
+		_impl->previewsCounter += 1;
+		_impl->previews[fileId] = std::make_unique<PreviewData>(newId, &finfo);
+		json2 results = {
+			{"msg", "previewInited"},
+			{"previewId", newId}
+		};
+		sendJsonToClientSource(results.dump());
+	} catch (std::exception& e) {
+		// FIXME: send error
+		string msg(formatErrorAsJson(101, "invalid fileId"));
+		sendJsonToClientSource(msg);
+		LOG(WARNING) << "error handling preview init:" << e.what() << endl;
+	}
+}
+
+void 
+RC2::RSession::handleUpdatePreview(RC2::JsonCommand& command)
+{
+}
+
+void
+RC2::RSession::handleRemovePreview(RC2::JsonCommand& command)
+{
+	try {
+		int previewId = command.intValueForKey("previewId");
+		auto erasedCount = _impl->previews.erase(previewId);
+		LOG(INFO) << "removed " << erasedCount << " previews with id " << previewId << endl;
+	} catch (std::exception& e) {
+		LOG(WARNING) << "error removing preview:" << e.what() << endl;
+	}
 }
 
 void
