@@ -5,6 +5,8 @@ build
 *.o
 *.a
 .kdev4
+.idea
+cmake-build-debug
 inside
 vendor/antlr/build
 vendor/antlr/run
