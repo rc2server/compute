@@ -27,7 +27,6 @@
 #include "RSession.hpp"
 #include "RSessionCallbacks.hpp"
 #include "InputBufferManager.hpp"
-//#include "FormattedException.hpp"
 #include "JsonCommand.hpp"
 #include "common/RC2Utils.hpp"
 #include "common/ZeroInitializedStruct.hpp"
@@ -35,94 +34,18 @@
 #include "FileManager.hpp"
 #include "EnvironmentWatcher.hpp"
 #include "PreviewData.hpp"
+#include "RSessionDataTypes.hpp"
 
 using namespace std;
 namespace fs = boost::filesystem;
 using json2 = nlohmann::json;
 using Rcpp::Environment;
 
-namespace RC2 {
-	typedef map<long, shared_ptr<EnvironmentWatcher>> EnvironmentMap;
-	typedef map<int, unique_ptr<PreviewData>> PreviewMap;
-}
-
 extern Rboolean R_Visible;
-
-enum KnitExceptionCode { none, forkError=100, execvError, pathError, pdfError, errorInLogFile, unknownError };
-enum PdfStatus { successPdfStatus, killedPdfStatus, otherPdfStatus };
-
-int clientErrorForKnitExceptionCode(KnitExceptionCode code) {
-	switch (code) {
-		case forkError:
-		case execvError:
-		case pathError:
-		case pdfError:
-			return kError_SweaveError;			
-		case errorInLogFile:
-			return kError_SweaveErrorInLogFile;
-		case unknownError:
-		default:
-			return kError_Unknown;
-	}
-}
 
 static string escape_quotes(const string before);
 static string formatErrorAsJson(int errorCode, string details, int queryId=0);
 
-inline bool stringHasPrefix(string str, const char* prefix) {
-	return strncmp(str.c_str(), prefix, strlen(prefix)) == 0;
-}
-
-inline double currentFractionalSeconds() {
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	return tv.tv_sec + (round(tv.tv_usec/1000.0)/1000.0);
-}
-
-namespace RC2 {
-
-struct ExecCompleteArgs {
-	RSession *session;
-	JsonCommand command;
-	FileInfo finfo;
-	int queryId;
-	//object ptr points to does not have to exist past this call. just to allow null value
-	ExecCompleteArgs(RSession *inSession, JsonCommand inCommand, int inQueryId, FileInfo *info) 
-		: session(inSession), command(inCommand), finfo(info), queryId(inQueryId)
-	{}
-};
-
-struct DelayCommandArgs {
-	RSession *session;
-	string json;
-	DelayCommandArgs(RC2::RSession *inSession, string inJson)
-		: session(inSession), json(inJson)
-	{}
-};
-
-struct BoolResetter {
-	BoolResetter(bool *ptr, bool valueToSet) { _ptr = ptr; _valToSet = valueToSet; *_ptr = valueToSet; }
-	~BoolResetter() { *_ptr = !_valToSet; }
-private:
-	bool *_ptr;
-	bool _valToSet;
-};
-
-struct SweavePdfData {
-	JsonCommand command;
-	RSession *session;
-	pid_t pid;
-	fs::path srcPath;
-	fs::path scratchPath;
-	string baseName;
-	int queryId;
-	PdfStatus pstatus = successPdfStatus;
-	SweavePdfData (JsonCommand cmd, RSession *s, pid_t p, fs::path spath, fs::path tpath, string name, int qid = 0) 
-	: command(cmd), session(s), pid(p), srcPath(spath), scratchPath(tpath), baseName(name), queryId(qid)
-	{};
-};
-
-} // namespace
 
 struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	struct event_base*				eventBase;
