@@ -31,6 +31,9 @@ namespace RC2 {
 				name = ptr->name;
 			}
 		}
+		FileInfo(int fileId, const FileInfo &other) 
+		: id(fileId), version(other.version), name(other.name)
+		{ }
 		void operator=(FileInfo const &other) 
 		{
 			id = other.id;
