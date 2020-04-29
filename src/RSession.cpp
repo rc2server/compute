@@ -1112,7 +1112,7 @@ RC2::RSession::sendJsonToClientSource(string json)
 		return;
 	if (_impl->socket > 0) { //only send if we have a valid socket
 		LOG(INFO) << "sending:" << json << "(" << json.length() << " bytes)";
-		int32_t header[2];
+		int32_t header[2] = {0,0};
 		header[0] = kRSessionMagicNumber;
 		header[1] = json.length();
 		header[0] = htonl(header[0]);
