@@ -154,7 +154,7 @@ add_dependencies(common applogger)
 add_executable(rserver src/RServer-main.cpp)
 
 target_link_libraries(rserver src common ${Compute_Libs} ${Boost_LIBRARIES})
-target_link_libraries(rsession src common pthread ${Compute_Libs} ${Boost_LIBRARIES} ${VALIDATE_LIBRARY} ${ANTLR_RTIME} R RInside -lm)
+target_link_libraries(rsession src common parser pthread ${Compute_Libs} ${Boost_LIBRARIES} ${VALIDATE_LIBRARY} ${ANTLR_RTIME} R RInside -lm)
 
 install(CODE "execute_process(COMMAND \"${CMAKE_SOURCE_DIR}/prepareRInside.sh\" \"${CMAKE_BINARY_DIR}\")")
 

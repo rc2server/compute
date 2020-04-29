@@ -9,4 +9,4 @@ add_library (src InputBufferManager.cpp
 					RSession.cpp 
 					RSessionCallbacks.cpp )
 
-add_dependencies(src common)
+add_dependencies(src common, parser)
