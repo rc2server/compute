@@ -1,1 +1,1 @@
-export("help", "rc2.defineFunction", "rc2.pngdev", "rc2.pngoff", "rc2.errlog")
+export("help", "rc2.defineFunction", "rc2.pngdev", "rc2.pngoff", "rc2.errlog", "evaluateWrapper")
