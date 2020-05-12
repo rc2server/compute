@@ -6,6 +6,8 @@ build
 *.a
 .kdev4
 inside
+RInside
+Rcpp
 vendor/antlr/build
 vendor/antlr/run
 vendor/antlr/antlr-src
