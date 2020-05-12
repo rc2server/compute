@@ -37,7 +37,7 @@ processItems <- function(items, baseFileName) {
     curItem <- items[[i]]
     listitem <- switch(class(curItem),
       rc2plot = handlePlot(curItem, baseFileName = baseFileName),
-      rc2src = structure(list(src = curItem$data$src), class="rc2src") ,
+      rc2src = structure(list(src = curItem$src), class="rc2src") ,
       rc2value = handleValue(curItem),
       rc2msg = structure(list(src = curItem$data$message), class = "rc2msg"),
       rc2err = handleError(curItem)

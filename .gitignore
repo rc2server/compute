@@ -8,6 +8,8 @@ build
 .idea
 cmake-build-debug
 inside
+RInside
+Rcpp
 vendor/antlr/build
 vendor/antlr/run
 vendor/antlr/antlr-src
