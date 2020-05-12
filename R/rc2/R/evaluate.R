@@ -1,5 +1,5 @@
 
-createWrapper <- function(parent = emptyenv()) {
+evaluateWrapper <- function(parent = emptyenv()) {
   myEnv <- new.env(parent = parent)
   assign("allItems", list(), envir = myEnv)
   
@@ -81,5 +81,5 @@ createWrapper <- function(parent = emptyenv()) {
     replayPlot(img)
     dev.off()
   }
-  structure(list(evaluate=rc2evaluate, saveImage=saveImage))
+  structure(list(evaluate=rc2evaluate, saveImage=saveImage, evaluateWrapper=evaluateWrapper))
 }
