@@ -7,11 +7,13 @@
 #include <string>
 #include <nlohmann/json.hpp>
 #include "SessionCommon.hpp"
+#include "RJsonEncoder.hpp"
 
 using json = nlohmann::json;
 using Rcpp::RObject;
 
 namespace RC2 {
+	class RJsonEncoder;
 	typedef std::pair<std::string, RObject> Variable;
 	
 class EnvironmentWatcher : private boost::noncopyable {
@@ -42,14 +44,6 @@ public:
 	~EnvironmentWatcher();
 
 	/**
-	 * @brief returns the current enviornment as a json object
-	 * 
-	 * @return json::value_type
-	 */
-	[[deprecated]]
-	json::value_type toJson();
-
-	/**
 	 * @brief Returns the environment's contents a a json string
 	 * 
 	 * @return std::__cxx11::string
@@ -64,14 +58,6 @@ public:
 	 * @return json::value_type
 	 */
 	json::value_type toJson(std::string varName);
-	
-	/**
-	 * @brief returns the changes since the last captureEnvironment call
-	 * 
-	 * @return json::value_type
-	 */
-	[[deprecated]]
-	json::value_type jsonDelta();
 	
 	/**
 	 * @brief assigns a value in the environment
@@ -119,27 +105,11 @@ protected:
 	const Rcpp::Environment _env;
 	std::vector<Variable> _lastVars;
 	ExecuteCallback _execCallback;
+	RJsonEncoder _encoder;
 
 	// addds delta entries (variables, variablesAdded, avariablesRemoved) to container
 	void addDelta(json::value_type &container);	
 
-	//returns array
-	json rvectorToJsonArray(RObject& robj);
-	
-	void getAttributes(RObject &robj, json& results);
-	
-	void setObjectData(RObject& robj, json& jobj);
-	void setFactorData(RObject& robj, json& jobj);
-	void setDataFrameData(RObject& robj, json& jobj);
-	void setGenericObjectData(RObject& robj, json& jobj);
-	void setEnvironmentData(RObject& robj, json& jobj);
-	void setFunctionData(RObject& robj, json& jobj);
-	void setPrimitiveData(RObject& robj, json& jobj);
-	void setDimNames(RObject& robj, json& jobj);
-	void setListData(RObject& robj, json& jobj, bool includeListChildren);
-	void setPairListData(RObject& robj, json& jobj);
-	
-	void addSummary(std::string& varName, json& jobj);
 };
 
 	

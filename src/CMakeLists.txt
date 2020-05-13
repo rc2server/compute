@@ -5,6 +5,7 @@ add_library (src InputBufferManager.cpp
 					EnvironmentWatcher.cpp
 					FileManager.cpp
 					DBFileSource.cpp
+					RJsonEncoder.cpp
 					RServer.cpp 
 					RSession.cpp 
 					RSessionCallbacks.cpp )
