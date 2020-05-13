@@ -225,6 +225,19 @@ RC2::EnvironmentWatcher::addDelta(json::value_type &container) {
 	container["variablesAdded"] = jsonAdded;
 }
 
+std::string 
+RC2::EnvironmentWatcher::toString() const {
+	json results;
+	Rcpp::StringVector names(_env.ls(true));
+	// this function should not modify this, but would have to audit entire source. For now, just strip away constness
+	auto nonconst = const_cast<EnvironmentWatcher*> (this);
+	std::for_each(names.begin(), names.end(), [&](const char* aName) { 
+		results[aName] = nonconst->toJson(aName);
+	});
+	return results.dump(0);
+}
+
+
 json::value_type 
 RC2::EnvironmentWatcher::toJson ( std::string varName )
 {

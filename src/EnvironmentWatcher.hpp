@@ -50,6 +50,13 @@ public:
 	json::value_type toJson();
 
 	/**
+	 * @brief Returns the environment's contents a a json string
+	 * 
+	 * @return std::__cxx11::string
+	 */
+	std::string toString()const;
+	
+	/**
 	 * @brief Returns the specified variable as a json object
 	 * 
 	 * @param varName name of the variable to return
