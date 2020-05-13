@@ -13,14 +13,14 @@ MarkdownChunk::MarkdownChunk()
 {
 }
 
-MarkdownChunk::MarkdownChunk(MarkdownChunk& other)
+MarkdownChunk::MarkdownChunk(const MarkdownChunk& other)
 	: Chunk(other)
 {
-	other.inlineChunks_.reserve(inlineChunks_.size());
+	inlineChunks_.reserve(other.inlineChunks_.size());
 	
 	std::transform(
-		std::begin(inlineChunks_),
-		std::end(inlineChunks_),
+		std::begin(other.inlineChunks_),
+		std::end(other.inlineChunks_),
 		std::back_inserter(inlineChunks_),
 		[](const std::unique_ptr<InlineChunk>& myptr) {
 			if(typeid(&myptr) == typeid(InlineEquationChunk)) {

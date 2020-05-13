@@ -1,5 +1,6 @@
 #include "RmdParser.hpp"
 #include <iostream>
+#include <memory>
 #include "antlr4-runtime.h"
 #include "generated/Rc2Lexer.h"
 #include "generated/Rc2RawParser.h"
@@ -9,13 +10,22 @@
 #include "RStringVisitor.hpp"
 #include "Rc2ParserListener.hpp"
 #include "Chunk.hpp"
+#include "common/ZeroInitializedStruct.hpp"
 
 using std::vector;
 using std::string;
 
 namespace RC2 {
 
-RmdParser::RmdParser() {
+	struct ParserData: ZeroInitializedStruct {
+		// necessary to preserve Chunks in listener
+		unique_ptr<Rc2ParserListener>		listener;
+		ErrorReporter						errorReporter;
+	};
+	
+RmdParser::RmdParser() 
+	: _impl(new ParserData())
+{
 }
 
 RmdParser::~RmdParser() {
@@ -37,10 +47,9 @@ RmdParser::parseRmdSource ( std::string source ) {
 	Rc2RawParser parser ( &tokens );
 	auto doc = parser.document();
 	antlr4::tree::ParseTreeWalker walker;
-	ErrorReporter errors;
-	Rc2ParserListener listener ( &errors );
-	walker.walk ( &listener, doc );
-	return listener.chunks();
+	_impl->listener = std::make_unique<Rc2ParserListener>(&(_impl->errorReporter));
+	walker.walk ( _impl->listener.get(), doc );
+	return _impl->listener->chunks();
 }
 
 

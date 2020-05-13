@@ -33,7 +33,6 @@ public:
 		startCharIndex_(startChar), endCharIndex_(endChar), innerRange_(innerRange)
 		{};
 	Chunk(const Chunk& other) = default;
-	virtual ~Chunk() = default;
 	ChunkType type() const { return type_; }
 	string content() const { return content_; }
 	int startLine() const { return startLine_; }
@@ -65,7 +64,7 @@ protected:
 
 class InlineChunk: public Chunk {
 public:
-	InlineChunk(InlineChunk& other) : Chunk(other) {}
+	InlineChunk(const InlineChunk& other) : Chunk(other) {}
 protected:
 	InlineChunk() {};
 };
@@ -89,7 +88,7 @@ protected:
 class MarkdownChunk: public Chunk {
 public:
 	MarkdownChunk();
-	MarkdownChunk(MarkdownChunk& other);
+	MarkdownChunk(const MarkdownChunk& other);
 	std::vector<InlineChunk*> inlineChunks() const;
 	virtual void append(Chunk *chunk) {};
 	virtual string cname() const { return "MarkdownChunk"; }

@@ -22,14 +22,14 @@ protected:
 class InlineCodeChunk: public InlineChunk, public CodeChunk {
 public:
 		InlineCodeChunk(Rc2RawParser::ChunkContext* ctx);
-		InlineCodeChunk(InlineCodeChunk& rhs) : InlineChunk(rhs) {}
+		InlineCodeChunk(const InlineCodeChunk& rhs) : InlineChunk(rhs) {}
 		virtual string cname() const { return "InlineCodeChunk"; }
 };
 
 class InlineEquationChunk: public InlineChunk, public EquationChunk {
 public:
 		InlineEquationChunk(Rc2RawParser::ChunkContext* ctx);
-		InlineEquationChunk(InlineEquationChunk& rhs) : InlineChunk(rhs) {}
+		InlineEquationChunk(const InlineEquationChunk& rhs) : InlineChunk(rhs) {}
 		virtual string cname() const { return "InlineEquationChunk"; }
 };
 

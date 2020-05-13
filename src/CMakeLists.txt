@@ -6,6 +6,7 @@ add_library (src InputBufferManager.cpp
 					FileManager.cpp
 					DBFileSource.cpp
 					RJsonEncoder.cpp
+					PreviewData.cpp
 					RServer.cpp 
 					RSession.cpp 
 					RSessionCallbacks.cpp )

@@ -8,6 +8,7 @@
 #include <nlohmann/json.hpp>
 #include "../src/RSession.hpp"
 #include "../src/RSessionCallbacks.hpp"
+#include "../src/RJsonEncoder.hpp"
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 #include "testlib/TestingSession.hpp"
@@ -20,6 +21,31 @@ namespace testing {
 	class SessionTest : public BaseSessionTest {
 		virtual void pureVirtual() {}
 	};
+	
+	TEST_F(SessionTest, evaluate)
+	{
+		RInside* inside = session->getInside();
+		SEXP resultSEXP;
+		inside->parseEval("wrapper <- evaluateWrapper()", resultSEXP);
+		inside->parseEval("wrapper$evaluate(\"2*2\")", resultSEXP);
+		//		inside->parseEval("wrapper <- evaluateWrapper(); wrapper.rc2evaluate(\"2+2\")", resultSEXP);
+		ASSERT_NE(resultSEXP, nullptr);
+		Rcpp::List evalLists(resultSEXP);
+		cout << "cnt=" << evalLists.size() << endl;
+		RObject fullVal(resultSEXP);
+		RJsonEncoder encoder(session->getExecCallback());
+		json values = encoder.toJson(fullVal, false);
+		cout << "json=" << values.dump(4) << endl;
+		ASSERT_GT(evalLists.size(), 0);
+		
+// 		Rcpp::List lval(robj);
+// 		std::cout << "lv=" << lval.length() << std::endl;
+// 		RObject sval(lval(0));
+// 		std::cout << "l=" << lval.sexp_type() << " sv=" << sval.sexp_type() << std::endl;
+// 		Rcpp::StringVector sv2(sval);
+// 		Rcpp::String str(sv2(0));
+// 		std::cout << "n=" << str.get_cstring() << std::endl;
+	}
 	
 	TEST_F(SessionTest, basicScript)
 	{
