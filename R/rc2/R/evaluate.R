@@ -25,7 +25,7 @@ evaluateWrapper <- function(parent = emptyenv()) {
     outputHandler <- new_output_handler(
     source=function(value, visible = TRUE) {
       all = get("allItems", envir = myEnv)
-      newval <- list(data=value[[1]][1])
+      newval <- list(src=value[[1]][1])
       class(newval) <- "rc2src"
       all[[length(all) + 1]] = newval
       assign("allItems", all, envir = myEnv)

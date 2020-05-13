@@ -26,9 +26,9 @@ handleValue <- function(item) {
   return(structure(item[[1]], class = "rc2value"))
 }
 
-handleError <- function(item) {
+handleError <- function(item, className) {
   newlist = list(message = item$data$message, call = as.character(as.expression(item$data$call)))
-  return( structure(newlist, class = "rc2err"))
+  return( structure(newlist, class = className))
 }
 
 processItems <- function(items, baseFileName) {
@@ -39,8 +39,8 @@ processItems <- function(items, baseFileName) {
       rc2plot = handlePlot(curItem, baseFileName = baseFileName),
       rc2src = structure(list(src = curItem$src), class="rc2src") ,
       rc2value = handleValue(curItem),
-      rc2msg = structure(list(src = curItem$data$message), class = "rc2msg"),
-      rc2err = handleError(curItem)
+      rc2msg = handleError(curItem, "rc2msg"),
+      rc2err = handleError(curItem, "rc2err")
     )
     newlist[[length(newlist) + 1]] = listitem
   }
