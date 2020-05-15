@@ -11,6 +11,7 @@ typedef char* uuid_string_t;
 #include <cerrno>
 #include <iostream>
 #include <fstream>
+#include <openssl/sha.h>
 #include <boost/filesystem.hpp>
 #include <boost/exception/exception.hpp>
 #include <boost/system/error_code.hpp>
@@ -44,6 +45,26 @@ RC2::TemporaryDirectory::~TemporaryDirectory()
 	if (_eraseOnDeath)
 		fs::remove_all(_path);
 }
+
+std::string
+RC2::SHA256Hash(std::string& input) 
+{
+	unsigned char obuf[SHA256_DIGEST_LENGTH + 1];
+	bzero(obuf, SHA256_DIGEST_LENGTH + 1);
+	SHA256((unsigned char*)input.data(), input.length(), obuf);
+	return std::string((char*)obuf);
+}
+
+std::string 
+RC2::SHA1Hash(std::string& input)
+{
+	// only needs to be 20, but we'll add one for terminator and clear entire buffer
+	unsigned char obuf[21];
+	bzero(obuf, 21);
+	SHA1((unsigned char*)input.data(), input.length(), obuf);
+	return std::string((char*)obuf);
+}
+
 
 std::string
 RC2::SlurpFile(const char *filename)

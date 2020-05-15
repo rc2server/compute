@@ -36,9 +36,11 @@ SET(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "-Wl,--export-dynamic -lstdc++")
 SET(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib:/usr/local/lib/R/lib:/usr/local/lib/R/site-library/RInside/libs/:")
 SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 
+# crypto 1.0.0 used by libpq and another one
 SET(Compute_Libs
 	event
 	event_pthreads
+	/usr/lib/x86_64-linux-gnu/libcrypto.so.1.0.0
 	uuid
 	pq
 	RInside
@@ -151,6 +153,8 @@ file(COPY ${INCOMING_SCHEMA_PATH}/${INCOMING_SCHEMA_NAME} DESTINATION ${tests_pa
 add_executable(rsession src/RSession-main.cpp)
 add_dependencies(rsession applogger)
 add_dependencies(common applogger)
+add_dependencies(parser common)
+
 add_executable(rserver src/RServer-main.cpp)
 
 target_link_libraries(rserver src common ${Compute_Libs} ${Boost_LIBRARIES})

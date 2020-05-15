@@ -21,6 +21,9 @@ std::string GetPathForExecutable(pid_t pid);
 */
 std::string SlurpFile(const char *filename);
 
+std::string SHA1Hash(std::string& input);
+std::string SHA256Hash(std::string& input);
+
 std::string PrivatePackagePath();
 std::runtime_error FormatErrorAsJson(int errorCode, std::string details);
 std::unique_ptr<char[]> ReadFileBlob(std::string filePath, size_t &size);
