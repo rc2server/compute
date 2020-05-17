@@ -50,6 +50,17 @@ public:
 		return "";
 	}
 	
+	
+	/**
+	 * @brief returns a unique identifier that should be the same on any platform
+	 * 
+	 * @return string
+	 */
+	string chunkIdentifier() const;
+
+	// subclasses can override and additional content to the end of the string that will be hashed
+	virtual string hashInput();	
+	
 	virtual string cname() const { return "Chunk"; }
 protected:
 	Chunk();
@@ -60,6 +71,7 @@ protected:
 	int			startCharIndex_;
 	int			endCharIndex_;
 	NSRange		innerRange_;
+	string		identifier_;
 };
 
 class InlineChunk: public Chunk {
@@ -89,9 +101,11 @@ class MarkdownChunk: public Chunk {
 public:
 	MarkdownChunk();
 	MarkdownChunk(const MarkdownChunk& other);
+	size_t inlineChunkCount() const { return inlineChunks_.size(); }
 	std::vector<InlineChunk*> inlineChunks() const;
 	virtual void append(Chunk *chunk) {};
 	virtual string cname() const { return "MarkdownChunk"; }
 protected:
+	virtual string hashInput();
 	std::vector<std::unique_ptr<InlineChunk> > inlineChunks_;
 };

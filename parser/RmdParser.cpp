@@ -11,9 +11,31 @@
 #include "Rc2ParserListener.hpp"
 #include "Chunk.hpp"
 #include "common/ZeroInitializedStruct.hpp"
+#include <openssl/sha.h>
+#include "Rc2RFilter.hpp"
 
 using std::vector;
 using std::string;
+
+string
+RC2::CalculateSHA256Hash(string& input) 
+{
+	unsigned char obuf[SHA256_DIGEST_LENGTH + 1];
+	bzero(obuf, SHA256_DIGEST_LENGTH + 1);
+	SHA256((unsigned char*)input.data(), input.length(), obuf);
+	unsigned char hexbuf[5];
+	bzero(hexbuf, 5);
+	string output = "0x";
+	for(int i=0; i < sizeof(obuf); ++i) {
+		sprintf((char*)hexbuf, "%02X", obuf[i]);
+		output += (char*)hexbuf;
+	}
+	return output;
+//	std::stringstream ss;
+//	ss << std::hex << obuf << std::endl;
+//	return ss.str();
+}
+
 
 namespace RC2 {
 
@@ -37,14 +59,14 @@ RmdParser::parseRmdSource ( std::string source ) {
 
 	antlr4::ANTLRInputStream input ( source );
 	Rc2Lexer lexer ( &input );
-
 	antlr4::CommonTokenStream tokens ( &lexer );
-
-	RFilter filter ( &tokens );
+	auto rawTokens = tokens.getTokens();
+	Rc2RFilter filter ( &tokens );
 	filter.stream();
 	tokens.reset();
 
 	Rc2RawParser parser ( &tokens );
+	parser.removeErrorListeners();
 	auto doc = parser.document();
 	antlr4::tree::ParseTreeWalker walker;
 	_impl->listener = std::make_unique<Rc2ParserListener>(&(_impl->errorReporter));
@@ -58,7 +80,7 @@ RmdParser::stringsInRCode ( std::string source ) {
 	antlr4::ANTLRInputStream input ( source );
 	RLexer lexer ( &input );
 	antlr4::CommonTokenStream tokens ( &lexer );
-	RFilter filter ( &tokens );
+	Rc2RFilter filter ( &tokens );
 	filter.stream();
 	tokens.reset();
 

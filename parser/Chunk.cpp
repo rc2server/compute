@@ -1,10 +1,30 @@
 #include "Chunk.hpp"
 #include <memory>
 #include <algorithm>
+#include <sstream>
+#include "../common/RC2Utils.hpp"
 #include "PrivateChunks.hpp"
+#include "RmdParser.hpp"
 
 Chunk::Chunk()
 {
+}
+
+string 
+Chunk::chunkIdentifier() const {
+	if(identifier_.length() < 10) {
+		auto nonconst = const_cast<Chunk*>(this);
+		string rawStr = nonconst->hashInput();
+		nonconst->identifier_ = RC2::CalculateSHA256Hash(rawStr);
+	}
+	return identifier_;
+}
+
+string
+Chunk::hashInput() {
+	std::stringstream ss;
+	ss << type_ << content_ << startLine_ << endCharIndex_ << startCharIndex_;
+	return ss.str();
 }
 
 
@@ -45,6 +65,17 @@ MarkdownChunk::inlineChunks() const
 	return ichunks;
 }
 
+string
+MarkdownChunk::hashInput() {
+	string working;
+	const auto &ichunks = inlineChunks_;
+	for (auto ck = ichunks.begin(); ck != ichunks.end(); ++ck) {
+		auto chunk = (*ck).get();
+		if(typeid(chunk) == typeid(InlineCodeChunk))
+			working += chunk->hashInput();
+	}
+	return working;
+}
 
 ostream& operator<<(ostream& os, const NSRange range) {
 	os << "{loc=" << range.location << ",len=" << range.length << "}";

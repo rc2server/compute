@@ -870,8 +870,8 @@ RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 		while (_impl->previews.count(newId) > 0) {
 			newId++;
 		}
-		_impl->previewsCounter += 1;
-		_impl->previews[fileId] = std::make_unique<PreviewData>(newId, &finfo);
+		_impl->previewsCounter = newId + 1;
+		_impl->previews[newId] = std::make_unique<PreviewData>(newId, &finfo, _impl->R, _impl->environments[0].get(), [&] (string str) { sendJsonToClientSource(str); });
 		json2 results = {
 			{"msg", "previewInited"},
 			{"previewId", newId}
@@ -888,6 +888,23 @@ RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 void 
 RC2::RSession::handleUpdatePreview(RC2::JsonCommand& command)
 {
+	try {
+		string updateIdent = command.valueForKey("updateIdentifier");
+		int previewId = command.intValueForKey("previewId");
+		PreviewData* pd = _impl->previews[previewId].get();
+		if (pd == nullptr) {
+			LOG(WARNING) << "failed to find preview " << previewId << endl;
+			throw invalid_argument("preview not found");
+		}
+		FileInfo finfo;
+		if (!_impl->fileManager->fileInfoForId(pd->fileInfo.id, finfo)) {
+			LOG(WARNING) << "previewUpdate: file info not found: " << pd->fileInfo.id << endl;
+			throw invalid_argument("file not found");
+		}
+		pd->update(finfo, updateIdent, command.intValueForKey("chunkId"), command.boolValueForKey("inculdePrevious"));
+	} catch (std::exception& e) {
+		LOG(WARNING) << "error reading updatePreview command: " << e.what() << endl;
+	}	
 }
 
 void

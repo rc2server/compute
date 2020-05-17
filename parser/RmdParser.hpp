@@ -6,7 +6,8 @@
 
 namespace RC2 {
 	struct ParserData;
-	
+	std::string CalculateSHA256Hash(std::string& input); 
+		
 	class RmdParser {
 	public:
 		RmdParser();

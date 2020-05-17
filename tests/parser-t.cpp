@@ -65,11 +65,9 @@ something
 		vector1.push_back(std::move(val1));
 		unique_ptr<MT> val2(new MT("bar", 44));
 		vector1.push_back(std::move(val2));
-		std::cout << val1.get()->contents() << std::endl;
+//		std::cout << val1.get()->contents() << std::endl;
 		for (int i = 0; i < vector1.size(); ++i) {
-//		for(auto mtv = vector1.begin(); mtv != vector1.end(); ++mtv) {
 			ptrVector.push_back(vector1[i].get());
-//			ptrVector.push_back((*mtv).get());
 			auto x1 = vector1[i].get();
 			auto x2 = ptrVector[i];
 			ASSERT_EQ(x1->str, x2->str);
@@ -91,7 +89,6 @@ barfoo
 		ASSERT_EQ(chunks.size(), 3);
 		// if use chunks[0].get().type() it crashes
 		auto ck = chunks[0];
-		std::cout << ck->type() << std::endl;
 		ASSERT_TRUE(ck->type() == markdown);
 		std::cout << ck->description() << std::endl;
 		ASSERT_EQ(chunks.size(), 3);
