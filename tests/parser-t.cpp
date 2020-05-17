@@ -13,6 +13,25 @@ using std::string;
 namespace RC2 {
 namespace testing {
 
+	TEST(ParserTest, chunkIdentifier)
+	{
+string mdown = R"(
+doodle 
+*news*
+```{r foo}
+rnorm(20)
+```
+something
+	
+)";
+		RmdParser parser;
+		auto chunks = parser.parseRmdSource(mdown);
+		for(int i=0; i < chunks.size(); ++i)  {
+			cout << "chunk " << i << "=" << chunks[i]->chunkIdentifier() << endl;
+		}
+		
+	}
+	
 	TEST(ParserTest, basicRParse)
 	{
 		string code = R"(x <- c(2,3)
