@@ -6,9 +6,9 @@ DESTDIR=`pwd`
 
 echo "patching RInside" 1>&2
 
-tar zxf $SCRIPTDIR/rc2root/containers/compute/RInside_0.2.*.tar.gz -C "$DESTDIR"
+tar zxf $SCRIPTDIR/tools/RInside_0.2.*.tar.gz -C "$DESTDIR"
 cd $DESTDIR/RInside
-patch -p1 < $SCRIPTDIR/rc2root/containers/dev/rinside.patch
+patch -p1 < $SCRIPTDIR/tools/rinside.patch
 
 
 

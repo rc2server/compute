@@ -1,0 +1,109 @@
+diff -Naur RInside/inst/include/RInsideCommon.h RInside.fixed/inst/include/RInsideCommon.h
+--- RInside/inst/include/RInsideCommon.h	2015-05-16 11:30:33.000000000 -0400
++++ RInside.fixed/inst/include/RInsideCommon.h	2018-05-07 13:34:09.517332379 -0400
+@@ -47,7 +47,9 @@
+ #ifndef WIN32
+   // needed to turn-off stack checking, and we already have uintptr_t
+   #define CSTACK_DEFNS
+-  #define HAVE_UINTPTR_T
++	#ifndef HAVE_UINTPTR_T
++	#define HAVE_UINTPTR_T
++	#endif
+ #endif
+ 
+ #include <Rembedded.h>
+diff -Naur RInside/inst/include/RInsideConfig.h RInside.fixed/inst/include/RInsideConfig.h
+--- RInside/inst/include/RInsideConfig.h	2013-12-27 19:38:48.000000000 -0500
++++ RInside.fixed/inst/include/RInsideConfig.h	2018-05-07 10:43:21.694778724 -0400
+@@ -21,6 +21,6 @@
+ #define RINSIDE_RINSIDECONFIG_H
+ 
+ // uncomment to turn on the experimental callbacks
+-// #define RINSIDE_CALLBACKS
++#define RINSIDE_CALLBACKS
+ 
+ #endif
+diff -Naur RInside/inst/include/RInside.h RInside.fixed/inst/include/RInside.h
+--- RInside/inst/include/RInside.h	2014-02-10 12:32:43.000000000 -0500
++++ RInside.fixed/inst/include/RInside.h	2018-05-07 10:49:51.000000000 -0400
+@@ -68,6 +68,18 @@
+ 	    Rcpp::RObject x;
+ 	};
+ 
++	enum ParseEvalResult {
++		PE_SUCCESS,
++		PE_INCOMPLETE,
++		PE_ERROR,
++		PE_NULL,
++		PE_EOF,
++		PE_EXEC_ERROR
++	};
++
++	//version that does not silently ignore incomplete parses
++	ParseEvalResult parseEvalR(const std::string &line, SEXP &ans, Rcpp::Environment *env = NULL);
++
+     int  parseEval(const std::string &line, SEXP &ans); // parse line, return in ans; error code rc
+     void parseEvalQ(const std::string &line);			// parse line, no return (throws on error)
+     void parseEvalQNT(const std::string &line);			// parse line, no return (no throw)
+diff -Naur RInside/src/RInside.cpp RInside.fixed/src/RInside.cpp
+--- RInside/src/RInside.cpp	2015-05-20 08:59:06.000000000 -0400
++++ RInside.fixed/src/RInside.cpp	2018-05-07 10:49:42.000000000 -0400
+@@ -308,6 +308,58 @@
+     }
+ }
+ 
++RInside::ParseEvalResult RInside::parseEvalR(const std::string &line, SEXP &ans, Rcpp::Environment *env) {
++    ParseStatus status;
++    SEXP cmdSexp, cmdexpr = R_NilValue;
++    int i, errorOccurred;
++    ParseEvalResult result = PE_SUCCESS;
++	Rcpp::Environment *theEnv  = env == NULL ? RInside::global_env_m : env;
++
++    mb_m.add((char*)line.c_str());
++
++    PROTECT(cmdSexp = Rf_allocVector(STRSXP, 1));
++    SET_STRING_ELT(cmdSexp, 0, Rf_mkChar(mb_m.getBufPtr()));
++
++    cmdexpr = PROTECT(R_ParseVector(cmdSexp, -1, &status, R_NilValue));
++
++    switch (status){
++    case PARSE_OK:
++        // Loop is needed here as EXPSEXP might be of length > 1
++        for(i = 0; i < Rf_length(cmdexpr); i++){
++            ans = R_tryEval(VECTOR_ELT(cmdexpr, i), *theEnv, &errorOccurred);
++            if (errorOccurred) {
++                if (verbose_m) Rf_warning("%s: Error in evaluating R code (%d)\n", programName, status);
++                result = PE_EXEC_ERROR;
++            } else if (verbose_m && Rf_isNull(ans) == 0) {
++                Rf_PrintValue(ans);
++            }
++        }
++        break;
++    case PARSE_INCOMPLETE:
++        result = PE_INCOMPLETE;
++        break;
++    case PARSE_NULL:
++        if (verbose_m) Rf_warning("%s: ParseStatus is null (%d)\n", programName, status);
++        result = PE_NULL;
++        break;
++    case PARSE_ERROR:
++        if (verbose_m) Rf_warning("Parse Error: \"%s\"\n", line.c_str());
++        result = PE_ERROR;
++        break;
++    case PARSE_EOF:
++        if (verbose_m) Rf_warning("%s: ParseStatus is eof (%d)\n", programName, status);
++        result = PE_SUCCESS;
++        break;
++    default:
++        if (verbose_m) Rf_warning("%s: ParseStatus is not documented %d\n", programName, status);
++        result = PE_ERROR;
++        break;
++    }
++    mb_m.rewind();
++    UNPROTECT(2);
++    return result;
++}
++
+ // this is a non-throwing version returning an error code
+ int RInside::parseEval(const std::string & line, SEXP & ans) {
+     ParseStatus status;
