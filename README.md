@@ -1,3 +1,5 @@
+working on using ChunkIdentifier to compare chunks uniquely instead of using chunk number (which could change if a non-code chunk is added before the code chunk)
+
 # rc2compute
 
 This is the R backend portion of the rc2 project. It builds `rserver` which listens for connection requests and then forks a copy of `rsession`. Each rsession process wraps an R session via RInside.
@@ -17,6 +19,13 @@ All communication is via json. Files are managed via the PostgreSQL database.
 
 ### to generate the souce
 `java -Xmx500M -cp vendor/antlr/antlr-4.8-complete.jar org.antlr.v4.Tool -Dlanguage=Cpp -Xexact-output-dir -o parser/generated/ -visitor Rc2Parser/Rc2Lexer.g4 Rc2Parser/Rc2RawParser.g4 Rc2Parser/R.g4 parser/RFilter.g4`
+
+## building package with docker runtime
+
+1. Build the rc2/dev image using the dockerfile. Then select that as the runtime in the Run menu. 
+2. Build/Debug/test per normal.
+3. Run the following to create the tarball in the build directory: `docker run --rm -w /build/compute --volume /home/mlilback/rc2/compute:/src/compute --volume /home/mlilback/rc2/compute-build:/build/compute rc2/dev:latest /usr/bin/make package`
+
 
 ## building notes
 
