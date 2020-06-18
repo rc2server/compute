@@ -861,11 +861,21 @@ void
 RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 {
 	try {
+		int errorCode = 0;
 		int fileId = command.intValueForKey("fileId");
 		FileInfo finfo;
 		if (!_impl->fileManager->fileInfoForId(fileId, finfo)) {
 			throw invalid_argument("file not found");
 		}
+		if(_impl->previews.count(fileId) > 0) { //already exists
+			json errMsg = {
+				{"msg", "previewInited"},
+				{"errorCode", kError_AlreadyExists}
+			};
+			sendJsonToClientSource(errMsg.dump());
+			return;
+		}
+		// create the preview object
 		int newId = _impl->previewsCounter;
 		while (_impl->previews.count(newId) > 0) {
 			newId++;
@@ -874,13 +884,16 @@ RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 		_impl->previews[newId] = std::make_unique<PreviewData>(newId, &finfo, _impl->R, _impl->environments[0].get(), [&] (string str) { sendJsonToClientSource(str); });
 		json2 results = {
 			{"msg", "previewInited"},
-			{"previewId", newId}
+			{"previewId", newId},
+			{"errorCode", errorCode}
 		};
 		sendJsonToClientSource(results.dump());
 	} catch (std::exception& e) {
-		// FIXME: send error
-		string msg(formatErrorAsJson(101, "invalid fileId"));
-		sendJsonToClientSource(msg);
+		json errResults = {
+			{"msg", "previewInited"},
+			{"errorCode", kError_InvalidArgument}
+		};
+		sendJsonToClientSource(errResults);
 		LOG(WARNING) << "error handling preview init:" << e.what() << endl;
 	}
 }

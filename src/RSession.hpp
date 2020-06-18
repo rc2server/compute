@@ -25,6 +25,7 @@ class RInside;
 #define kError_SweaveError 108
 #define kError_SweaveErrorInLogFile 109
 #define kError_InvalidArgument 110
+#define kError_AlreadyExists 111
 
 typedef std::function<void(string&)> OutputCallback;
 //typedef void (^OutputCallback)(string &str);
