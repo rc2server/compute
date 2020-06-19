@@ -25,6 +25,7 @@
 using namespace std;
 using boost::format;
 namespace fs = boost::filesystem;
+namespace signals = boost::signals2;
 
 struct BoolChanger {
 	bool *bptr, oldVal;
@@ -32,6 +33,11 @@ struct BoolChanger {
 	~BoolChanger() { *bptr = oldVal; }
 };
 
+struct DBNotification {
+	long fileId;
+	long wspaceId;
+	char type;
+};
 
 struct FSDirectory {
 	int wd;
@@ -68,6 +74,7 @@ class RC2::FileManager::Impl : public ZeroInitializedClass {
 		FSDirectory					rootDir_;
 		boost::regex				imgRegex_;
 		map<string, string>			imgNameToTitle_;
+		signals::signal<void (long, ChangeType)> fileSignal_;
 		bool						ignoreFSNotifications_;
 		bool						ignoreDBNotifications_;
         bool                        logInotify_;
@@ -98,7 +105,8 @@ class RC2::FileManager::Impl : public ZeroInitializedClass {
 			watcher->_impl->handleInotifyEvent(bev);
 		}
 
-		void processDBNotification(string message);
+		bool parseDBMessage(string message, DBNotification& note);
+		void processDBNotification(DBNotification& note);
 		void handleDBNotifications();
 		static void handleDBNotify(int fd, short event_type, void *ctx)
 		{
@@ -229,15 +237,12 @@ void RC2::FileManager::Impl::cleanupImageWatch()
 	pendingImagesByWatchDesc_.erase(pendingImagesByWatchDesc_.begin(), pendingImagesByWatchDesc_.end());
 }
 
-
-void
-RC2::FileManager::Impl::processDBNotification(string message)
-{
-	LOG(G3LOG_DEBUG) << "db notification: " << message;
-	char type = message.c_str()[0];
-	if (!(type == 'i' || type == 'u' || type == 'd') || message.length() < 2) {
+bool
+RC2::FileManager::Impl::parseDBMessage(string message, DBNotification& note) {
+	note.type = message.c_str()[0];
+	if (!(note.type == 'i' || note.type == 'u' || note.type == 'd') || message.length() < 2) {
 		LOG(WARNING) << "bad db notification received:" << message;
-		return;
+		return false;
 	}
 	//figure out fileId and wspaceId from message
 	string numStr(message.substr(1));
@@ -245,18 +250,26 @@ RC2::FileManager::Impl::processDBNotification(string message)
 	boost::split(fields, numStr, boost::is_any_of("/"));
 	if (fields.size() != 3) {
 		LOG(WARNING) << "bad db notification received:" << message;
-		return;
+		return false;
 	}
-	long fileId = atol(fields[0].c_str());
-	long fileWspaceId = atol(fields[1].c_str());
-	if (wspaceId_ != fileWspaceId)
+	note.fileId = atol(fields[0].c_str());
+	note.wspaceId = atol(fields[1].c_str());
+}
+
+void
+RC2::FileManager::Impl::processDBNotification(DBNotification& note)
+{
+	LOG(G3LOG_DEBUG) << "db notification: " << note.fileId;
+	if (wspaceId_ != note.wspaceId)
 		return;
+	long fileId = note.fileId;
 	try {
-		if (type == 'd') {
+		if (note.type == 'd') {
 			try {
 				DBFileInfoPtr fobj = dbFileSource_->filesById_.at(fileId);
 				//stop notify watch first
 				inotify_rm_watch(inotifyFd_, fobj->watchDescriptor);
+				fileSignal_(fileId, DELETE);
 				dbFileSource_->filesById_.erase(fileId);
 				filesByWatchDesc_.erase(fileId);
 				fs::remove(workingDir + "/" + fobj->path);
@@ -272,16 +285,18 @@ RC2::FileManager::Impl::processDBNotification(string message)
 		} else {
 			ostringstream query;
 			query << " where f.id = " << fileId;
-			if (type == 'i') {
+			if (note.type == 'i') {
 				LOG(INFO) << "got insert for " << fileId;
 				ignoreFSNotifications();
 				dbFileSource_->loadFiles(query.str().c_str());
+				fileSignal_(fileId, INSERT);
 				watchFile(dbFileSource_->filesById_[fileId]);
-			} else if (type == 'u') {
+			} else if (note.type == 'u') {
 				LOG(INFO) << "got update for " << fileId;
 				if (dbFileSource_->filesById_.count(fileId) > 0) {
 					ignoreFSNotifications();
 					dbFileSource_->loadFiles(query.str().c_str());
+					fileSignal_(fileId, UPDATE);
 				}
 			}
 		}
@@ -310,8 +325,9 @@ RC2::FileManager::Impl::handleDBNotifications()
 	string name, channel;
 	while (dbConnection_->checkForNotification(name, channel)) {
 		LOG(INFO) << "got notification " << channel;
-		if (!ignoreDBNotifications_)
-			processDBNotification(channel);
+		DBNotification note;
+		if (!ignoreDBNotifications_ && parseDBMessage(channel, note))
+			processDBNotification(note);
 	}
 }
 
@@ -651,5 +667,13 @@ RC2::FileManager::filePathForId(long fileId, string& filePath)
 void
 RC2::FileManager::processDBNotification(string message)
 {
-	_impl->processDBNotification(message);
+	DBNotification note;
+	if (_impl->parseDBMessage(message, note))
+		_impl->processDBNotification(note);
+}
+
+void 
+RC2::FileManager::addChangeListener(long fileId, boost::signals2::connection& connection, FileListener callback)
+{
+	connection = _impl->fileSignal_.connect(callback);
 }

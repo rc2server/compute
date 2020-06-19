@@ -5,9 +5,11 @@
 #include <vector>
 #include <functional>
 #include <event2/event.h>
+#include <boost/signals2.hpp>
 #include "common/PGDBConnection.hpp"
 
 namespace RC2 {
+	enum ChangeType { UPDATE, INSERT, DELETE };
 	
 	struct FileInfo {
 		long id;
@@ -43,6 +45,7 @@ namespace RC2 {
 	};
 	
 	typedef FileInfo& FileInfoRef;
+	typedef void(*FileListener)(long, ChangeType);
 	class DBFileSource;
 	
 	class FileManager {
@@ -72,6 +75,15 @@ namespace RC2 {
 		
 		virtual void	suspendNotifyEvents();
 		virtual void	resumeNotifyEvents();
+		
+		/**
+		 * @brief Adds a listener function called when a file is changed. Caller is responsible to disconnect the connection
+		 * 
+		 * @param fileId id of file to listen for changes
+		 * @param connection on return contains the connection object for the listener
+		 * @param callback function called when a file changes
+		 */
+		virtual void	addChangeListener(long fileId, boost::signals2::connection& connection, FileListener callback);
 		
 		virtual void	setTitle(std::string title, std::string imageName);
 		//for unit testing
