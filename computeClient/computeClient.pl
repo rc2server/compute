@@ -16,7 +16,7 @@ use File::Slurp;
 
 my $con_ready = AnyEvent->condvar;
 my $handle;
-my $connectStr = '{"msg":"open","argument":"","dbname":"rc2","wspaceId":1,"dbuser":"rc2","dbhost":"dbserver","sessionRecId":463}';
+my $connectStr = '{"msg":"open","argument":"","dbname":"rc2","wspaceId":100,"dbuser":"rc2","dbhost":"localhost","sessionRecId":463}';
 tcp_connect "localhost", 7714, sub {
 	my ($fh) = @_ or return $con_ready->send;
 	
@@ -27,6 +27,7 @@ tcp_connect "localhost", 7714, sub {
 			$_[0]->destroy;
 		},
 		on_eof => sub {
+			print STDERR "got eof\n";
 			$handle->destroy;
 		},
 		on_read => sub {
@@ -49,7 +50,7 @@ tcp_connect "localhost", 7714, sub {
 #	my $data = pack("NNa*", 0x21, length($connectStr), $connectStr);
 #	print STDERR xd $data;
 #	syswrite $fh, $data;
-};
+} || die "failed to connect";
 
 my $input; $input = AnyEvent->io (
 	fh => \*STDIN,
