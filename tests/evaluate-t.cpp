@@ -4,6 +4,7 @@
 #include <iostream>
 #include <queue>
 #include <thread>
+#include <memory>
 #include <Rcpp.h>
 #include <RInside.h>
 #include "common/RC2Utils.hpp"
@@ -11,6 +12,8 @@
 #include <boost/filesystem.hpp>
 #include "testlib/TestingSession.hpp"
 #include "src/EnvironmentWatcher.hpp"
+#include <boost/signals2.hpp>
+#include <boost/bind.hpp>
 
 using json = nlohmann::json;
 using namespace std;
@@ -21,6 +24,29 @@ namespace testing {
 //		RC2::TemporaryDirectory tmpDir;
 		virtual void pureVirtual() {}
 	};
+	
+	TEST_F(EvaluateTest, signalTest)  
+	{
+		cerr << "start" << endl;
+		struct Foo {
+			Foo() {};
+			boost::signals2::connection* m_val;
+			void test1() { cerr << "test1" << endl; }
+			void test2() { cerr << "test2" << endl; }
+		};
+		unique_ptr<Foo> cptr = make_unique<Foo>();
+		boost::signals2::signal<void()> sig;
+		cout << "connecting" << endl;
+		{
+			boost::signals2::connection con = sig.connect(boost::bind(&Foo::test1, cptr.get()));
+			cptr.get()->m_val = &con;
+		}
+		cerr << "exec" << endl;
+		sig();
+		cptr->test2();
+		cptr.get()->m_val->disconnect();
+		sig();
+	}
 	
 	TEST_F(EvaluateTest, basicEvaluate)
 	{
