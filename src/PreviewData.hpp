@@ -38,17 +38,20 @@ namespace RC2 {
 	typedef std::function<void (string)>  SendJsonLambda;
 	struct PreviewData: ZeroInitializedStruct {
 		int				previewId;
+		FileManager*	fileManager;
 		FileInfo		fileInfo;
 		ChunkCacheMap	chunkMap;
 		RmdParser		parser;
+		boost::signals2::connection *fileConnection;
 		
-		PreviewData(int pid, FileInfo* finfo, RInside *rInside, EnvironmentWatcher* globalEnv, SendJsonLambda outputLamba)
-		: previewId(pid), fileInfo(finfo), rinside(rInside), jsonOutput_(outputLamba), previewEnv(globalEnv)
-		{}
+		PreviewData(int pid, FileManager* fmanager, FileInfo& finfo, RInside *rInside, EnvironmentWatcher* globalEnv, SendJsonLambda outputLamba);
+		virtual ~PreviewData();
 		
 		std::vector<Chunk*> currentChunks() const { return currentChunks_; }
 		
 		std::unique_ptr<UpdateResponse> update(FileInfo& updatedInfo, string& updateIdent, int targetChunkId, bool includePrevious = false);
+		
+		void fileChanged(long changedId, ChangeType type);
 	private:
 		
 		std::vector<Chunk*> whichChunksNeedUpdate(int start, bool includePrevious);

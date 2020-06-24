@@ -881,7 +881,7 @@ RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 			newId++;
 		}
 		_impl->previewsCounter = newId + 1;
-		_impl->previews[newId] = std::make_unique<PreviewData>(newId, &finfo, _impl->R, _impl->environments[0].get(), [&] (string str) { sendJsonToClientSource(str); });
+		_impl->previews[newId] = std::make_unique<PreviewData>(newId, _impl->fileManager.get(), finfo, _impl->R, _impl->environments[0].get(), [&] (string str) { sendJsonToClientSource(str); });
 		json2 results = {
 			{"msg", "previewInited"},
 			{"previewId", newId},

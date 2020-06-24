@@ -5,6 +5,8 @@
 #include <cassert>
 #include <algorithm>
 #include <RInside.h>
+#include <boost/bind.hpp>
+//#include "RC2Logging.h"
 
 /*
  * 1. if the source file hasn't changed, nothing to do. Note if data files have changed, need to update any chunks that refer to them
@@ -17,10 +19,24 @@
 
 using std::unique_ptr;
 using std::vector;
+using std::endl;
+
+//void handleFileChange(PreviewData *data, 
 
 namespace RC2 {
 
-	unique_ptr<UpdateResponse> 
+RC2::PreviewData::PreviewData(int pid, FileManager* fmanager, FileInfo& finfo, RInside *rInside, EnvironmentWatcher* globalEnv, SendJsonLambda outputLamba)
+	: previewId(pid), fileManager(fmanager), fileInfo(finfo), rinside(rInside), jsonOutput_(outputLamba), previewEnv(globalEnv)
+{
+	long fid = fileInfo.id;
+	fileManager->addChangeListener(fid, boost::bind(&PreviewData::fileChanged, this, fid, ALL), &fileConnection);
+}
+
+RC2::PreviewData::~PreviewData() {
+	fileConnection->disconnect();
+}
+	
+unique_ptr<UpdateResponse> 
 RC2::PreviewData::update(FileInfo& updatedInfo, string& updateIdent, int targetChunkId, bool includePrevious) {
 	assert(updatedInfo.id == fileInfo.id);
 	currentUpdateIdentifier_ = updateIdent;
@@ -34,6 +50,11 @@ RC2::PreviewData::update(FileInfo& updatedInfo, string& updateIdent, int targetC
 	executeCode(chunks2Update, result.get());
 	currentUpdateIdentifier_ = "";
 	return result;
+}
+
+void
+RC2::PreviewData::fileChanged(long changedId, ChangeType type) {
+//	LOG(INFO) << "fileChanged called:" << changedId << endl;
 }
 
 void

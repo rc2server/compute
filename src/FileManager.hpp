@@ -9,7 +9,7 @@
 #include "common/PGDBConnection.hpp"
 
 namespace RC2 {
-	enum ChangeType { UPDATE, INSERT, DELETE };
+	enum ChangeType { ALL, UPDATE, INSERT, DELETE };
 	
 	struct FileInfo {
 		long id;
@@ -45,7 +45,8 @@ namespace RC2 {
 	};
 	
 	typedef FileInfo& FileInfoRef;
-	typedef void(*FileListener)(long, ChangeType);
+//	typedef void(*FileListener)(long, ChangeType);
+	typedef boost::function<void(long, ChangeType)> FileListener;
 	class DBFileSource;
 	
 	class FileManager {
@@ -83,7 +84,7 @@ namespace RC2 {
 		 * @param connection on return contains the connection object for the listener
 		 * @param callback function called when a file changes
 		 */
-		virtual void	addChangeListener(long fileId, boost::signals2::connection& connection, FileListener callback);
+		void addChangeListener(long fileId, FileListener callback, boost::signals2::connection** outPtr);
 		
 		virtual void	setTitle(std::string title, std::string imageName);
 		//for unit testing

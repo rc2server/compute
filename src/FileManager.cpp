@@ -672,8 +672,9 @@ RC2::FileManager::processDBNotification(string message)
 		_impl->processDBNotification(note);
 }
 
-void 
-RC2::FileManager::addChangeListener(long fileId, boost::signals2::connection& connection, FileListener callback)
+void
+RC2::FileManager::addChangeListener(long fileId, FileListener callback, boost::signals2::connection** outPtr)
 {
-	connection = _impl->fileSignal_.connect(callback);
+	auto con = _impl->fileSignal_.connect(boost::bind(callback, _1, ALL));
+	*outPtr = &con;
 }
