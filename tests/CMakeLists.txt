@@ -26,6 +26,7 @@ SET(TESTS
 	environ
 	evaluate
 	parser
+	preview
 )
 
 add_subdirectory(testlib)
