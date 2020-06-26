@@ -59,7 +59,7 @@ RC2::PreviewData::fileChanged(long changedId, ChangeType type) {
 
 void
 RC2::PreviewData::executeCode(vector<Chunk*> chunksToUpdate, UpdateResponse* results) {
-	// 1. create cache entry
+	// 1. create cache entry-
 	// 2. evaluate
 	// 3. turn results into json
 	// 4. send results

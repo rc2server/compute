@@ -31,8 +31,8 @@ namespace RC2 {
 		int				previewId;
 		string			resultText;
 		
-		UpdateResponse(int preId) 
-			: previewId(preId) {};
+		UpdateResponse(int preId, string results = "") 
+			: previewId(preId), resultText(results) {};
 	};
 
 	typedef std::function<void (string)>  SendJsonLambda;
