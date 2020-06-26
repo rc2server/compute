@@ -65,20 +65,20 @@ void
 TestingSession::sendJsonToClientSource(std::string jsonStr) {
 	json2 parsed = json::parse(jsonStr);
 	_messages.push(jsonStr + "\n");
-	LOG(INFO) <<"t-json:" <<  jsonStr << " (" << countDown << ")";
+	LOG_INFO <<"t-json:" <<  jsonStr << " (" << countDown << ")";
 	if (parsed["msg"] == "error") {
-		LOG(INFO) << "recieved error";
+		LOG_INFO << "recieved error";
 		stopEventLoop();
 		return;
 	}
-//	LOG(INFO) << "cnt1=" << countDown;
+//	LOG_INFO << "cnt1=" << countDown;
 	if (countingDown) {
 		// end the countdown if got execComplete but no expectShowOutput
 		json msg = json::parse(jsonStr);
-//		if (msg["msg"] == "execComplete" && !msg["expectShowOutput"]) { countDown = 1; LOG(INFO) << "decrement"; }
-//		LOG(INFO) << "cnt2 = " << countDown;
+//		if (msg["msg"] == "execComplete" && !msg["expectShowOutput"]) { countDown = 1; LOG_INFO << "decrement"; }
+//		LOG_INFO << "cnt2 = " << countDown;
 		countDown--;
-//		LOG(INFO) << "cnt3 = " << countDown;
+//		LOG_INFO << "cnt3 = " << countDown;
 		if (countDown <= 0) {
 			stopEventLoop();
 		}
@@ -193,7 +193,7 @@ TestingFileManager::filePathForId(long fileId, std::string& filePath)
 	fs::path path = getWorkingDir();
 	FileInfo finfo;
 	if (!fileInfoForId(fileId, finfo)) {
-		LOG(WARNING) << "failed to find file " << fileId;
+		LOG_INFO << "failed to find file " << fileId;
 		return false;
 	}
 //	path /= finfo.name;

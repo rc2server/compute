@@ -101,7 +101,7 @@ namespace RC2 {
 				return jvalues;
 			}
 			default:
-//				LOG(WARNING) << "dataframe invalid col type:" << colValue.sexp_type() << std::endl;
+//				LOG_INFO << "dataframe invalid col type:" << colValue.sexp_type() << std::endl;
 				return json(nullptr);
 		}
 		
@@ -143,7 +143,7 @@ namespace RC2 {
 		RObject result;
 		_execCallback(cmd, result);
 		if (result.isNULL()) {
-//			LOG(INFO) << "summary result " << varName << " is null" << std::endl;
+//			LOG_INFO << "summary result " << varName << " is null" << std::endl;
 			return;
 		}
 		try {
@@ -156,7 +156,7 @@ namespace RC2 {
 			});
 			jobj["summary"] = summary;
 		} catch (...) {
-//			LOG(INFO) << "exception for summary of " << varName << std::endl;
+//			LOG_INFO << "exception for summary of " << varName << std::endl;
 		}
 	}
 	
@@ -345,7 +345,7 @@ namespace RC2 {
 			});
 			jobj["body"] = stream.str();
 		} catch (std::exception &e) {
-//			LOG(WARNING) << "failed to get function body:" << e.what() << std::endl;
+//			LOG_INFO << "failed to get function body:" << e.what() << std::endl;
 		} 
 	}
 	
@@ -464,7 +464,7 @@ namespace RC2 {
 				jobj[kClass] = "unsupported type";
 				notVector = true;
 				jobj[kPrimitive] = false;
-//				LOG(INFO)  << "unsupported type:" << robj.sexp_type() << std::endl;
+//				LOG_INFO  << "unsupported type:" << robj.sexp_type() << std::endl;
 				break;
 		}
 		if (notVector)
@@ -502,7 +502,7 @@ namespace RC2 {
 				array = nullptr;
 				break;
 			default:
-//				LOG(INFO) << "setDimNames called for unsupported type:" << robj.sexp_type() << std::endl;
+//				LOG_INFO << "setDimNames called for unsupported type:" << robj.sexp_type() << std::endl;
 				break;
 		}
 		return array;

@@ -171,7 +171,7 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 	size_t size;
 	unique_ptr<char[]> buffer = ReadFileBlob(filePath, size);
 	if (size < 1) {
-		LOG(INFO) << "got image with no data";
+		LOG_INFO << "got image with no data";
 		return 0;
 	}
 	long imgId = dbConnection_->longFromQuery("select nextval('sessionimage_seq'::regclass)");
@@ -193,10 +193,10 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
  	const char *params[] = {buffer.get()};
 	DBResult res = dbConnection_->executeQuery(query.str(), 1, NULL, params, pSizes, &pformats);
 	if (!res.commandOK()) {
-		LOG(WARNING) << "insert image error:" << res.errorMessage();
+		LOG_INFO << "insert image error:" << res.errorMessage();
 		throw FormattedException("failed to insert image in db: %s", res.errorMessage());
 	}
-//	LOG(INFO) << "inserted image " << imgId << " of size " << size;
+//	LOG_INFO << "inserted image " << imgId << " of size " << size;
 	imageIds_.push_back(imgId);
 	ignoreFSNotifications();
     if (NULL == getenv("RSESSION_KEEP_IMAGES"))
@@ -222,7 +222,7 @@ void RC2::FileManager::Impl::stopImageWatch ( int wd )
 void RC2::FileManager::Impl::cleanupImageWatch()
 {
 	for(auto it = pendingImagesByWatchDesc_.begin(); it != pendingImagesByWatchDesc_.end(); ++it) {
-//		LOG(INFO) << "cleaning up image " << it->second.fileName;
+//		LOG_INFO << "cleaning up image " << it->second.fileName;
 		//check to see if image exists on disk with file size > 0
 		fs::path imgPath(workingDir);
 		imgPath /= it->second.fileName;
@@ -241,7 +241,7 @@ bool
 RC2::FileManager::Impl::parseDBMessage(string message, DBNotification& note) {
 	note.type = message.c_str()[0];
 	if (!(note.type == 'i' || note.type == 'u' || note.type == 'd') || message.length() < 2) {
-		LOG(WARNING) << "bad db notification received:" << message;
+		LOG_INFO << "bad db notification received:" << message;
 		return false;
 	}
 	//figure out fileId and wspaceId from message
@@ -249,7 +249,7 @@ RC2::FileManager::Impl::parseDBMessage(string message, DBNotification& note) {
 	vector<string> fields;
 	boost::split(fields, numStr, boost::is_any_of("/"));
 	if (fields.size() != 3) {
-		LOG(WARNING) << "bad db notification received:" << message;
+		LOG_INFO << "bad db notification received:" << message;
 		return false;
 	}
 	note.fileId = atol(fields[0].c_str());
@@ -259,7 +259,7 @@ RC2::FileManager::Impl::parseDBMessage(string message, DBNotification& note) {
 void
 RC2::FileManager::Impl::processDBNotification(DBNotification& note)
 {
-	LOG(G3LOG_DEBUG) << "db notification: " << note.fileId;
+	LOG_DEBUG << "db notification: " << note.fileId;
 	if (wspaceId_ != note.wspaceId)
 		return;
 	long fileId = note.fileId;
@@ -275,24 +275,24 @@ RC2::FileManager::Impl::processDBNotification(DBNotification& note)
 				fs::remove(workingDir + "/" + fobj->path);
 			} catch (out_of_range &ore) {
 				//we'll just ignore
-				LOG(WARNING) << "got db note to delete " << fileId << 
+				LOG_INFO << "got db note to delete " << fileId << 
 					" but we dont' have a desc for it:" << ore.what();
 			} catch (exception &ee) {
 				//we'll just ignore
-				LOG(WARNING) << "XX got db note to delete " << fileId << 
+				LOG_INFO << "XX got db note to delete " << fileId << 
 					" but we dont' have a desc for it:" << ee.what();
 			}
 		} else {
 			ostringstream query;
 			query << " where f.id = " << fileId;
 			if (note.type == 'i') {
-				LOG(INFO) << "got insert for " << fileId;
+				LOG_INFO << "got insert for " << fileId;
 				ignoreFSNotifications();
 				dbFileSource_->loadFiles(query.str().c_str());
 				fileSignal_(fileId, INSERT);
 				watchFile(dbFileSource_->filesById_[fileId]);
 			} else if (note.type == 'u') {
-				LOG(INFO) << "got update for " << fileId;
+				LOG_INFO << "got update for " << fileId;
 				if (dbFileSource_->filesById_.count(fileId) > 0) {
 					ignoreFSNotifications();
 					dbFileSource_->loadFiles(query.str().c_str());
@@ -301,30 +301,30 @@ RC2::FileManager::Impl::processDBNotification(DBNotification& note)
 			}
 		}
 	} catch (exception &e) {
-		LOG(WARNING) << "exception handling db notification: " << e.what();
+		LOG_INFO << "exception handling db notification: " << e.what();
 	}
 }
 
 void
 RC2::FileManager::Impl::handleDBNotifications()
 {
-	LOG(G3LOG_DEBUG) << "handleDBNotifications called";
+	LOG_DEBUG << "handleDBNotifications called";
 	ignoreFSNotifications();
 	PGnotify *notify;
 	try {
 		dbConnection_->consumeInput();
 	} catch (DBException &dbexception) {
 		if (!dbConnection_->connectionOpen()) {
-			LOG(WARNING) << "db connection closed while handling a handleDBNotification?" << endl;
+			LOG_INFO << "db connection closed while handling a handleDBNotification?" << endl;
 			event_free(dbnotifyEvent_);
 			return;
 		}
-		LOG(WARNING) << "error consuming input: " << dbexception.what() << endl;
+		LOG_INFO << "error consuming input: " << dbexception.what() << endl;
 		return;
 	}
 	string name, channel;
 	while (dbConnection_->checkForNotification(name, channel)) {
-		LOG(INFO) << "got notification " << channel;
+		LOG_INFO << "got notification " << channel;
 		DBNotification note;
 		if (!ignoreDBNotifications_ && parseDBMessage(channel, note))
 			processDBNotification(note);
@@ -336,7 +336,7 @@ RC2::FileManager::Impl::executeDBCommand(string cmd)
 {
 	DBResult res = dbConnection_->executeQuery(cmd);
 	if (res.commandOK()) {
-		LOG(WARNING) << "sql error executing: " << cmd << " (" 
+		LOG_INFO << "sql error executing: " << cmd << " (" 
 			<< res.errorMessage() << ")";
 		return false;
 	}
@@ -418,14 +418,14 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 	char *p;
 	if (ignoring) {
         if (logInotify_)
-            LOG(INFO) << "ignoring " << numRead << "inotify events";
+            LOG_INFO << "ignoring " << numRead << "inotify events";
 		return;
 	}
 	for (p=buf; p < buf + numRead; ) {
 		struct inotify_event *event = (struct inotify_event*)p;
 		int evtype = event->mask & 0xffff; //events are in lower word, flags in upper
 		if (logInotify_)
-            LOG(INFO) << "notify:" << std::hex << event->mask;
+            LOG_INFO << "notify:" << std::hex << event->mask;
 		try {
 			if(evtype == IN_CREATE) {
 				if (!(event->mask & IN_ISDIR)) { //we don't want these events, they are duplicates
@@ -439,13 +439,13 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 						} else if (manuallyAddedFiles_.find(fname) == manuallyAddedFiles_.end()) {
 							if (fileExistsWithName(fname)) {
 								if (logInotify_) 
-                                    LOG(INFO) << "create for existing file " << fname;
+                                    LOG_INFO << "create for existing file " << fname;
 							} else {
                                 if (logInotify_)
-                                    LOG(INFO) << "inotify create for " << fname << ": " << manuallyAddedFiles_.size();
+                                    LOG_INFO << "inotify create for " << fname << ": " << manuallyAddedFiles_.size();
 								newFileId = dbFileSource_->insertDBFile(fname);
 								if (logInotify_)
-                                    LOG(INFO) << "inserted s " << newFileId;
+                                    LOG_INFO << "inserted s " << newFileId;
 							}
 						}
 						if (newFileId > 0) {
@@ -462,13 +462,13 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 				} else {
 					DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
 					if (logInotify_)
-                        LOG(INFO) << "got close write event for " << fobj->name;
+                        LOG_INFO << "got close write event for " << fobj->name;
 					dbFileSource_->updateDBFile(fobj);
 				}
 			} else if (evtype == IN_DELETE_SELF) {
 
 				DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
-			LOG(INFO) << "got delete event for " << fobj->name;
+			LOG_INFO << "got delete event for " << fobj->name;
 				dbFileSource_->removeDBFile(fobj);
 				filesByWatchDesc_.erase(fobj->id);
 				//discard our records of it
@@ -476,14 +476,14 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 			} else if (evtype == IN_OPEN) {
 				DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
 				if (logInotify_)
-                    LOG(INFO) << "got open for " << fobj->name;
+                    LOG_INFO << "got open for " << fobj->name;
 			} else if (evtype == IN_MODIFY) {
 				DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
                 if (logInotify_)
-                    LOG(INFO) << "got write for " << fobj->name;
+                    LOG_INFO << "got write for " << fobj->name;
 			}
 		} catch(exception &ex) {
-			LOG(WARNING) << "exception in inotify code: " << ex.what();
+			LOG_INFO << "exception in inotify code: " << ex.what();
 		}
 		//handle event
 		p += sizeof(struct inotify_event) + event->len;
@@ -572,7 +572,7 @@ RC2::FileManager::setEventBase(struct event_base *eb)
 void
 RC2::FileManager::resetWatch()
 {
-//	LOG(INFO) << "fm:resetWatch called: " << _impl->imageIds_.size();
+//	LOG_INFO << "fm:resetWatch called: " << _impl->imageIds_.size();
 	if (_impl->imageIds_.size() > 0) {
 		_impl->sessionImageBatch_++;
 	}
@@ -657,7 +657,7 @@ RC2::FileManager::filePathForId(long fileId, string& filePath)
 {
 	auto & fileCache = _impl->dbFileSource_->filesById_;
 	if (fileCache.count(fileId) != 1) {
-		LOG(WARNING) << "filenameForId called with invalid id: " << fileId;
+		LOG_INFO << "filenameForId called with invalid id: " << fileId;
 		return false;
 	}
 	filePath = fileCache[fileId]->path;

@@ -89,24 +89,11 @@ namespace RC2 {
 namespace testing {
 	using namespace RC2;
 	
-	struct TestLogging {
-		TestLogging() {
-			using namespace g3;
-			static std::unique_ptr<LogWorker> logworker{ LogWorker::createLogWorker() };
-			auto sinkHandle = logworker->addSink(std2::make_unique<RC2::CustomSink>(),
-												 &RC2::CustomSink::ReceiveLogMessage);
-			
-			// initialize the logger before it can receive LOG calls
-			initializeLogging(logworker.get());
-		}
-	};
-	
 	class BaseSessionTest : public ::testing::Test {
 	protected:
 		static RSessionCallbacks *callbacks;
 		static TestingSession *session;
 		static TestingFileManager *fileManager;
-//		static unique_ptr<TestLogging> testLogger;
 		static void initStaticObjects();
 
 		static void SetUpTestCase() {
@@ -120,14 +107,6 @@ namespace testing {
 // 			} catch (std::exception &e) {
 // 				cout << "exception in setup:" << e.what() << endl;
 // 			}
-			using namespace g3;
-			static std::unique_ptr<LogWorker> logworker{ LogWorker::createLogWorker() };
-			auto sinkHandle = logworker->addSink(std2::make_unique<RC2::CustomSink>(),
-												 &RC2::CustomSink::ReceiveLogMessage);
-			
-			// initialize the logger before it can receive LOG calls
-			initializeLogging(logworker.get());
-			event_set_log_callback(myevent_logger);
 			session->prepareForRunLoop();
 			session->doJson(R"({"msg":"open", "argument": "", "wspaceId":1, "sessionRecId":1, "dbhost":"localhost", "dbuser":"rc2", "dbname":"rc2test", "dbpassword":"rc2"})");
 			cerr << "setup complete" << endl;

@@ -33,13 +33,6 @@ main(int argc, char** argv)
 {
 	std::set_terminate(exitHandler);
 
-	using namespace g3;
-	std::unique_ptr<LogWorker> logworker{ LogWorker::createLogWorker() };
-	auto sinkHandle = logworker->addSink(std2::make_unique<RC2::CustomSink>(),
-										 &RC2::CustomSink::ReceiveLogMessage);
-	
-	// initialize the logger before it can receive LOG calls
-	initializeLogging(logworker.get());
 	if (fs::exists("/usr/lib/R"))
 		setenv("R_HOME", "/usr/lib/R", 0);
 	else

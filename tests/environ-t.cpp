@@ -30,6 +30,7 @@ namespace testing {
 		ASSERT_TRUE(preGlobal.isNull());
 //		ASSERT_FALSE(preGlobal.length() == 1);
 //		ASSERT_TRUE(R_NilValue == Rcpp::Environment::global_env()["aa"]);
+		LOG_INFO << ("creating env");
 		cout << "creating env" << endl;
 		Rcpp::Environment testEnv(Rcpp::new_env(global));
 		ASSERT_FALSE(testEnv == global);

@@ -24,11 +24,10 @@ set(INCOMING_SCHEMA_PATH rc2root/documentation)
 #endforeach()
 
 set(Boost_USE_STATIC_LIBS ON)
-find_package(Boost 1.54 REQUIRED COMPONENTS regex filesystem system)
+find_package(Boost 1.65 REQUIRED COMPONENTS regex filesystem system log log_setup)
 include_directories(${Boost_INCLUDE_DIRS}) 
 
 #add_definitions(-std=c++14)
-SET(CMAKE_CXX_FLAGS "-DBOOST_LOG_DYN_LINK -g")
 SET(CMAKE_C_FLAGS "-export-dynamic")
 #following fixes compile error because somehow -rdynamic is getting set as a linker flag
 SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
@@ -44,7 +43,6 @@ SET(Compute_Libs
 	uuid
 	pq
 	RInside
-	g3logger
 )
 
 include(ExternalProject)
@@ -66,18 +64,6 @@ endif()
 add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/googletest-src
 	${CMAKE_CURRENT_BINARY_DIR}/googletest-build
 	EXCLUDE_FROM_ALL)
-
-# build g3log
-set(LOGGER_SOURCE_DIR ${CMAKE_SOURCE_DIR}/vendor/g3log)
-set(LOGGER_BINARY_DIR ${CMAKE_BINARY_DIR}/vendor)
-ExternalProject_Add(applogger
-  DOWNLOAD_COMMAND	""
-  SOURCE_DIR        "${LOGGER_SOURCE_DIR}"
-  BINARY_DIR        "${LOGGER_BINARY_DIR}"
-  PREFIX			"${CMAKE_CURRENT_BINARY_DIR}/vendor"
-  CMAKE_ARGS		"-DG3_SHARED_LIB=OFF"
-  INSTALL_COMMAND	""
-)
 
 # build json-schema-validator
 SET(VALIDATE_SOURCE_DIR "${CMAKE_SOURCE_DIR}/vendor/json-schema-validator/")
@@ -101,8 +87,6 @@ include_directories (
 	${CMAKE_SOURCE_DIR}/vendor
 	${LOGGER_BINARY_DIR}/include
 	${VALIDATE_SOURCE_DIR}/src/
-	${CMAKE_SOURCE_DIR}/vendor/g3log/src
-	${CMAKE_BINARY_DIR}/vendor/g3log/include
 	/usr/include
 	/usr/include/postgresql
 	/usr/share/R/include
@@ -131,12 +115,16 @@ add_library(event_pthreads STATIC IMPORTED)
 add_library(boost_filesystem STATIC IMPORTED)
 add_library(boost_system STATIC IMPORTED)
 add_library(boost_regex STATIC IMPORTED)
+add_library(boost_log_setup STATIC IMPORTED)
+add_library(boost_log STATIC IMPORTED)
 add_library(RInside SHARED IMPORTED)
 set_target_properties(event PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libevent.a)
 set_target_properties(event_pthreads PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libevent_pthreads.a)
 set_target_properties(boost_system PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libboost_system.a)
 set_target_properties(boost_filesystem PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libboost_filesystem.a)
 set_target_properties(boost_regex PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libboost_regex.a)
+set_target_properties(boost_log_setup PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libboost_log_setup.a)
+set_target_properties(boost_log PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libboost_log.a)
 set_target_properties(uuid PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libuuid.a)
 set_target_properties(RInside PROPERTIES IMPORTED_LOCATION /usr/local/lib/R/site-library/RInside/libs/RInside.so)
 
@@ -151,8 +139,6 @@ file(COPY ${INCOMING_SCHEMA_PATH}/${INCOMING_SCHEMA_NAME} DESTINATION ${tests_pa
 #file(RENAME ${CMAKE_BINARY_DIR}/src/${INCOMING_SCRC_NAME} ${CMAKE_BINARY_DIR}/src/${INCOMING_SCHEMA_NAME})
 
 add_executable(rsession src/RSession-main.cpp)
-add_dependencies(rsession applogger)
-add_dependencies(common applogger)
 add_dependencies(parser common)
 
 add_executable(rserver src/RServer-main.cpp)

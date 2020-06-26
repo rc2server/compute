@@ -54,7 +54,7 @@ RC2::PreviewData::update(FileInfo& updatedInfo, string& updateIdent, int targetC
 
 void
 RC2::PreviewData::fileChanged(long changedId, ChangeType type) {
-//	LOG(INFO) << "fileChanged called:" << changedId << endl;
+//	LOG_INFO << "fileChanged called:" << changedId << endl;
 }
 
 void

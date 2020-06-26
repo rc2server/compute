@@ -3,6 +3,7 @@ project (rcompute-src)
 
 add_library (src InputBufferManager.cpp 
 					EnvironmentWatcher.cpp
+					RC2Logging.cpp
 					FileManager.cpp
 					DBFileSource.cpp
 					RJsonEncoder.cpp

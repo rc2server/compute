@@ -25,11 +25,7 @@ namespace testing {
 		
 	protected:
 		virtual void SetUp() {
-			using namespace g3;
 			using namespace RC2;
-			std::unique_ptr<LogWorker> logworker{ LogWorker::createLogWorker() };
-			auto sinkHandle = logworker->addSink(std2::make_unique<CustomSink>(),
-												 &CustomSink::ReceiveLogMessage);
 			db = make_shared<RC2::TestPGDBConnection>();
 			db->connect("");
 			source.initializeSource(db, 1);

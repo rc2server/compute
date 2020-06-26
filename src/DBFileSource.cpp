@@ -69,7 +69,7 @@ RC2::DBFileSource::loadRData()
 			return true;
 		}
 	}
-	LOG(INFO) << ".RData not loaded" << std::endl;
+	LOG_INFO << ".RData not loaded" << std::endl;
 	return false;
 }
 
@@ -79,14 +79,14 @@ RC2::DBFileSource::saveRData()
 	size_t newSize=0;
 	string filePath = _impl->workingDir_ + "/.RData";
 	if (!fs::exists(filePath)) {
-		LOG(INFO) << "no .RData file to save" << std::endl;
+		LOG_INFO << "no .RData file to save" << std::endl;
 		return;
 	}
 	unique_ptr<char[]> data = ReadFileBlob(filePath, newSize);
 	DBTransaction trans = dbcon_->startTransaction();
 	DBResult lockRes = dbcon_->executeQuery("lock table rcworkspacedata in access exclusive mode");
 	if (!lockRes.commandOK()) {
-		LOG(WARNING) << "saveRData failed to get lock on table" << std::endl;
+		LOG_WARNING << "saveRData failed to get lock on table" << std::endl;
 		return;
 	}
 	ostringstream query;
@@ -156,7 +156,7 @@ RC2::DBFileSource::loadFiles(const char *whereClause)
 			utime(filepath.c_str(), &modbuf);
 		}
 	} else {
-		LOG(WARNING) << "sql error: " << res.errorMessage() << endl;
+		LOG_WARNING << "sql error: " << res.errorMessage() << endl;
 	}
 }
 
@@ -186,7 +186,7 @@ long
 RC2::DBFileSource::insertDBFile(string fname)
 {
 	string filePath = _impl->workingDir_ + "/" + fname;
-	LOG(INFO) << "insertDBFile(" << fname << ")" << endl;
+	LOG_INFO << "insertDBFile(" << fname << ")" << endl;
 	DBTransaction trans = dbcon_->startTransaction();
 	long fileId = dbcon_->longFromQuery("select nextval('rcfile_seq'::regclass)");
 
@@ -206,7 +206,7 @@ RC2::DBFileSource::insertDBFile(string fname)
 		<< ", to_timestamp(" << modTime << "))";
 	DBResult res1 = dbcon_->executeQuery(query.str());
 	if (!res1.commandOK()) {
-		LOG(INFO) << "insert dbfile failed: " << res1.errorMessage() << endl;
+		LOG_INFO << "insert dbfile failed: " << res1.errorMessage() << endl;
 		throw FormattedException("failed to insert file %s: %s", fname.c_str(), res1.errorMessage());
 	}
 	query.clear();
@@ -217,8 +217,8 @@ RC2::DBFileSource::insertDBFile(string fname)
 	const char *params[1] = {data.get()};
 	DBResult res2 = dbcon_->executeQuery(query.str(), 1, NULL, params, pSizes, pformats, 1);
 	if (!res2.commandOK()) {
-		LOG(INFO) << "executing query:" << query.str() << endl;
-		LOG(INFO) << "insert dbfiledata failed: " << res2.errorMessage() << endl;
+		LOG_INFO << "executing query:" << query.str() << endl;
+		LOG_INFO << "insert dbfiledata failed: " << res2.errorMessage() << endl;
 		throw FormattedException("failed to insert file %s: %s", fname.c_str(), res2.errorMessage());
 	}
 	DBResult commitRes(trans.commit());
@@ -234,7 +234,7 @@ RC2::DBFileSource::insertDBFile(string fname)
 void 
 RC2::DBFileSource::updateDBFile(DBFileInfoPtr fobj) 
 {
-	LOG(INFO) << "update file:" << fobj->name << endl;
+	LOG_INFO << "update file:" << fobj->name << endl;
 
 	int newVersion = fobj->version + 1;
 	string filePath = _impl->workingDir_ + "/" + fobj->path;
@@ -248,7 +248,7 @@ RC2::DBFileSource::updateDBFile(DBFileInfoPtr fobj)
 	ostringstream query;
 	query << "update rcfile set version = " << newVersion << ", lastmodified = to_timestamp("
 		<< newMod << "), filesize = " << newSize << " where id = " << fobj->id;
-	LOG(INFO) << "executing " << query.str() << endl;
+	LOG_INFO << "executing " << query.str() << endl;
 	DBResult res1 = dbcon_->executeQuery(query.str());
 	if (!res1.commandOK()) {
 		throw FormattedException("failed to update file %ld: %s", fobj->id, res1.errorMessage());
@@ -279,7 +279,7 @@ RC2::DBFileSource::removeDBFile(DBFileInfoPtr fobj)
 	if (res.commandOK()) {
 		filesById_.erase(fobj->id);
 	} else {
-		LOG(WARNING) << "sql error delting file " << fobj->id << ":" 
+		LOG_WARNING << "sql error delting file " << fobj->id << ":" 
 			<< res.errorMessage() << endl;
 	}
 }
