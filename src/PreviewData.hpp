@@ -13,11 +13,12 @@ using std::string;
 namespace RC2 {	
 	// need to handle referenced files that changed (csv, etc.)
 	struct ChunkCacheEntry: ZeroInitializedStruct {
-		int			chunkNumber;
-		size_t		lastHash;
-		string		lastSource;
-		string		lastOutput;
-		size_t		lastOutputHash;
+		int					chunkNumber;
+		size_t				lastHash;
+		string				lastSource;
+		string				lastOutput;
+		size_t				lastOutputHash;
+		EnvironmentWatcher	envWatcher;
 		
 		ChunkCacheEntry(int num, string source, string output)
 			: chunkNumber(num), lastSource(source), lastOutput(output), 
@@ -37,12 +38,12 @@ namespace RC2 {
 
 	typedef std::function<void (string)>  SendJsonLambda;
 	struct PreviewData: ZeroInitializedStruct {
-		int				previewId;
-		FileManager*	fileManager;
-		FileInfo		fileInfo;
-		ChunkCacheMap	chunkMap;
-		RmdParser		parser;
-		boost::signals2::connection *fileConnection;
+		int								previewId;
+		FileManager*					fileManager;
+		FileInfo						fileInfo;
+		ChunkCacheMap					chunkMap;
+		RmdParser						parser;
+		boost::signals2::connection*	fileConnection;
 		
 		PreviewData(int pid, FileManager* fmanager, FileInfo& finfo, RInside *rInside, EnvironmentWatcher* globalEnv, SendJsonLambda outputLamba);
 		virtual ~PreviewData();
@@ -52,15 +53,15 @@ namespace RC2 {
 		std::unique_ptr<UpdateResponse> update(FileInfo& updatedInfo, string& updateIdent, int targetChunkId, bool includePrevious = false);
 		
 		void fileChanged(long changedId, ChangeType type);
-	private:
+	protected:
 		
 		std::vector<Chunk*> whichChunksNeedUpdate(int start, bool includePrevious);
 		void				executeCode(std::vector<Chunk*> chunksToUpdate, UpdateResponse* results);
 		
-		EnvironmentWatcher previewEnv;
-		RInside*		rinside;
-		string			currentUpdateIdentifier_;
-		std::vector<Chunk*> currentChunks_;
+		EnvironmentWatcher	previewEnv;
+		RInside*			rinside;
+		string				currentUpdateIdentifier_;
+		std::vector<Chunk*>	currentChunks_;
 		std::function<void (string)> jsonOutput_;
 	};	
 		
