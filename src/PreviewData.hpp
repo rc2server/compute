@@ -9,20 +9,23 @@
 #include <RInside.h>
 
 using std::string;
+using std::vector;
+using std::unique_ptr;
 
 namespace RC2 {	
 	// need to handle referenced files that changed (csv, etc.)
 	struct ChunkCacheEntry: ZeroInitializedStruct {
-		int					chunkNumber;
-		size_t				lastHash;
-		string				lastSource;
-		string				lastOutput;
-		size_t				lastOutputHash;
-		EnvironmentWatcher	envWatcher;
+		int						chunkNumber;
+		size_t					lastHash;
+		string					lastSource;
+		string					lastOutput;
+		size_t					lastOutputHash;
+		EnvironmentWatcher		envWatcher;
 		
-		ChunkCacheEntry(int num, string source, string output)
+		ChunkCacheEntry(int num, string source, string output, EnvironmentWatcher *parentEnv)
 			: chunkNumber(num), lastSource(source), lastOutput(output), 
-			lastHash(std::hash<string>()(source)), lastOutputHash(std::hash<string>()(output))
+			lastHash(std::hash<string>()(source)), lastOutputHash(std::hash<string>()(output)),
+			envWatcher(parentEnv)
 			{}
 	};
 	
@@ -48,20 +51,20 @@ namespace RC2 {
 		PreviewData(int pid, FileManager* fmanager, FileInfo& finfo, RInside *rInside, EnvironmentWatcher* globalEnv, SendJsonLambda outputLamba);
 		virtual ~PreviewData();
 		
-		std::vector<Chunk*> currentChunks() const { return currentChunks_; }
+		vector<Chunk*> currentChunks() const { return currentChunks_; }
 		
-		std::unique_ptr<UpdateResponse> update(FileInfo& updatedInfo, string& updateIdent, int targetChunkId, bool includePrevious = false);
+		unique_ptr<UpdateResponse> update(FileInfo& updatedInfo, string& updateIdent, int targetChunkId, bool includePrevious = false);
 		
 		void fileChanged(long changedId, ChangeType type);
 	protected:
 		
-		std::vector<Chunk*> whichChunksNeedUpdate(int start, bool includePrevious);
-		void				executeCode(std::vector<Chunk*> chunksToUpdate, UpdateResponse* results);
+		vector<Chunk*> 		whichChunksNeedUpdate(int start, bool includePrevious);
+		void				executeChunks(vector<Chunk*> chunksToUpdate, UpdateResponse* results);
 		
 		EnvironmentWatcher	previewEnv;
 		RInside*			rinside;
 		string				currentUpdateIdentifier_;
-		std::vector<Chunk*>	currentChunks_;
+		vector<Chunk*>		currentChunks_;
 		std::function<void (string)> jsonOutput_;
 	};	
 		

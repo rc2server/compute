@@ -18,7 +18,6 @@
  */
 
 using std::unique_ptr;
-using std::vector;
 using std::endl;
 
 //void handleFileChange(PreviewData *data, 
@@ -47,7 +46,7 @@ RC2::PreviewData::update(FileInfo& updatedInfo, string& updateIdent, int targetC
 	currentChunks_ = parser.parseRmdSource(contents);
 	
 	auto chunks2Update = whichChunksNeedUpdate(targetChunkId, includePrevious);
-	executeCode(chunks2Update, result.get());
+	executeChunks(chunks2Update, result.get());
 	currentUpdateIdentifier_ = "";
 	return result;
 }
@@ -58,7 +57,7 @@ RC2::PreviewData::fileChanged(long changedId, ChangeType type) {
 }
 
 void
-RC2::PreviewData::executeCode(vector<Chunk*> chunksToUpdate, UpdateResponse* results) {
+RC2::PreviewData::executeChunks(vector<Chunk*> chunksToUpdate, UpdateResponse* results) {
 	// 1. create cache entry-
 	// 2. evaluate
 	// 3. turn results into json
