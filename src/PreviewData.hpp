@@ -6,7 +6,6 @@
 #include "common/ZeroInitializedStruct.hpp"
 #include "EnvironmentWatcher.hpp"
 #include "parser/RmdParser.hpp"
-#include <RInside.h>
 
 using std::string;
 using std::vector;
@@ -39,7 +38,9 @@ namespace RC2 {
 			: previewId(preId), resultText(results) {};
 	};
 
-	typedef std::function<void (string)>  SendJsonLambda;
+	typedef boost::function<void (string)>  SendJsonLambda;
+	typedef boost::function<void (string, Rcpp::RObject&)> ExecuteCodeLambda;
+	
 	struct PreviewData: ZeroInitializedStruct {
 		int								previewId;
 		FileManager*					fileManager;
@@ -48,7 +49,8 @@ namespace RC2 {
 		RmdParser						parser;
 		boost::signals2::connection*	fileConnection;
 		
-		PreviewData(int pid, FileManager* fmanager, FileInfo& finfo, RInside *rInside, EnvironmentWatcher* globalEnv, SendJsonLambda outputLamba);
+		PreviewData(int pid, FileManager* fmanager, FileInfo& finfo, EnvironmentWatcher* globalEnv, SendJsonLambda outputLambda, 	
+					ExecuteCodeLambda execLambda);
 		virtual ~PreviewData();
 		
 		vector<Chunk*> currentChunks() const { return currentChunks_; }
@@ -62,10 +64,10 @@ namespace RC2 {
 		void				executeChunks(vector<Chunk*> chunksToUpdate, UpdateResponse* results);
 		
 		EnvironmentWatcher	previewEnv;
-		RInside*			rinside;
 		string				currentUpdateIdentifier_;
 		vector<Chunk*>		currentChunks_;
-		std::function<void (string)> jsonOutput_;
+		SendJsonLambda 		jsonOutput_;
+		ExecuteCodeLambda	execCode_;
 	};	
 		
 }; // end namespace 

@@ -24,8 +24,8 @@ using std::endl;
 
 namespace RC2 {
 
-RC2::PreviewData::PreviewData(int pid, FileManager* fmanager, FileInfo& finfo, RInside *rInside, EnvironmentWatcher* globalEnv, SendJsonLambda outputLamba)
-	: previewId(pid), fileManager(fmanager), fileInfo(finfo), rinside(rInside), jsonOutput_(outputLamba), previewEnv(globalEnv)
+RC2::PreviewData::PreviewData(int pid, FileManager* fmanager, FileInfo& finfo, EnvironmentWatcher* globalEnv, SendJsonLambda outputLambda, ExecuteCodeLambda execLambda)
+	: previewId(pid), fileManager(fmanager), fileInfo(finfo), jsonOutput_(outputLambda), previewEnv(globalEnv), execCode_(execLambda)
 {
 	long fid = fileInfo.id;
 	fileManager->addChangeListener(fid, boost::bind(&PreviewData::fileChanged, this, fid, ALL), &fileConnection);

@@ -127,8 +127,10 @@ namespace RC2 {
 			 * @param json the json to parse as a command
 			 * @return void
 			 */
-			virtual void	sendJsonToClientSource(string json);
+			virtual void sendJsonToClientSource(string json);
 
+			virtual void executePrivateQuery(string code, Rcpp::RObject &answer);
+			
 		protected:
 			RInside* getRInside() const;
 			void	consoleCallback(const string &text, bool is_error);

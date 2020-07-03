@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <cassert>
+#include <memory>
 #include <boost/log/utility/setup/file.hpp>
 #include <boost/algorithm/string.hpp>
 #define BOOST_NO_CXX11_SCOPED_ENUMS
@@ -881,7 +882,11 @@ RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 			newId++;
 		}
 		_impl->previewsCounter = newId + 1;
-		_impl->previews[newId] = std::make_unique<PreviewData>(newId, _impl->fileManager.get(), finfo, _impl->R, _impl->environments[0].get(), [&] (string str) { sendJsonToClientSource(str); });
+		_impl->previews[newId] = make_unique<PreviewData>(newId, _impl->fileManager.get(), finfo, 
+														  _impl->environments[0].get(), 
+														  [&] (string str) { sendJsonToClientSource(str); },
+														  [&] (string code, RObject& result) { executePrivateQuery(code, result); }
+														 );
 		json2 results = {
 			{"msg", "previewInited"},
 			{"previewId", newId},
@@ -896,6 +901,12 @@ RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 		sendJsonToClientSource(errResults);
 		LOG_INFO << "error handling preview init:" << e.what() << endl;
 	}
+}
+
+void
+RC2::RSession::executePrivateQuery(string code, Rcpp::RObject& result)
+{
+	
 }
 
 void 
