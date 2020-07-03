@@ -135,7 +135,7 @@ namespace RC2 {
 			 *	@param code The code to execute
 			 *	@param answer The returned value from the code
 			 */ 
-			virtual void executePrivateCode(string code, SEXP& answer);
+			virtual void executeNonUserCode(string code, SEXP& answer);
 			
 		protected:
 			RInside* getRInside() const;
