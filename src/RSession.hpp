@@ -129,7 +129,13 @@ namespace RC2 {
 			 */
 			virtual void sendJsonToClientSource(string json);
 
-			virtual void executePrivateQuery(string code, Rcpp::RObject &answer);
+			/**
+			 *  @brief execute a command with console output suppressed
+			 *
+			 *	@param code The code to execute
+			 *	@param answer The returned value from the code
+			 */ 
+			virtual void executePrivateCode(string code, SEXP& answer);
 			
 		protected:
 			RInside* getRInside() const;

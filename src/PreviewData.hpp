@@ -39,7 +39,7 @@ namespace RC2 {
 	};
 
 	typedef boost::function<void (string)>  SendJsonLambda;
-	typedef boost::function<void (string, Rcpp::RObject&)> ExecuteCodeLambda;
+	typedef boost::function<void (string, SEXP&)> ExecuteCodeLambda;
 	
 	struct PreviewData: ZeroInitializedStruct {
 		int								previewId;
