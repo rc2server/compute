@@ -17,10 +17,31 @@ using json = nlohmann::json;
 using namespace std;
 namespace fs = boost::filesystem;
 auto sleepTime = std::chrono::milliseconds(10);
+
 namespace testing {
 	class SessionTest : public BaseSessionTest {
 		virtual void pureVirtual() {}
 	};
+	
+	TEST_F(SessionTest, nonuserExec)
+	{
+		using namespace Rcpp;
+		SEXP result;
+		Rcpp::Environment env;
+
+		session->executeNonUserCode("rc2.evaluateCode(\"2+2\")", result, &env);
+		ASSERT_NE(result, nullptr);
+
+		RObject resultObj(result);
+		ASSERT_EQ(resultObj.sexp_type(), 19);
+
+		List rlist(result);
+		ASSERT_EQ(rlist.size(), 2);
+		List valList1(rlist[0]);
+		string cname = valList1.attr("class");
+		ASSERT_EQ(cname, "rc2src");
+		cout << "class=" << cname << endl;
+	}
 	
 	TEST_F(SessionTest, evaluate)
 	{

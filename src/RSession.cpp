@@ -885,7 +885,7 @@ RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 		_impl->previews[newId] = make_unique<PreviewData>(newId, _impl->fileManager.get(), finfo, 
 														  _impl->environments[0].get(), 
 														  [&] (string str) { sendJsonToClientSource(str); },
-														  [&] (string code, SEXP& result) { executeNonUserCode(code, result); }
+														  [&] (string code, SEXP& result, Rcpp::Environment* env) { executeNonUserCode(code, result, env); }
 														 );
 		json2 results = {
 			{"msg", "previewInited"},
@@ -904,11 +904,11 @@ RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 }
 
 void
-RC2::RSession::executeNonUserCode(string code, SEXP& result)
+RC2::RSession::executeNonUserCode(string code, SEXP& result, Rcpp::Environment* env)
 {
 	bool oldIgnore = _impl->ignoreOutput;
 	_impl->ignoreOutput = true;
-	_impl->R->parseEvalR(code, result);
+	_impl->R->parseEvalR(code, result, env);
 	_impl->ignoreOutput = oldIgnore;	
 }
 
