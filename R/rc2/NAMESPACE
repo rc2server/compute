@@ -1,3 +1,3 @@
 import(evaluate)
 export("help", "rc2.defineFunction", "rc2.pngdev", "rc2.pngoff", "rc2.errlog", 
-"evaluateWrapper")
+"rc2.evaluateCode", "evaluateWrapper")

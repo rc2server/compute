@@ -1,3 +1,8 @@
+rc2.evaluateCode <- function(src, parent = emptyenv(), baseImageName = "previewImage") {
+  wrapper <- evaluateWrapper(parent = parent)
+  wrapper$evaluate(src, baseImageName)
+}
+
 
 evaluateWrapper <- function(parent = emptyenv()) {
  myEnv <- new.env(parent = parent)
