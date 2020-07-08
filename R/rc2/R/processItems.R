@@ -23,6 +23,13 @@ handlePlot <- function(item, baseFileName) {
 }
 
 handleValue <- function(item) {
+  tc <- textConnection("valueStr", open="w", local=TRUE)
+  sink(tc, append=TRUE)
+  print(item[[1]]$data)
+  sink()
+  close(tc)
+  valueStr <- paste0(valueStr, sep="", collapse="\n")
+  item[[1]][["str"]] <- valueStr
   return(structure(item[[1]], class = "rc2value"))
 }
 

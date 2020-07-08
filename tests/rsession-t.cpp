@@ -37,10 +37,17 @@ namespace testing {
 
 		List rlist(result);
 		ASSERT_EQ(rlist.size(), 2);
-		List valList1(rlist[0]);
+		List valList1(rlist[1]);
+//		for (auto x: as<StringVector>(valList1.attr("names")))
+//			cout << "n=" << x << endl;
+		ASSERT_EQ(valList1.size(), 4);
 		string cname = valList1.attr("class");
-		ASSERT_EQ(cname, "rc2src");
-		cout << "class=" << cname << endl;
+		ASSERT_EQ(cname, "rc2value");
+//		cout << "data val is " << TYPEOF(valList1["data"]) << endl;
+		StringVector strs(as<StringVector>(valList1["str"]));
+		ASSERT_EQ(strs[0], "[1] 4");
+//		RObject val(valList1["data"]);
+//		cout << "v=" << val.sexp_type() << endl;
 	}
 	
 	TEST_F(SessionTest, evaluate)
