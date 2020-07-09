@@ -42,6 +42,7 @@ namespace RC2 {
 		
 		RInside::ParseEvalResult parseEvalR(std::string query, SEXP &answer, EnvironmentWatcher &watcher);
 
+		using RSession::getExecuteCallback;
 		
 		ExecuteCallback getExecCallback() { return getExecuteCallback(); }
 		bool doLoadEnvironment() { return loadEnvironment(); }

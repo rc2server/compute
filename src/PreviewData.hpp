@@ -28,10 +28,11 @@ namespace RC2 {
 			{}
 	};
 	
-	typedef std::map<int, ChunkCacheEntry> ChunkCacheMap;
+	typedef std::map<int, unique_ptr<ChunkCacheEntry>> ChunkCacheMap;
 
 	struct UpdateResponse: ZeroInitializedStruct {
 		int				previewId;
+		int				chunkId;
 		string			resultText;
 		
 		UpdateResponse(int preId, string results = "") 
@@ -62,6 +63,17 @@ namespace RC2 {
 		
 		vector<Chunk*> 		whichChunksNeedUpdate(int start, bool includePrevious);
 		void				executeChunks(vector<Chunk*> chunksToUpdate, UpdateResponse* results);
+		
+		
+		/**
+		 * @brief Executes the chunk's code
+		 * @param chunk the chunk to executeChunk
+		 * @param cacheEntry the cache entry for this chunk
+		 * @return the console output for the chunk
+		 * @throws GenericException kError_QueryFailed
+		 * 
+		 */
+		string				executeChunk(Chunk* chunk, ChunkCacheEntry* cacheEntry);
 		
 		EnvironmentWatcher	previewEnv;
 		string				currentUpdateIdentifier_;
