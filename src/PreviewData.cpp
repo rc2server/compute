@@ -39,20 +39,18 @@ RC2::PreviewData::~PreviewData() {
 //	fileConnection->disconnect();
 }
 	
-unique_ptr<UpdateResponse> 
+void
 RC2::PreviewData::update(FileInfo& updatedInfo, string& updateIdent, int targetChunkId, bool includePrevious) {
 	assert(updatedInfo.id == fileInfo.id);
 	currentUpdateIdentifier_ = updateIdent;
-	auto result = std::make_unique<UpdateResponse>(previewId);
-	if (updatedInfo.version <= fileInfo.version) return unique_ptr<UpdateResponse>();
+	if (updatedInfo.version <= fileInfo.version) return;
 	fileInfo = updatedInfo;
 	string contents = SlurpFile(fileInfo.name.c_str());
 	currentChunks_ = parser.parseRmdSource(contents);
 	
 	auto chunks2Update = whichChunksNeedUpdate(targetChunkId, includePrevious);
-	executeChunks(chunks2Update, result.get());
+	executeChunks(chunks2Update);
 	currentUpdateIdentifier_ = "";
-	return result;
 }
 
 void
@@ -61,11 +59,18 @@ RC2::PreviewData::fileChanged(long changedId, ChangeType type) {
 }
 
 void
-RC2::PreviewData::executeChunks(vector<Chunk*> chunksToUpdate, UpdateResponse* results) {
+RC2::PreviewData::executeChunks(vector<int> chunksToUpdate) {
 	// 1. create cache entry-
 	// 2. evaluate
 	// 3. turn results into json
 	// 4. send results
+	
+	for (auto idx: chunksToUpdate) {
+		Chunk* aChunk = currentChunks_[idx];
+		if (aChunk->type() == markdown) continue; // TODO: handle inline code chunks
+		auto cacheEntry = chunkMap[idx].get();
+		executeChunk(aChunk, cacheEntry);
+	}
 }
 
 string
@@ -96,29 +101,44 @@ RC2::PreviewData::executeChunk(Chunk* chunk, ChunkCacheEntry* cacheEntry) {
 			LOG_INFO << "unsupported ype returned from evaluate: " << elType;
 		}
 	}
-	
-	return outStr.str();
+	auto output = outStr.str();
+	cacheEntry->lastOutput = output;
+	return output;
 }
  
-vector<Chunk*>
+ void
+ RC2::PreviewData::checkCache() 
+ {
+	 EnvironmentWatcher* parent = &previewEnv;
+	 for (int i=0; i < currentChunks().size(); ++i) {
+		 if (chunkMap.count(i) > 0) continue;
+		 chunkMap[i] = std::make_unique<ChunkCacheEntry>(i, parent);
+		 parent = &chunkMap[i]->envWatcher;
+	 }
+ }
+ 
+vector<int>
 RC2::PreviewData::whichChunksNeedUpdate(int start, bool includePrevious) {
 	// TODO: implement more intelligent checking
-	vector<Chunk*> toExecute;
+	vector<int> toExecute;
 	int targetId = start;
 	// if the number of chunks changed, we'll invalidate everything for now
 	// TODO: use the ChunkCacheEntry(s) to determine if the cache can be used
-	if (currentChunks_.size() != chunkMap.size())
+	if (currentChunks_.size() != chunkMap.size()) {
 		chunkMap.clear();
+		// insert new cache entries
+		checkCache();
+	}
 	if (includePrevious) { targetId = 0; }
 	for(int i=targetId; i < currentChunks_.size(); ++i) {
 		auto chunk = currentChunks_[i];
 		// include all markdowns, will ignore ones with no inline code chunks
 		if (chunk->type() == code) {
-				toExecute.push_back(chunk);
+				toExecute.push_back(i);
 		} else if (chunk->type() == markdown) {
 			auto mchunk = dynamic_cast<MarkdownChunk*>(chunk);
 			if (mchunk == nullptr || mchunk->inlineChunkCount() < 1) { continue; }
-			toExecute.push_back(chunk);
+			toExecute.push_back(i);
 		}
 	}
 	return toExecute;
