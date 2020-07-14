@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <functional>
+#include <boost/crc.hpp>
 
 namespace RC2 {
 
@@ -22,7 +23,13 @@ std::string GetPathForExecutable(pid_t pid);
 std::string SlurpFile(const char *filename);
 
 std::string SHA1Hash(std::string& input);
-std::string SHA256Hash(std::string& input);
+std::string SHA256Hash(const std::string input);
+
+inline int calculateCRCChecksum(const std::string& instr) {
+	boost::crc_32_type result;
+	result.process_bytes(instr.data(), instr.length());
+	return result.checksum();
+}
 
 std::string PrivatePackagePath();
 std::runtime_error FormatErrorAsJson(int errorCode, std::string details);

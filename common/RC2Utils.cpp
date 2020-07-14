@@ -47,7 +47,7 @@ RC2::TemporaryDirectory::~TemporaryDirectory()
 }
 
 std::string
-RC2::SHA256Hash(std::string& input) 
+RC2::SHA256Hash(const std::string input) 
 {
 	unsigned char obuf[SHA256_DIGEST_LENGTH + 1];
 	bzero(obuf, SHA256_DIGEST_LENGTH + 1);
