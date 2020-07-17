@@ -34,7 +34,7 @@ namespace testing {
 			void test1() { cerr << "test1" << endl; }
 			void test2() { cerr << "test2" << endl; }
 		};
-		unique_ptr<Foo> cptr = make_unique<Foo>();
+		unique_ptr<Foo> cptr(new Foo());
 		boost::signals2::signal<void()> sig;
 		cout << "connecting" << endl;
 		{

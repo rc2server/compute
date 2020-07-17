@@ -68,7 +68,7 @@ bool Rc2Lexer::sempred(RuleContext *context, size_t ruleIndex, size_t predicateI
 
 bool Rc2Lexer::CODE_STARTSempred(antlr4::RuleContext *_localctx, size_t predicateIndex) {
   switch (predicateIndex) {
-    case 0: return getCharPositionInLine() == 0;
+    case 0: return  isCodeBackticks();
 
   default:
     break;
@@ -98,7 +98,7 @@ bool Rc2Lexer::IEQ_STARTSempred(antlr4::RuleContext *_localctx, size_t predicate
 
 bool Rc2Lexer::CODE_ENDSempred(antlr4::RuleContext *_localctx, size_t predicateIndex) {
   switch (predicateIndex) {
-    case 3: return getCharPositionInLine() == 0;
+    case 3: return isCodeBackticks();
 
   default:
     break;

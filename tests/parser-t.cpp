@@ -13,21 +13,41 @@ using std::string;
 namespace RC2 {
 namespace testing {
 
+	// test correct number of chunks and that code chunk was detected with indented backticks
 	TEST(ParserTest, chunkIdentifier)
 	{
-string mdown = R"(
-doodle 
-*news*
-```{r foo}
-rnorm(20)
-```
-something
+
+string testStr = R"(
+	* point 1
+	
+	$$
+	\begin{aligned}
+	\dot{x} & = \sigma(y-x) \\
+	\dot{y} & = \rho x - y -xz \\
+	\dot{z} & = -\beta z + xy
+	\end{aligned}
+	$$
+	
+	* point 4 $\frac{1}{n} \sum_{i=i}^{n} x_{i}$
+	
+
+	```{r rplot}
+	plot(rnorm(100))
+	```
+	
+	_blah blah_
 	
 )";
+
 		RmdParser parser;
-		auto chunks = parser.parseRmdSource(mdown);
+		auto chunks = parser.parseRmdSource(testStr);
+		ASSERT_EQ(chunks.size(), 5);
+		MarkdownChunk* md = dynamic_cast<MarkdownChunk*>(chunks[2]);
+		ASSERT_EQ(md->inlineChunks().size(), 1);
+		Chunk* codeChunk = const_cast<Chunk*>(chunks[3]);
+		ASSERT_EQ(codeChunk->type(), code);
 		for(int i=0; i < chunks.size(); ++i)  {
-			cout << "chunk " << i << "=" << chunks[i]->chunkIdentifier() << endl;
+			cout << "chunk " << i << "=" << chunks[i]->content() << endl;
 		}
 		
 	}

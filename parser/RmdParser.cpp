@@ -13,6 +13,7 @@
 #include "common/ZeroInitializedStruct.hpp"
 #include <openssl/sha.h>
 #include "Rc2RFilter.hpp"
+#include "parser/ErrorHandling.hpp"
 
 using std::vector;
 using std::string;
@@ -59,6 +60,8 @@ RmdParser::parseRmdSource ( std::string source ) {
 
 	antlr4::ANTLRInputStream input ( source );
 	Rc2Lexer lexer ( &input );
+	lexer.removeErrorListeners();
+	lexer.addErrorListener(new LexerErrorHandler());
 	antlr4::CommonTokenStream tokens ( &lexer );
 	auto rawTokens = tokens.getTokens();
 	Rc2RFilter filter ( &tokens );
