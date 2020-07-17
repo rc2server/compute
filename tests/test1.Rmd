@@ -11,7 +11,7 @@ $$
 * point 4 $\frac{1}{n} \sum_{i=i}^{n} x_{i}$
 
 
-```r
+```{r}
 plot(rnorm(100))
 ```
 
