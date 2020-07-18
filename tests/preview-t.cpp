@@ -43,6 +43,9 @@ namespace RC2 {
 						   [&] (string str) { },
 						   [&] (string code, SEXP& result, Rcpp::Environment* env) { session->executeNonUserCode(code, result, env); }
 						);
+			finfo.version += 1;
+			string uident("5344gf");
+			pd.update(finfo, uident, 4, false);
 			
 		}
 	}; // end testing namespace

@@ -10,6 +10,7 @@
 #include <boost/bind.hpp>
 #include <sstream>
 #include "RC2Logging.h"
+#include <nlohmann/json.hpp>
 
 /*
  * 1. if the source file hasn't changed, nothing to do. Note if data files have changed, need to update any chunks that refer to them
@@ -22,6 +23,7 @@
 
 using std::unique_ptr;
 using std::endl;
+using json = nlohmann::json;
 
 //void handleFileChange(PreviewData *data, 
 
@@ -65,11 +67,24 @@ RC2::PreviewData::executeChunks(vector<int> chunksToUpdate) {
 	// 3. turn results into json
 	// 4. send results
 	
+	// TODO: handle exceptions
 	for (auto idx: chunksToUpdate) {
 		Chunk* aChunk = currentChunks_[idx];
 		if (aChunk->type() == markdown) continue; // TODO: handle inline code chunks
 		auto cacheEntry = chunkMap[idx].get();
-		executeChunk(aChunk, cacheEntry);
+		auto oldCrc = cacheEntry->crc;
+		try {
+			executeChunk(aChunk, cacheEntry);
+			if (oldCrc == cacheEntry->crc) continue;
+			json results;
+			results["message"] = "previewUpdate";
+			results["updateIdentifier"] = currentUpdateIdentifier_;
+			results["previewId"] = previewId;
+			results["content"] = cacheEntry->lastOutput;
+			jsonOutput_(results.dump(2));
+		} catch (GenericException& e) {
+			LOG_INFO << "generic exception: " << e.code();
+		}
 	}
 }
 
