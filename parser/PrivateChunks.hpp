@@ -36,6 +36,7 @@ public:
 class CodeChunkImpl: public Chunk, public CodeChunk {
 public:
 	CodeChunkImpl(Rc2RawParser::ChunkContext* context);
+	virtual string innerContent() const { return code_; }
 };
 
 class EquationChunkImpl: public Chunk, public EquationChunk {

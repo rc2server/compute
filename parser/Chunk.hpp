@@ -35,6 +35,7 @@ public:
 	Chunk(const Chunk& other) = default;
 	ChunkType type() const { return type_; }
 	string content() const { return content_; }
+	virtual string innerContent() const { return content_; }
 	int startLine() const { return startLine_; }
 	int startCharIndex() const { return startCharIndex_; }
 	int endCharIndex() const { return endCharIndex_; }
