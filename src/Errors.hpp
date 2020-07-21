@@ -13,4 +13,22 @@
 #define kError_InvalidArgument 110
 #define kError_AlreadyExists 111
 #define kError_QueryFailed 201
+#define kError_QueryIncomplete 202
+#define kError_QueryUnhandledResponse 203
 
+#ifdef RINSIDE_RINSIDE_H
+
+namespace RC2 {
+	class RException: public std::exception {
+		int code;
+		Rcpp::RObject response;
+	public:
+		RException(int ecode, SEXP& answer)
+			: code(ecode), response(answer)
+			{}
+		int getCode() const { return code; }
+		SEXP getAnswer() const { return response; }
+	};
+};
+
+#endif
