@@ -123,6 +123,7 @@ namespace RC2 {
 			 *	@param code The code to execute
 			 *	@param answer The returned value from the code
 			 * 	@param env The environment to execute the code in
+			 * @throws if query fails, RException with error and result. Otherwise GenericException with message
 			 */ 
 			virtual void executeNonUserCode(string code, SEXP& answer, Rcpp::Environment* env);
 			

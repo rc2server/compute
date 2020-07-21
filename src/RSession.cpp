@@ -908,8 +908,19 @@ RC2::RSession::executeNonUserCode(string code, SEXP& result, Rcpp::Environment* 
 {
 	bool oldIgnore = _impl->ignoreOutput;
 	_impl->ignoreOutput = true;
-	_impl->R->parseEvalR(code, result, env);
-	_impl->ignoreOutput = oldIgnore;	
+	auto rc = _impl->R->parseEvalR(code, result, env);
+	_impl->ignoreOutput = oldIgnore;
+	LOG_INFO << "eval rc=" << rc;
+	switch(rc) {
+		case RInside::PE_SUCCESS:
+			break;
+		case RInside::PE_ERROR:
+			LOG_INFO << "Error executing code";
+			throw RException(kError_QueryFailed, result);
+		default:
+			throw GenericException("non-user code", kError_QueryUnhandledResponse);
+			;
+	}
 }
 
 void 

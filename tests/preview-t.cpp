@@ -45,7 +45,11 @@ namespace RC2 {
 						);
 			finfo.version += 1;
 			string uident("5344gf");
-			pd.update(finfo, uident, 4, false);
+			try {
+				pd.update(finfo, uident, 4, false);
+			} catch (const std::exception& e) {
+				cout << "exception: " << e.what() << endl;
+			}
 			
 		}
 	}; // end testing namespace
