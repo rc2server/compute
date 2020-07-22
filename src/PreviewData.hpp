@@ -8,6 +8,8 @@
 #include "EnvironmentWatcher.hpp"
 #include "parser/RmdParser.hpp"
 #include "common/RC2Utils.hpp"
+#include "PreviewDelegate.hpp"
+#include "FileManager.hpp"
 
 using std::string;
 using std::vector;
@@ -47,9 +49,6 @@ namespace RC2 {
 		UpdateResponse(int preId, int chunkId, string results = "") 
 			: previewId(preId), chunkId(chunkId), resultText(results) {};
 	};
-
-	typedef boost::function<void (string)>  SendJsonLambda;
-	typedef boost::function<void (string, SEXP&, Rcpp::Environment*)> ExecuteCodeLambda;
 	
 	struct PreviewData: ZeroInitializedStruct {
 		int								previewId;
@@ -59,8 +58,7 @@ namespace RC2 {
 		RmdParser						parser;
 		boost::signals2::connection*	fileConnection;
 		
-		PreviewData(int pid, FileManager* fmanager, FileInfo& finfo, EnvironmentWatcher* globalEnv, SendJsonLambda outputLambda, 	
-					ExecuteCodeLambda execLambda);
+		PreviewData(int pid, FileManager* fmanager, FileInfo& finfo, EnvironmentWatcher* globalEnv, PreviewDelegate *delegate);
 		virtual ~PreviewData();
 		
 		vector<Chunk*> currentChunks() const { return currentChunks_; }
@@ -88,8 +86,7 @@ namespace RC2 {
 		EnvironmentWatcher	previewEnv;
 		string				currentUpdateIdentifier_;
 		vector<Chunk*>		currentChunks_;
-		SendJsonLambda 		jsonOutput_;
-		ExecuteCodeLambda	execCode_;
+		PreviewDelegate*	delegate_;
 	};	
 		
 }; // end namespace 

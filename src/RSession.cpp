@@ -882,11 +882,9 @@ RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 			newId++;
 		}
 		_impl->previewsCounter = newId + 1;
-		_impl->previews[newId] = make_unique<PreviewData>(newId, _impl->fileManager.get(), finfo, 
-														  _impl->environments[0].get(), 
-														  [&] (string str) { sendJsonToClientSource(str); },
-														  [&] (string code, SEXP& result, Rcpp::Environment* env) { executeNonUserCode(code, result, env); }
-														 );
+		_impl->previews[newId] = std::make_unique<PreviewData>(newId, _impl->fileManager.get(), finfo, 
+														  _impl->environments[0].get(),
+														  this);
 		json2 results = {
 			{"msg", "previewInited"},
 			{"previewId", newId},
@@ -1263,6 +1261,18 @@ bool
 RC2::RSession::loadEnvironment()
 {
 	return _impl->fileManager->loadRData();
+}
+
+//MARK: PreviewDelegate
+
+void 
+RC2::RSession::sendPreviewJson(string jsonStr) {
+	sendJsonToClientSource(jsonStr);
+}
+
+void 
+RC2::RSession::executePreviewCode(string code, SEXP& result, Rcpp::Environment* environment) {
+	executeNonUserCode(code, result, environment);
 }
 
 

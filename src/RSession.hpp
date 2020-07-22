@@ -8,6 +8,7 @@
 #include "JsonCommand.hpp"
 #include "SessionCommon.hpp"
 #include "Errors.hpp"
+#include "PreviewData.hpp"
 
 using std::string;
 
@@ -25,7 +26,7 @@ namespace RC2 {
 	class FileManager;
 	struct FileInfo;
 
-	class RSession : private boost::noncopyable {
+	class RSession : private boost::noncopyable, public PreviewDelegate {
 
 		public:
 			/**
@@ -126,6 +127,10 @@ namespace RC2 {
 			 * @throws if query fails, RException with error and result. Otherwise GenericException with message
 			 */ 
 			virtual void executeNonUserCode(string code, SEXP& answer, Rcpp::Environment* env);
+
+			virtual void sendPreviewJson(string jsonStr);
+			virtual void executePreviewCode(string code, SEXP& result, Rcpp::Environment* environment);
+			
 			
 		protected:
 			RInside* getRInside() const;

@@ -36,6 +36,7 @@ namespace RC2 {
 		inline void emptyMessages() { while (!_messages.empty()) _messages.pop(); }
 		
 		json popMessage();
+		int messageCount() const { return _messages.size(); }
 		
 		void startCountdown(int count);
 		void executeDelayedJson(string msg, int delay = 1);

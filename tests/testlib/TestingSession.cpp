@@ -5,6 +5,7 @@
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 #include "TestingSession.hpp"
+#include "../../src/FileManager.hpp"
 
 using json = nlohmann::json;
 using namespace std;

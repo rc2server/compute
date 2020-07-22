@@ -32,21 +32,24 @@ namespace RC2 {
 			ASSERT_TRUE(true);
 		}
 		
+		// TODO: need to add test that performs two updates and make sure get message only those messages returned
 		
-		TEST_F(PreviewTest, basicCode)
+		TEST_F(PreviewTest, basicUpdate)
 		{
 			EnvironmentWatcher envWatcher(Rcpp::Environment::global_env(), session->getExecuteCallback());
 			FileInfo finfo;
 			session->copyFileToWorkingDirectory("test1.Rmd");
 			fileManager->findOrAddFile("test1.Rmd", finfo);
-			PreviewData pd(5, fileManager, finfo, &envWatcher,
-						   [&] (string str) { },
-						   [&] (string code, SEXP& result, Rcpp::Environment* env) { session->executeNonUserCode(code, result, env); }
-						);
+			PreviewData pd(5, fileManager, finfo, &envWatcher, session);
 			finfo.version += 1;
 			string uident("5344gf");
 			try {
 				pd.update(finfo, uident, 4, false);
+				ASSERT_EQ(session->messageCount(), 1);
+				auto message = session->popMessage();
+				ASSERT_EQ(message["updateIdentifier"], "5344gf");
+				ASSERT_EQ(message["previewId"], 5);
+				ASSERT_EQ(message["chunkIndex"], 3);
 			} catch (const std::exception& e) {
 				cout << "exception: " << e.what() << endl;
 			}

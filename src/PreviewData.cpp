@@ -34,11 +34,12 @@ bool isSpaceOrTab ( char c ) {
 
 namespace RC2 {
 
-RC2::PreviewData::PreviewData ( int pid, FileManager* fmanager, FileInfo& finfo, EnvironmentWatcher* globalEnv, SendJsonLambda outputLambda, ExecuteCodeLambda execLambda )
-	: previewId ( pid ), fileManager ( fmanager ), fileInfo ( finfo ), jsonOutput_ ( outputLambda ), previewEnv ( globalEnv ), execCode_ ( execLambda ) {
-	long fid = fileInfo.id;
-	fileManager->addChangeListener ( fid, boost::bind ( &PreviewData::fileChanged, this, fid, ALL ), &fileConnection );
-}
+	RC2::PreviewData::PreviewData ( int pid, FileManager* fmanager, FileInfo& finfo, EnvironmentWatcher* globalEnv, PreviewDelegate *delegate )
+	: previewId ( pid ), fileManager ( fmanager ), fileInfo ( finfo ), delegate_( delegate ), previewEnv ( globalEnv ) 
+	{
+		long fid = fileInfo.id;
+		fileManager->addChangeListener ( fid, boost::bind ( &PreviewData::fileChanged, this, fid, ALL ), &fileConnection );
+	}
 
 RC2::PreviewData::~PreviewData() {
 	// FIXME: is this a memory leak?
@@ -70,7 +71,6 @@ RC2::PreviewData::executeChunks ( vector<int> chunksToUpdate ) {
 	// 2. evaluate
 	// 3. turn results into json
 	// 4. send results
-	(jsonOutput_)("{}");
 	LOG_INFO << "executing " << chunksToUpdate.size() << " chunks";
 	// TODO: handle exceptions
 	for ( auto idx: chunksToUpdate ) {
@@ -83,11 +83,12 @@ RC2::PreviewData::executeChunks ( vector<int> chunksToUpdate ) {
 			if ( oldCrc == cacheEntry->crc ) continue;
 			json results;
 			results["message"] = "previewUpdate";
+			results["chunkIndex"] = idx;
 			results["updateIdentifier"] = currentUpdateIdentifier_;
 			results["previewId"] = previewId;
 			results["content"] = cacheEntry->lastOutput;
 			string str = results.dump(2);
-			jsonOutput_ ( str );
+			delegate_->sendPreviewJson(str);
 		} catch ( GenericException& e ) {
 			LOG_INFO << "generic exception: " << e.code();
 		}
@@ -105,7 +106,7 @@ RC2::PreviewData::executeChunk ( Chunk* chunk, ChunkCacheEntry* cacheEntry ) {
 	env.assign ( "rc2.code", userCode );
 	string code = "rc2.evaluateCode(rc2.code, parent = environment())";
 	try {
-		execCode_ ( code, answer, &env );
+		delegate_->executePreviewCode(code, answer, &env);
 	} catch (const RException& e) {
 		LOG_INFO << "preview query failed";
 		return ""; // FIXME: should get error message from sexp, use that as what()
@@ -129,14 +130,14 @@ RC2::PreviewData::executeChunk ( Chunk* chunk, ChunkCacheEntry* cacheEntry ) {
 		LOG_INFO << " type = " << elType;
 		if ( elType == "rc2src" ) {
 			Rcpp::StringVector strs ( Rcpp::as<Rcpp::StringVector> ( curList["src"] ) );
-			outStr << "<block style=\"rc2-preview-src\">" << strs[0] << "</block>" << endl;
+			outStr << "<div style=\"rc2-preview-src\">" << strs[0] << "</div>" << endl;
 		} else if ( elType == "rc2value" ) {
 			Rcpp::StringVector strs ( Rcpp::as<Rcpp::StringVector> ( curList["str"] ) );
-			outStr << "<block style=\"rc2-preview-out\">" << strs[0] << "</block>" << endl;
+			outStr << "<div style=\"rc2-preview-out\">" << strs[0] << "</div>" << endl;
 		} else if ( elType == "rc2err" ) {
 			Rcpp::StringVector strs ( Rcpp::as<Rcpp::StringVector> ( curList["message"] ) );
 			Rcpp::StringVector calls ( Rcpp::as<Rcpp::StringVector> ( curList["call"] ) );
-			outStr << "<block style=\"rc2-error\">" << strs[0] << "(location: " << calls[0] << ")";
+			outStr << "<div style=\"rc2-error\">" << strs[0] << "(location: " << calls[0] << ")</div>" << endl;
 		} else {
 			LOG_INFO << "unsupported ype returned from evaluate: " << elType;
 		}
