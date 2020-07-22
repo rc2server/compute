@@ -213,6 +213,7 @@ TestingFileManager::findOrAddFile(std::string fname, FileInfo &info)
 		}
 	}
 	FileManager::findOrAddFile(fname, info);
+	_files.push_back(info);
 }
 
 bool
