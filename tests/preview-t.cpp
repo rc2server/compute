@@ -55,5 +55,27 @@ namespace RC2 {
 			}
 			
 		}
+		
+		TEST_F(PreviewTest, viaJson)
+		{
+			// initialize the preview
+			FileInfo finfo;
+			session->copyFileToWorkingDirectory("test1.Rmd");
+			fileManager->findOrAddFile("test1.Rmd", finfo);
+			session->emptyMessages();
+			json initJson;
+			initJson["msg"] = "initPreview";
+			initJson["fileId"] = finfo.id;
+			initJson["argument"] = "";
+			session->doJson(initJson.dump(2));
+			ASSERT_EQ(session->messageCount(), 1);
+			auto initResponse = session->popMessage();
+			ASSERT_EQ(initResponse["msg"], "previewInited");
+			ASSERT_EQ(initResponse["errorCode"], 0);
+			int previewId = initResponse["previewId"];
+			ASSERT_GT(previewId, 0);
+			cout << "previewid=" << previewId << endl;
+		}
+
 	}; // end testing namespace
 }; // end RC2 namespace

@@ -146,7 +146,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 
 
 RC2::RSession::Impl::Impl()
-	: consoleOutBuffer(new string)
+: consoleOutBuffer(new string), previewsCounter(1)
 {
 	const char *envHome = getenv("RC2_HOME");
 	if (envHome) {
