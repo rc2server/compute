@@ -63,6 +63,14 @@ namespace RC2 {
 		
 		vector<Chunk*> currentChunks() const { return currentChunks_; }
 		
+		/**
+		 * @brief update the cache and return changed results
+		 * 
+		 * @param updatedInfo the updated info about the file
+		 * @param updateIdent a unique identifier included in all result messages
+		 * @param targetChunkId the target chunk to start with. If < 0, all chunks are updated
+		 * @param includePrevious should chunks before targetChunkId be updated
+		 */
 		void update(FileInfo& updatedInfo, string& updateIdent, int targetChunkId, bool includePrevious = false);
 		
 		void fileChanged(long changedId, ChangeType type);

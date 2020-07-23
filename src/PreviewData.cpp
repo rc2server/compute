@@ -54,10 +54,17 @@ RC2::PreviewData::update ( FileInfo& updatedInfo, string& updateIdent, int targe
 	fileInfo = updatedInfo;
 	string contents = SlurpFile ( fileInfo.name.c_str() );
 	currentChunks_ = parser.parseRmdSource ( contents );
-
-	auto chunks2Update = whichChunksNeedUpdate ( targetChunkId, includePrevious );
+	bool usePrevious = includePrevious;
+	int targetId = targetChunkId;
+	// if target is less than zero, execute all chunks
+	if ( targetId < 0) {
+		targetId = currentChunks_.size() - 1;
+		usePrevious = true;
+	}
+	auto chunks2Update = whichChunksNeedUpdate ( targetId, usePrevious );
 	executeChunks ( chunks2Update );
 	currentUpdateIdentifier_ = "";
+	LOG_INFO << "previewCacheSize=" << chunkMap.size();
 }
 
 void
@@ -159,10 +166,10 @@ RC2::PreviewData::checkCache() {
 }
 
 vector<int>
-RC2::PreviewData::whichChunksNeedUpdate ( int start, bool includePrevious ) {
+RC2::PreviewData::whichChunksNeedUpdate ( int targetChunkId, bool includePrevious ) {
 	// TODO: implement more intelligent checking
 	vector<int> toExecute;
-	int targetId = start;
+	int startIndex = targetChunkId;
 	// if the number of chunks changed, we'll invalidate everything for now
 	// TODO: use the ChunkCacheEntry(s) to determine if the cache can be used
 	if ( currentChunks_.size() != chunkMap.size() ) {
@@ -171,17 +178,17 @@ RC2::PreviewData::whichChunksNeedUpdate ( int start, bool includePrevious ) {
 		checkCache();
 	}
 	if ( includePrevious ) {
-		targetId = 0;
+		startIndex = 0;
 	} else {
 		// adjust targetId if any previous chunks need to be executed
-		for ( int i = targetId; i >= 0; --i ) {
+		for ( int i = startIndex; i >= 0; --i ) {
 			auto centry = chunkMap[i].get();
 			if ( centry->lastSource.size() == 0 || ( currentChunks_[i]->type() == code && centry->lastOutput.size() == 0 ) ) {
-				targetId = i;
+				startIndex = i;
 			}
 		}
 	}
-	for ( int i=targetId; i < currentChunks_.size(); ++i ) {
+	for ( int i=startIndex; i <= targetChunkId; ++i ) {
 		auto chunk = currentChunks_[i];
 		// include all markdowns, will ignore ones with no inline code chunks
 		if ( chunk->type() == code ) {

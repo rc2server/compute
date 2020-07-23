@@ -937,7 +937,9 @@ RC2::RSession::handleUpdatePreview(RC2::JsonCommand& command)
 			LOG_INFO << "previewUpdate: file info not found: " << pd->fileInfo.id << endl;
 			throw invalid_argument("file not found");
 		}
-		pd->update(finfo, updateIdent, command.intValueForKey("chunkId"), command.boolValueForKey("inculdePrevious"));
+		int chunkId = command.valueIsNull("chunkId") ? -1 : command.intValueForKey("chunkId");
+		LOG_INFO << "preview update chunkId = " << chunkId;
+		pd->update(finfo, updateIdent, chunkId, command.boolValueForKey("inculdePrevious"));
 	} catch (std::exception& e) {
 		LOG_INFO << "error reading updatePreview command: " << e.what() << endl;
 	}	
