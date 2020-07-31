@@ -65,6 +65,24 @@ RC2::SHA1Hash(std::string& input)
 	return std::string((char*)obuf);
 }
 
+void
+RC2::SlurpBinaryFile ( std::string filename, RC2::BinaryData& data ) {
+	fs::path filePath(filename);
+	boost::system::error_code code;
+	auto fileStatus = fs::status(filePath, code);
+	auto exists = fs::exists(filePath);
+	auto regular = fs::is_regular_file(filePath);
+	assert(exists && regular);
+	
+	std::ifstream inFile(filename, std::ios::in | std::ios::binary);
+	data.setSize(fs::file_size(filePath));
+	inFile.read((char*)data.data.get(), data.getSize());
+}
+
+void RC2::RemoveFile ( std::string filename ) {
+	fs::remove(filename);
+}
+
 
 std::string
 RC2::SlurpFile(const char *filename)

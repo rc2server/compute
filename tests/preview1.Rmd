@@ -1,0 +1,16 @@
+* point 1
+
+```{r c1}
+y <- rnorm(33)
+plot(y)
+```
+
+* point 4 $\frac{1}{n} \sum_{i=i}^{n} x_{i}$
+
+
+```{r}
+rnorm(10)
+```
+
+_blah blah_
+

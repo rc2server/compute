@@ -3,6 +3,7 @@
 #include <string>
 #include <memory>
 #include <algorithm>
+#include <cstdint>
 #include <stdlib.h>
 #include <signal.h>
 #include <functional>
@@ -14,6 +15,27 @@ std::string GenerateUUID();
 std::string GetPathForExecutable(pid_t pid);
 
 /**
+ * @brief wrapper around arbitrary bytes 
+ */
+struct BinaryData {
+	BinaryData(int inSize = 0) : size(inSize)
+	{
+		if (size > 0)
+			data = std::move(std::make_unique<char[]>(size));
+	}
+
+	size_t getSize() const { return size; }
+	void setSize(size_t newSize) {
+		size = newSize;
+		data = std::make_unique<char[]>(size);
+	}
+	
+	std::unique_ptr<char[]> data;
+private:
+	size_t size;
+};
+
+/**
 * @brief Reads the contents of the specified file
 * 
 * @param filename the name of the file to read relative to the working directory
@@ -21,6 +43,15 @@ std::string GetPathForExecutable(pid_t pid);
 * @throw boost filesystem_error
 */
 std::string SlurpFile(const char *filename);
+
+/**
+ * @brief reads the contents of filename to data
+ * 
+ * @param filename the name/path of the file to read
+ * @param data object to store the read bytes
+ * @throw boost filesystem_error
+ */
+void SlurpBinaryFile(std::string filename, BinaryData& data);
 
 std::string SHA1Hash(std::string& input);
 std::string SHA256Hash(const std::string input);
@@ -30,6 +61,8 @@ inline int calculateCRCChecksum(const std::string& instr) {
 	result.process_bytes(instr.data(), instr.length());
 	return result.checksum();
 }
+
+void RemoveFile(std::string filename);
 
 std::string PrivatePackagePath();
 std::runtime_error FormatErrorAsJson(int errorCode, std::string details);

@@ -901,26 +901,6 @@ RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 	}
 }
 
-void
-RC2::RSession::executeNonUserCode(string code, SEXP& result, Rcpp::Environment* env)
-{
-	bool oldIgnore = _impl->ignoreOutput;
-	_impl->ignoreOutput = true;
-	auto rc = _impl->R->parseEvalR(code, result, env);
-	_impl->ignoreOutput = oldIgnore;
-	LOG_INFO << "eval rc=" << rc;
-	switch(rc) {
-		case RInside::PE_SUCCESS:
-			break;
-		case RInside::PE_ERROR:
-			LOG_INFO << "Error executing code";
-			throw RException(kError_QueryFailed, result);
-		default:
-			throw GenericException("non-user code", kError_QueryUnhandledResponse);
-			;
-	}
-}
-
 void 
 RC2::RSession::handleUpdatePreview(RC2::JsonCommand& command)
 {
@@ -938,7 +918,6 @@ RC2::RSession::handleUpdatePreview(RC2::JsonCommand& command)
 			throw invalid_argument("file not found");
 		}
 		int chunkId = command.valueIsNull("chunkId") ? -1 : command.intValueForKey("chunkId");
-		LOG_INFO << "preview update chunkId = " << chunkId;
 		pd->update(finfo, updateIdent, chunkId, command.boolValueForKey("inculdePrevious"));
 	} catch (std::exception& e) {
 		LOG_INFO << "error reading updatePreview command: " << e.what() << endl;
@@ -954,6 +933,25 @@ RC2::RSession::handleRemovePreview(RC2::JsonCommand& command)
 		LOG_INFO << "removed " << erasedCount << " previews with id " << previewId << endl;
 	} catch (std::exception& e) {
 		LOG_INFO << "error removing preview:" << e.what() << endl;
+	}
+}
+
+void
+RC2::RSession::executeNonUserCode(string code, SEXP& result, Rcpp::Environment* env)
+{
+	bool oldIgnore = _impl->ignoreOutput;
+	_impl->ignoreOutput = true;
+	auto rc = _impl->R->parseEvalR(code, result, env);
+	_impl->ignoreOutput = oldIgnore;
+	switch(rc) {
+		case RInside::PE_SUCCESS:
+			break;
+		case RInside::PE_ERROR:
+			LOG_INFO << "Error executing code";
+			throw RException(kError_QueryFailed, result);
+		default:
+			throw GenericException("non-user code", kError_QueryUnhandledResponse);
+			;
 	}
 }
 

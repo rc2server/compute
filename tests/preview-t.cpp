@@ -60,13 +60,15 @@ namespace RC2 {
 		{
 			// initialize the preview
 			FileInfo finfo;
-			session->copyFileToWorkingDirectory("test1.Rmd");
-			fileManager->findOrAddFile("test1.Rmd", finfo);
+			session->copyFileToWorkingDirectory("preview1.Rmd");
+			fileManager->findOrAddFile("preview1.Rmd", finfo);
 			session->emptyMessages();
+			string initIdent = "bahhbahh";
 			json initJson;
 			initJson["msg"] = "initPreview";
 			initJson["fileId"] = finfo.id;
 			initJson["argument"] = "";
+			initJson["updateIdentifier"] = initIdent;
 			session->doJson(initJson.dump(2));
 			ASSERT_EQ(session->messageCount(), 1);
 			auto initResponse = session->popMessage();
@@ -74,7 +76,17 @@ namespace RC2 {
 			ASSERT_EQ(initResponse["errorCode"], 0);
 			int previewId = initResponse["previewId"];
 			ASSERT_GT(previewId, 0);
-			cout << "previewid=" << previewId << endl;
+			ASSERT_EQ(initIdent, initResponse["updateIdentifier"]);
+
+			// send a first update to get all
+			json upmsg1;
+			string updateIdent = "xxfe";
+			upmsg1["msg"] = "updatePreview";
+			upmsg1["updateIdentifier"] = updateIdent;
+			upmsg1["previewId"] = previewId;
+			upmsg1["argument"] = "";
+			session->emptyMessages();
+			session->doJson(upmsg1.dump(2));
 		}
 
 	}; // end testing namespace

@@ -7,3 +7,6 @@
 [submodule "Rc2Parser"]
 	path = Rc2Parser
 	url = https://github.com/rc2server/Rc2Parser.git
+[submodule "vendor/cpp-base64"]
+	path = vendor/cpp-base64
+	url = https://github.com/ReneNyffenegger/cpp-base64.git
