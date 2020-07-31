@@ -12,6 +12,7 @@
 #include "Errors.hpp"
 #include "RC2Logging.h"
 #include <nlohmann/json.hpp>
+#include "vendor/cpp-base64/base64.h"
 
 /*
  * 1. if the source file hasn't changed, nothing to do. Note if data files have changed, need to update any chunks that refer to them
@@ -50,7 +51,8 @@ void
 RC2::PreviewData::update ( FileInfo& updatedInfo, string& updateIdent, int targetChunkId, bool includePrevious ) {
 	assert ( updatedInfo.id == fileInfo.id );
 	currentUpdateIdentifier_ = updateIdent;
-	if ( updatedInfo.version <= fileInfo.version ) return;
+	// if the version is the same but we've never done an initial run-through, don't skip
+	if ( updatedInfo.version <= fileInfo.version && chunkMap.size() > 0) return;
 	fileInfo = updatedInfo;
 	string contents = SlurpFile ( fileInfo.name.c_str() );
 	currentChunks_ = parser.parseRmdSource ( contents );
@@ -94,12 +96,19 @@ RC2::PreviewData::executeChunks ( vector<int> chunksToUpdate ) {
 			results["updateIdentifier"] = currentUpdateIdentifier_;
 			results["previewId"] = previewId;
 			results["content"] = cacheEntry->lastOutput;
+			results["complete"] = false;
 			string str = results.dump(2);
 			delegate_->sendPreviewJson(str);
 		} catch ( GenericException& e ) {
 			LOG_INFO << "generic exception: " << e.code();
 		}
 	}
+	json finalResults;
+	finalResults["message"] = "previewUpdate";
+	finalResults["updateIdentifier"] = currentUpdateIdentifier_;
+	finalResults["previewId"] = previewId;
+	finalResults["complete"] = true;
+	delegate_->sendPreviewJson(finalResults.dump(2));
 }
 
 string
@@ -129,12 +138,9 @@ RC2::PreviewData::executeChunk ( Chunk* chunk, ChunkCacheEntry* cacheEntry ) {
 	}
 	std::stringstream outStr;
 	Rcpp::List results ( answer );
-	LOG_INFO << "sexp=" << TYPEOF(answer);
 	for ( auto itr = results.begin(); itr != results.end(); ++itr ) {
-		LOG_INFO << "results examined";
 		Rcpp::List curList ( *itr );
 		string elType = curList.attr ( "class" );
-		LOG_INFO << " type = " << elType;
 		if ( elType == "rc2src" ) {
 			Rcpp::StringVector strs ( Rcpp::as<Rcpp::StringVector> ( curList["src"] ) );
 			outStr << "<div style=\"rc2-preview-src\">" << strs[0] << "</div>" << endl;
@@ -145,6 +151,13 @@ RC2::PreviewData::executeChunk ( Chunk* chunk, ChunkCacheEntry* cacheEntry ) {
 			Rcpp::StringVector strs ( Rcpp::as<Rcpp::StringVector> ( curList["message"] ) );
 			Rcpp::StringVector calls ( Rcpp::as<Rcpp::StringVector> ( curList["call"] ) );
 			outStr << "<div style=\"rc2-error\">" << strs[0] << "(location: " << calls[0] << ")</div>" << endl;
+		} else if ( elType == "rc2plot") {
+			BinaryData imgData;
+			Rcpp::StringVector names ( Rcpp::as<Rcpp::StringVector> ( curList["fname"] ) );
+			string fname(names[0]);
+			SlurpBinaryFile(fname, imgData);
+			string encodedStr = base64_encode((unsigned char*)imgData.data.get(), imgData.getSize(), false);
+			outStr << "<div style=\"rc2-plot\"><img src=\"data:image/png;base64," << encodedStr << "\"></div>" << endl;
 		} else {
 			LOG_INFO << "unsupported ype returned from evaluate: " << elType;
 		}

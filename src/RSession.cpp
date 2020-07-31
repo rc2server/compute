@@ -876,6 +876,7 @@ RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 			sendJsonToClientSource(errMsg.dump());
 			return;
 		}
+		string updateIdent = command.valueForKey("updateIdentifier");
 		// create the preview object
 		int newId = _impl->previewsCounter;
 		while (_impl->previews.count(newId) > 0) {
@@ -888,7 +889,8 @@ RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 		json2 results = {
 			{"msg", "previewInited"},
 			{"previewId", newId},
-			{"errorCode", errorCode}
+			{"errorCode", errorCode},
+			{"updateIdentifier", updateIdent}
 		};
 		sendJsonToClientSource(results.dump());
 	} catch (std::exception& e) {
