@@ -890,6 +890,7 @@ RC2::RSession::handleInitPreview(RC2::JsonCommand& command)
 			{"msg", "previewInited"},
 			{"previewId", newId},
 			{"errorCode", errorCode},
+			{"fileId", fileId},
 			{"updateIdentifier", updateIdent}
 		};
 		sendJsonToClientSource(results.dump());

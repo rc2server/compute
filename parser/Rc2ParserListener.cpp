@@ -28,6 +28,11 @@ Rc2ParserListener::enterChunk(Rc2RawParser::ChunkContext* ctx)
 	if (start == nullptr) return;
 	Chunk* aChunk = nullptr;
 	
+	auto contents = ctx->getText();
+	ctx->getText();
+	if (std::all_of(contents.begin(), contents.end(), isspace)) {
+		return;
+	}
 	switch (start->getType()) {
 		case Rc2Lexer::MDOWN:
 			if (curMarkdownChunk_ == nullptr) {
