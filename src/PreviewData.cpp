@@ -88,6 +88,7 @@ RC2::PreviewData::executeChunks ( vector<int> chunksToUpdate ) {
 		auto cacheEntry = chunkMap[idx].get();
 		auto oldCrc = cacheEntry->crc;
 		try {
+			LOG_INFO << "executing " << aChunk->content() << std::endl;
 			executeChunk ( aChunk, cacheEntry );
 			if ( oldCrc == cacheEntry->crc ) continue;
 			json results;
@@ -104,7 +105,8 @@ RC2::PreviewData::executeChunks ( vector<int> chunksToUpdate ) {
 		}
 	}
 	json finalResults;
-	finalResults["message"] = "previewUpdate";
+	finalResults["chunkId"] = -1;
+	finalResults["message"] = "previewUpdated";
 	finalResults["updateIdentifier"] = currentUpdateIdentifier_;
 	finalResults["previewId"] = previewId;
 	finalResults["complete"] = true;
