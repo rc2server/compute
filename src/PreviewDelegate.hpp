@@ -1,8 +1,7 @@
 #pragma once
 
-#include <RInside.h>
 #include <string>
-
+#include <Rcpp.h>
 
 class PreviewDelegate {
 public:
