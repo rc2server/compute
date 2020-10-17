@@ -45,7 +45,7 @@ protected:
 	void setFactorData(RObject& robj, json& jobj);
 	void setDataFrameData(RObject& robj, json& jobj);
 	void setGenericObjectData(RObject& robj, json& jobj);
-	void setEnvironmentData(RObject& robj, json& jobj);
+	void setEnvironmentData(RObject& robj, json& jobj, int& depthCount);
 	void setFunctionData(RObject& robj, json& jobj);
 	void setPrimitiveData(RObject& robj, json& jobj);
 	void setDimNames(RObject& robj, json& jobj);
@@ -53,6 +53,13 @@ protected:
 	void setPairListData(RObject& robj, json& jobj);
 	
 	void addSummary(std::string& varName, json& jobj);
+
+	/**
+	 * Private method that passes on the current environment depth
+	 * 
+	 * @param envDepthLeft decremented each time deceded into an envonment. When it hits zero, no more depth is explored
+	 */
+	void valueToJsonInternal(std::string varName, RObject& robj, json& jobj, bool includeListChildren, bool includeSummaries, int& envDepthLeft);
 };
 
 } // end namespace

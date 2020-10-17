@@ -7,6 +7,7 @@
 #include "../common/RC2Utils.hpp"
 
 
+const int kMaxEnvDepth = 1;
 const int kMaxLen = 100;
 const char *kNotAVector = "notAVector";
 const char *kPrimitive = "primitive";
@@ -159,9 +160,15 @@ namespace RC2 {
 //			LOG_INFO << "exception for summary of " << varName << std::endl;
 		}
 	}
-	
+
 	void
 	RC2::RJsonEncoder::valueToJson (std::string varName, RObject& robj, json& jobj, bool includeListChildren, bool includeSummaries )
+	{
+		int depth = 2;
+		valueToJsonInternal(varName, robj, jobj, includeListChildren, includeSummaries, depth);
+	}
+	
+	void RC2::RJsonEncoder::valueToJsonInternal(std::string varName, RObject& robj, json& jobj, bool includeListChildren, bool includeSummaries, int& envDepthLeft)
 	{
 		jobj[kName] = varName;
 		if (Rf_isObject(robj)) {
@@ -180,7 +187,7 @@ namespace RC2 {
 					addSummary(varName, jobj);
 				break;
 			case ENVSXP:
-				setEnvironmentData(robj, jobj);
+				setEnvironmentData(robj, jobj, envDepthLeft);
 				break;
 			case CLOSXP: //3
 			case SPECIALSXP: //7
@@ -371,19 +378,21 @@ namespace RC2 {
 	}
 	
 	void
-	RC2::RJsonEncoder::setEnvironmentData ( RObject& robj, json& jobj )
+	RC2::RJsonEncoder::setEnvironmentData ( RObject& robj, json& jobj, int& depthCount )
 	{
 		json childArray;
 		Rcpp::Environment cenv(robj);
-		Rcpp::StringVector cnames(cenv.ls(false));
-		int len = cnames.size() < kMaxLen ? cnames.size() : kMaxLen;
-		for (int i=0; i < len; i++) {
-			json cobj;
-			std::string varName(cnames[i]);
-			cobj[kName] = varName;
-			RObject childVal(cenv.get(varName));
-			valueToJson(varName, childVal, cobj, true);
-			childArray.push_back(cobj);
+		if (--depthCount > 0) {
+			Rcpp::StringVector cnames(cenv.ls(false));
+			int len = cnames.size() < kMaxLen ? cnames.size() : kMaxLen;
+			for (int i=0; i < len; i++) {
+				json cobj;
+				std::string varName(cnames[i]);
+				cobj[kName] = varName;
+				RObject childVal(cenv.get(varName));
+				valueToJsonInternal(varName, childVal, cobj, true, true, depthCount);
+				childArray.push_back(cobj);
+			}
 		}
 		jobj[kClass] = "environment";
 		jobj[kValue] = childArray;
