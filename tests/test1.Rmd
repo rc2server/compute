@@ -12,7 +12,7 @@ $$
 
 
 	```{r}
-	rnorm(100)
+	rnorm(10)
 	```
 
 _blah blah_

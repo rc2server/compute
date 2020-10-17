@@ -1,7 +1,7 @@
 * point 1
 
 ```{r c1}
-y <- rnorm(33)
+y <- rnorm(3)
 plot(y)
 ```
 
@@ -9,7 +9,9 @@ plot(y)
 
 
 ```{r}
-rnorm(10)
+rnorm(2)
+"restoring y"
+y
 ```
 
 _blah blah_
