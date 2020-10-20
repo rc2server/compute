@@ -2,13 +2,14 @@
 #include <vector>
 #include <map>
 #include <sys/time.h>
-#include "RC2Logging.h"
 #include "EnvironmentWatcher.hpp"
 #include "../common/RC2Utils.hpp"
+#include "RC2Logging.h"
 
 // documentation of code flow is in rc2root:/documentation/varaibleFormat.md
 
 extern const int kMaxLen = 100;
+static int envNumber = 1;
 
 namespace RC2 {
 void get_var_names(std::vector<Variable> &vars, std::vector<std::string> &names) {
@@ -25,20 +26,24 @@ bool compareVariablesByName(const Variable& v1, const Variable& v2) {
 
 
 RC2::EnvironmentWatcher::EnvironmentWatcher ( SEXP environ, ExecuteCallback callback )
-	: _env(environ), _execCallback(callback), _encoder(callback)
+	: _env(Rcpp::new_env(environ)), _execCallback(callback), _encoder(callback)
 {
-
+	LOG_DEBUG << "creating env from SEXP: " << (void*)environ;
 }
 
 RC2::EnvironmentWatcher::EnvironmentWatcher ( ExecuteCallback callback )
 	: _env(Rcpp::new_env(Rcpp::Environment::global_env())), _execCallback(callback), _encoder(callback)
 {
-
+	LOG_DEBUG << "creating env from callbacks";
+	
 }
 
 RC2::EnvironmentWatcher::EnvironmentWatcher(const RC2::EnvironmentWatcher *const parent)
-	: _env(parent->_env), _execCallback(parent->_execCallback), _encoder(parent->_execCallback)
+	: _env(new_env(parent->_env)), _execCallback(parent->_execCallback), _encoder(parent->_execCallback)
 {
+	LOG_DEBUG << "creating env from parent: " << (void*)parent;
+	SEXPREC* addr = _env;
+	LOG_DEBUG << "child env: " << (void*)addr;
 }
 
 

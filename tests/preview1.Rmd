@@ -2,14 +2,13 @@
 
 ```{r c1}
 y <- rnorm(3)
-plot(y)
+rnorm(2)
 ```
 
 * point 4 $\frac{1}{n} \sum_{i=i}^{n} x_{i}$
 
 
 ```{r}
-rnorm(2)
 "restoring y"
 y
 ```

@@ -27,29 +27,28 @@ namespace RC2 {
 			virtual void pureVirtual() {}
 		};
 		
-		TEST_F(PreviewTest, basic)
-		{
-			ASSERT_TRUE(true);
-		}
-		
 		// TODO: need to add test that performs two updates and make sure get message only those messages returned
 		
 		TEST_F(PreviewTest, basicUpdate)
 		{
 			EnvironmentWatcher envWatcher(Rcpp::Environment::global_env(), session->getExecuteCallback());
 			FileInfo finfo;
-			session->copyFileToWorkingDirectory("test1.Rmd");
-			fileManager->findOrAddFile("test1.Rmd", finfo);
+			session->copyFileToWorkingDirectory("preview1.Rmd");
+			fileManager->findOrAddFile("preview1.Rmd", finfo);
 			PreviewData pd(5, fileManager, finfo, &envWatcher, session);
 			finfo.version += 1;
 			string uident("5344gf");
 			try {
 				pd.update(finfo, uident, 4, false);
-				ASSERT_EQ(session->messageCount(), 1);
+				ASSERT_EQ(session->messageCount(), 3);
 				auto message = session->popMessage();
 				ASSERT_EQ(message["updateIdentifier"], "5344gf");
 				ASSERT_EQ(message["previewId"], 5);
-				ASSERT_EQ(message["chunkIndex"], 3);
+				ASSERT_EQ(message["chunkId"], 1);
+				message = session->popMessage();
+				ASSERT_EQ(message["chunkId"], 3);
+				message = session->popMessage();
+				ASSERT_EQ(message["chunkId"], -1);
 			} catch (const std::exception& e) {
 				cout << "exception: " << e.what() << endl;
 			}

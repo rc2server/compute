@@ -99,7 +99,7 @@ public:
 	 * @return void
 	 */
 	void captureEnvironment();
-	void clear() { _lastVars.erase(_lastVars.begin(), _lastVars.end()); }
+//	void clear() { _lastVars.erase(_lastVars.begin(), _lastVars.end()); }
 	
 protected:
 	const Rcpp::Environment _env;

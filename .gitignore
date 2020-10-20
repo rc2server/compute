@@ -14,3 +14,5 @@ vendor/antlr/build
 vendor/antlr/run
 vendor/antlr/antlr-src
 !vendor/antlr/lib/libantlr4-runtime.a
+
+\.vscode/

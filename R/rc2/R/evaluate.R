@@ -5,7 +5,7 @@ rc2.evaluateCode <- function(src, parent = emptyenv(), baseImageName = "previewI
 
 
 evaluateWrapper <- function(parent = emptyenv()) {
- myEnv <- new.env(parent = parent)
+  myEnv <- parent
   assign("allItems", list(), envir = myEnv)
 
   convertItem <- function(item) {
@@ -19,9 +19,11 @@ evaluateWrapper <- function(parent = emptyenv()) {
 
   rc2evaluate <- function(src, baseImageName = "previewImage") {
     assign("allItems", list(), envir = myEnv)
-    eres <- evaluate(src, output_handler = outputHandler, stop_on_error = 1L)
+    on.exit(rm(allItems))
+    eres <- evaluate(src, envir = myEnv, output_handler = outputHandler, stop_on_error = 1L)
     all <- get("allItems", envir = myEnv)
     all2 <- processItems(all, baseImageName)
+    rm("allItems")
     return(all2)
   }
 

@@ -38,6 +38,7 @@ namespace RC2 {
 	RC2::PreviewData::PreviewData ( int pid, FileManager* fmanager, FileInfo& finfo, EnvironmentWatcher* globalEnv, PreviewDelegate *delegate )
 	: previewId ( pid ), fileManager ( fmanager ), fileInfo ( finfo ), delegate_( delegate ), previewEnv ( globalEnv ) 
 	{
+		LOG_INFO << "pdata with parent: " << (void*)previewEnv.getEnvironment();
 		long fid = fileInfo.id;
 		fileManager->addChangeListener ( fid, boost::bind ( &PreviewData::fileChanged, this, fid, ALL ), &fileConnection );
 	}
@@ -91,9 +92,9 @@ RC2::PreviewData::executeChunks ( vector<int> chunksToUpdate ) {
 			LOG_INFO << "executing " << aChunk->content() << std::endl;
 			executeChunk ( aChunk, cacheEntry );
 			if ( oldCrc == cacheEntry->crc ) continue;
-			json results;
-			results["message"] = "previewUpdate";
-			results["chunkIndex"] = idx;
+			nlohmann::json results;
+			results["msg"] = "previewUpdated";
+			results["chunkId"] = idx;
 			results["updateIdentifier"] = currentUpdateIdentifier_;
 			results["previewId"] = previewId;
 			results["content"] = cacheEntry->lastOutput;
@@ -106,7 +107,7 @@ RC2::PreviewData::executeChunks ( vector<int> chunksToUpdate ) {
 	}
 	json finalResults;
 	finalResults["chunkId"] = -1;
-	finalResults["message"] = "previewUpdated";
+	finalResults["msg"] = "previewUpdated";
 	finalResults["updateIdentifier"] = currentUpdateIdentifier_;
 	finalResults["previewId"] = previewId;
 	finalResults["complete"] = true;
@@ -118,21 +119,26 @@ RC2::PreviewData::executeChunk ( Chunk* chunk, ChunkCacheEntry* cacheEntry ) {
 	SEXP answer;
 	Rcpp::Environment env;
 	// TODO: use environment from cacheEntry
+previewEnv.captureEnvironment();
 	previewEnv.getEnvironment ( env );
 	string userCode = chunk->innerContent();
 	boost::algorithm::trim_if ( userCode, &isSpaceOrTab );
 	env.assign ( "rc2.code", userCode );
-	string code = "rc2.evaluateCode(rc2.code, parent = environment())";
+	env.assign ( "rc2.env", env );
+	LOG_INFO << "executing in: " << (void*)env;
+	string code = "rc2.evaluateCode(rc2.code, parent = rc2.env)";
 	try {
 		delegate_->executePreviewCode(code, answer, &env);
 	} catch (const RException& e) {
-		LOG_INFO << "preview query failed";
+		LOG_INFO << "preview query failed:" << e.getCode();
 		return ""; // FIXME: should get error message from sexp, use that as what()
 
 	} catch (const std::exception& e) {
 		LOG_WARNING << "error executing code";
 	}
-	env.remove ( "rc2.code" );
+	env.remove("rc2.code");
+	env.remove("rc2.env");
+	env.remove("allItems"); // should have been removed by R package. wasn't for some reason
 	if ( (answer == nullptr) || Rf_isVector(answer) == FALSE) {
 		Rcpp::StringVector emsg = Rcpp::as<Rcpp::StringVector>(answer);
 		LOG_INFO << "type=" << TYPEOF(answer) << " error; " << emsg[0];
