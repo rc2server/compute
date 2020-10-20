@@ -437,8 +437,6 @@ RC2::RSession::parseArguments(int argc, char *argv[])
 			setenv("GLOG_minloglevel", "1", 1);
 		}
 		
-		LOG_INFO << "arguments parsed\n";
-		
 	} catch (TCLAP::ArgException &e) {
 		LOG_FATAL << "error:" << e.error();
 	}
@@ -582,7 +580,7 @@ RC2::RSession::handleJsonCommand(string json)
 	try {
 		if (json.length() < 1)
 			return;
-		LOG_INFO << "json=" << json;
+		LOG_INFO << "incoming json=" << json;
 		json2 doc;
 		try {
 			std::istringstream istr(json);
@@ -618,7 +616,6 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 		LOG_INFO << "duplicate open message received";
 		return;
 	}
-	LOG_INFO << cmd.raw() << endl;
 	_impl->wspaceId = cmd.raw()["wspaceId"];
 	_impl->apiVersion = cmd.apiVersion();
 	try {
