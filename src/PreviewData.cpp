@@ -65,6 +65,13 @@ RC2::PreviewData::update ( FileInfo& updatedInfo, string& updateIdent, int targe
 		usePrevious = true;
 	}
 	auto chunks2Update = whichChunksNeedUpdate ( targetId, usePrevious );
+	// send update started message
+	nlohmann::json results;
+	results["msg"] = "previewUpdateStarted";
+	results["updateIdentifier"] = currentUpdateIdentifier_;
+	results["activeChunks"] = chunks2Update;
+	delegate_->sendPreviewJson(results);
+	// start execution
 	executeChunks ( chunks2Update );
 	currentUpdateIdentifier_ = "";
 	LOG_INFO << "previewCacheSize=" << chunkMap.size();
@@ -111,6 +118,7 @@ RC2::PreviewData::executeChunks ( vector<int> chunksToUpdate ) {
 	finalResults["updateIdentifier"] = currentUpdateIdentifier_;
 	finalResults["previewId"] = previewId;
 	finalResults["complete"] = true;
+	finalResults["content"] = "";
 	delegate_->sendPreviewJson(finalResults.dump(2));
 }
 
