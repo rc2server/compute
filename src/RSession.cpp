@@ -146,7 +146,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 
 
 RC2::RSession::Impl::Impl()
-: consoleOutBuffer(new string), previewsCounter(1)
+: previewsCounter(1), consoleOutBuffer(new string)
 {
 	const char *envHome = getenv("RC2_HOME");
 	if (envHome) {
@@ -918,7 +918,8 @@ RC2::RSession::handleUpdatePreview(RC2::JsonCommand& command)
 			throw invalid_argument("file not found");
 		}
 		int chunkId = command.valueIsNull("chunkId") ? -1 : command.intValueForKey("chunkId");
-		pd->update(finfo, updateIdent, chunkId, command.boolValueForKey("inculdePrevious"));
+		bool includePrevious = command.boolValueForKey("includePrevious");
+		pd->update(finfo, updateIdent, chunkId, includePrevious);
 	} catch (std::exception& e) {
 		LOG_INFO << "error reading updatePreview command: " << e.what() << endl;
 	}	

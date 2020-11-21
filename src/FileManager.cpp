@@ -199,8 +199,9 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 //	LOG_INFO << "inserted image " << imgId << " of size " << size;
 	imageIds_.push_back(imgId);
 	ignoreFSNotifications();
-    if (NULL == getenv("RSESSION_KEEP_IMAGES"))
+    if (NULL == getenv("RSESSION_KEEP_IMAGES")) {
         fs::remove(filePath);
+	}
 	return 0;
 }
 
@@ -254,6 +255,7 @@ RC2::FileManager::Impl::parseDBMessage(string message, DBNotification& note) {
 	}
 	note.fileId = atol(fields[0].c_str());
 	note.wspaceId = atol(fields[1].c_str());
+	return true;
 }
 
 void
