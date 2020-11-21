@@ -125,12 +125,14 @@ RC2::PreviewData::executeChunk ( Chunk* chunk, ChunkCacheEntry* cacheEntry ) {
 	SEXP answer;
 	Rcpp::Environment env;
 	// TODO: use environment from cacheEntry
-previewEnv.captureEnvironment();
+	previewEnv.captureEnvironment();
 	previewEnv.getEnvironment ( env );
 	string userCode = chunk->innerContent();
 	boost::algorithm::trim_if ( userCode, &isSpaceOrTab );
 	env.assign ( "rc2.code", userCode );
 	env.assign ( "rc2.env", env );
+	// watch for files
+	fileManager->resetWatch();
 	LOG_INFO << "executing in: " << (void*)env;
 	string code = "rc2.evaluateCode(rc2.code, parent = rc2.env)";
 	try {
