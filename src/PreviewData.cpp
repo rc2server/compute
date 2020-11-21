@@ -38,7 +38,6 @@ namespace RC2 {
 	RC2::PreviewData::PreviewData ( int pid, FileManager* fmanager, FileInfo& finfo, EnvironmentWatcher* globalEnv, PreviewDelegate *delegate )
 	: previewId ( pid ), fileManager ( fmanager ), fileInfo ( finfo ), delegate_( delegate ), previewEnv ( globalEnv ) 
 	{
-		LOG_INFO << "pdata with parent: " << (void*)previewEnv.getEnvironment();
 		long fid = fileInfo.id;
 		fileManager->addChangeListener ( fid, boost::bind ( &PreviewData::fileChanged, this, fid, ALL ), &fileConnection );
 	}
@@ -70,11 +69,10 @@ RC2::PreviewData::update ( FileInfo& updatedInfo, string& updateIdent, int targe
 	results["msg"] = "previewUpdateStarted";
 	results["updateIdentifier"] = currentUpdateIdentifier_;
 	results["activeChunks"] = chunks2Update;
-	delegate_->sendPreviewJson(results);
+	delegate_->sendPreviewJson(results.dump());
 	// start execution
 	executeChunks ( chunks2Update );
 	currentUpdateIdentifier_ = "";
-	LOG_INFO << "previewCacheSize=" << chunkMap.size();
 }
 
 void
