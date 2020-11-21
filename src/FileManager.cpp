@@ -62,6 +62,7 @@ class RC2::FileManager::Impl : public ZeroInitializedClass {
 		long						sessionImageBatch_;
 		shared_ptr<DBFileSource>	dbFileSource_;
 		shared_ptr<PGDBConnection>	dbConnection_;
+		set<string>					filesToIgnore_;
 		set<string>					manuallyAddedFiles_;
 		map<int, DBFileInfoPtr>		filesByWatchDesc_;
 		PendingImageMap				pendingImagesByWatchDesc_;
@@ -73,6 +74,7 @@ class RC2::FileManager::Impl : public ZeroInitializedClass {
 		int							inotifyFd_;
 		FSDirectory					rootDir_;
 		boost::regex				imgRegex_;
+		boost::regex				ignoreFileRegex_;
 		map<string, string>			imgNameToTitle_;
 		signals::signal<void (long, ChangeType)> fileSignal_;
 		bool						ignoreFSNotifications_;
@@ -80,7 +82,8 @@ class RC2::FileManager::Impl : public ZeroInitializedClass {
         bool                        logInotify_;
 
 		Impl()
-			: imgRegex_("rc2img(\\d+)-(\\d+).png"), dbConnection_(new PGDBConnection())
+		:  dbConnection_(new PGDBConnection()), imgRegex_("rc2img(\\d+)-(\\d+).png"),
+		ignoreFileRegex_("^previewImage(\\d+)\\.png")
 		{
             logInotify_ = getenv("RC2_LOG_INOTIFY") != NULL;
         }
@@ -179,6 +182,7 @@ RC2::FileManager::Impl::insertImage(string fname, string imgNumStr)
 		throw FormattedException("failed to get session image id");
 	if (sessionImageBatch_ <= 0) {
 		stringstream batchq;
+		// TODO: switch to a sequence
 		batchq << "select max(batchid) from sessionimage where sessionid = " << sessionRecId_;
 		sessionImageBatch_ = dbConnection_->longFromQuery(batchq.str().c_str()) + 1;
 	}
@@ -438,6 +442,9 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 						if (boost::regex_match(fname, what, imgRegex_, boost::match_default)) {
 							startImageWatch(fname, what[1], event);
 //							newFileId = insertImage(fname, what[1]);
+						} else if (boost::regex_match(fname, what, ignoreFileRegex_, boost::match_default)) {
+							LOG_INFO << "preparing to ignore " << fname;
+							filesToIgnore_.insert(fname);
 						} else if (manuallyAddedFiles_.find(fname) == manuallyAddedFiles_.end()) {
 							if (fileExistsWithName(fname)) {
 								if (logInotify_) 
@@ -457,10 +464,15 @@ RC2::FileManager::Impl::handleInotifyEvent(struct bufferevent *bev)
 					}
 				}
 			} else if (evtype == IN_CLOSE_WRITE) {
+				LOG_INFO << "inotify close for " << event->name;
 				auto imgItr = pendingImagesByWatchDesc_.find(event->wd);
 				if (imgItr != pendingImagesByWatchDesc_.end()) {
 					insertImage(imgItr->second.fileName, imgItr->second.imgNumStr);
 					stopImageWatch(event->wd);
+				} else if (filesToIgnore_.find(event->name) != filesToIgnore_.end()) {
+					// ignore it. This is never happening, so need to either find another way or just clear it when preview update is complete
+					LOG_INFO << "ignoring " << event->name;
+					filesToIgnore_.erase(event->name);
 				} else {
 					DBFileInfoPtr fobj = filesByWatchDesc_[event->wd];
 					if (logInotify_)
@@ -580,6 +592,7 @@ RC2::FileManager::resetWatch()
 	}
 	_impl->imageIds_.erase(_impl->imageIds_.begin(), _impl->imageIds_.end());
 	_impl->manuallyAddedFiles_.clear();
+	_impl->filesToIgnore_.clear();
 }
 
 void
