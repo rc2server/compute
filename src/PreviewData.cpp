@@ -52,7 +52,10 @@ RC2::PreviewData::update ( FileInfo& updatedInfo, string& updateIdent, int targe
 	assert ( updatedInfo.id == fileInfo.id );
 	currentUpdateIdentifier_ = updateIdent;
 	// if the version is the same but we've never done an initial run-through, don't skip
-	if ( updatedInfo.version <= fileInfo.version && chunkMap.size() > 0) return;
+	if ( updatedInfo.version <= fileInfo.version && chunkMap.size() > 0) {
+		LOG_INFO << "skipping because older file version and already cached";
+		return;
+	}
 	fileInfo = updatedInfo;
 	string contents = SlurpFile ( fileInfo.name.c_str() );
 	currentChunks_ = parser.parseRmdSource ( contents );
