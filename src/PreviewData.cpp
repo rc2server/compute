@@ -72,6 +72,7 @@ RC2::PreviewData::update ( FileInfo& updatedInfo, string& updateIdent, int targe
 	results["msg"] = "previewUpdateStarted";
 	results["updateIdentifier"] = currentUpdateIdentifier_;
 	results["activeChunks"] = chunks2Update;
+	results["previewId"] = previewId;
 	delegate_->sendPreviewJson(results.dump());
 	// start execution
 	executeChunks ( chunks2Update );
@@ -112,6 +113,12 @@ RC2::PreviewData::executeChunks ( vector<int> chunksToUpdate ) {
 		} catch ( GenericException& e ) {
 			LOG_INFO << "generic exception: " << e.code();
 		}
+	}
+	// invalidate cache of all further chunks. should be more intelligent and not clear if change didn't invalidate
+	for ( auto idx = chunksToUpdate.back(); idx < currentChunks_.size(); ++idx) {
+		LOG_INFO << "clearing cache for chunk " << idx;
+		chunkMap[idx]->lastOutput = "";
+		chunkMap[idx]->lastSource = "";
 	}
 	json finalResults;
 	finalResults["chunkId"] = -1;
