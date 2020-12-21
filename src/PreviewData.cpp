@@ -113,12 +113,6 @@ RC2::PreviewData::executeChunks ( vector<int> chunksToUpdate ) {
 			LOG_INFO << "generic exception: " << e.code();
 		}
 	}
-	// invalidate cache of all further chunks. should be more intelligent and not clear if change didn't invalidate
-	for ( auto idx = chunksToUpdate.back(); idx < currentChunks_.size(); ++idx) {
-		LOG_INFO << "clearing cache for chunk " << idx;
-		chunkMap[idx]->lastOutput = "";
-		chunkMap[idx]->lastSource = "";
-	}
 	json finalResults;
 	finalResults["chunkId"] = -1;
 	finalResults["msg"] = "previewUpdated";
