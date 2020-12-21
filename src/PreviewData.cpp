@@ -100,7 +100,6 @@ RC2::PreviewData::executeChunks ( vector<int> chunksToUpdate ) {
 		try {
 			LOG_INFO << "executing " << aChunk->content() << std::endl;
 			executeChunk ( aChunk, cacheEntry );
-			if ( oldCrc == cacheEntry->crc ) continue;
 			nlohmann::json results;
 			results["msg"] = "previewUpdated";
 			results["chunkId"] = idx;
