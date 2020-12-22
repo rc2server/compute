@@ -23,15 +23,21 @@ namespace RC2 {
 		string					lastSource;
 		string					lastOutput;
 		EnvironmentWatcher		envWatcher;
+		bool					outputCached;
 		
 		ChunkCacheEntry(int num, string source, string output, EnvironmentWatcher *parentEnv)
 		: chunkNumber(num), lastSource(source), lastOutput(output), 
-			envWatcher(parentEnv)
+			envWatcher(parentEnv), outputCached(false)
 			{}
 		
 		ChunkCacheEntry(int num, EnvironmentWatcher *parentEnv)
 			: chunkNumber(num), envWatcher(parentEnv)
 			{}
+		
+		void cacheOutput(string newOuput) {
+			lastOutput = newOuput;
+			outputCached = true;
+		}
 		
 		int generateCRC() {
 			string csrc = lastSource + lastOutput + std::to_string(chunkNumber);

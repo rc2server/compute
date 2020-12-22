@@ -51,11 +51,6 @@ void
 RC2::PreviewData::update ( FileInfo& updatedInfo, string& updateIdent, int targetChunkId, bool includePrevious ) {
 	assert ( updatedInfo.id == fileInfo.id );
 	currentUpdateIdentifier_ = updateIdent;
-	// if the version is the same but we've never done an initial run-through, don't skip
-	if ( updatedInfo.version <= fileInfo.version && chunkMap.size() > 0) {
-		LOG_INFO << "skipping because older file version and already cached";
-		return;
-	}
 	fileInfo = updatedInfo;
 	string contents = SlurpFile ( fileInfo.name.c_str() );
 	currentChunks_ = parser.parseRmdSource ( contents );
@@ -136,7 +131,6 @@ RC2::PreviewData::executeChunk ( Chunk* chunk, ChunkCacheEntry* cacheEntry ) {
 	env.assign ( "rc2.env", env );
 	// watch for files
 	fileManager->resetWatch();
-	LOG_INFO << "executing in: " << (void*)env;
 	string code = "rc2.evaluateCode(rc2.code, parent = rc2.env)";
 	try {
 		delegate_->executePreviewCode(code, answer, &env);
@@ -182,7 +176,7 @@ RC2::PreviewData::executeChunk ( Chunk* chunk, ChunkCacheEntry* cacheEntry ) {
 		}
 	}
 	auto output = outStr.str();
-	cacheEntry->lastOutput = output;
+	cacheEntry->cacheOutput(output);
 	cacheEntry->crc = cacheEntry->generateCRC();
 	return output;
 }
@@ -213,9 +207,11 @@ RC2::PreviewData::whichChunksNeedUpdate ( int targetChunkId, bool includePreviou
 		startIndex = 0;
 	} else {
 		// adjust targetId if any previous chunks need to be executed
-		for ( int i = startIndex; i >= 0; --i ) {
+		for ( int i = startIndex - 1; i >= 0; --i ) {
+			// TODO: to support inline chunks, need to see if mdown chunk has inline code and if the cache of it is empty
 			auto centry = chunkMap[i].get();
-			if ( centry->lastSource.size() == 0 || ( currentChunks_[i]->type() == code && centry->lastOutput.size() == 0 ) ) {
+			auto chunk = currentChunks_[i];
+			if ( chunk->type() == code && !centry->outputCached ) {
 				startIndex = i;
 			}
 		}
