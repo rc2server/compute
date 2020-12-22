@@ -10,6 +10,7 @@ SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 configure_file(test1.Rmd test1.Rmd COPYONLY)
 configure_file(preview1.Rmd preview1.Rmd COPYONLY)
+configure_file(previewCacheInvalidate.Rmd COPYONLY)
 configure_file(test1.Rnw test1.Rnw COPYONLY)
 configure_file(test1.R test1.R COPYONLY)
 configure_file(chapter.Rmd chapter.Rmd COPYONLY)
