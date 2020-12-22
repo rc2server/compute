@@ -36,6 +36,15 @@ private:
 };
 
 /**
+ * @brief Reads a file, does a find/replace, and then saves the modified file
+ * 
+ * @param filename path to the file to edit
+ * @param searchString text to search for
+ * @param replaceString text to replace searchString with
+ */
+void UpdateFile(const char *filename, std::string searchString, std::string replaceString);
+
+/**
 * @brief Reads the contents of the specified file
 * 
 * @param filename the name of the file to read relative to the working directory

@@ -15,6 +15,8 @@ typedef char* uuid_string_t;
 #include <boost/filesystem.hpp>
 #include <boost/exception/exception.hpp>
 #include <boost/system/error_code.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/range/adaptors.hpp>
 
 namespace fs = boost::filesystem;
 namespace errc =  boost::system::errc;
@@ -81,6 +83,17 @@ RC2::SlurpBinaryFile ( std::string filename, RC2::BinaryData& data ) {
 
 void RC2::RemoveFile ( std::string filename ) {
 	fs::remove(filename);
+}
+
+void 
+RC2::UpdateFile ( const char* filename, std::string searchString, std::string replaceString ) 
+{
+	std::string contents = SlurpFile(filename);
+	boost::replace_all(contents, searchString, replaceString);
+	{
+		std::ofstream updatedFile(filename);
+		updatedFile << contents;
+	}
 }
 
 
