@@ -51,6 +51,7 @@ void
 RC2::PreviewData::update ( FileInfo& updatedInfo, string& updateIdent, int targetChunkId, bool includePrevious ) {
 	assert ( updatedInfo.id == fileInfo.id );
 	currentUpdateIdentifier_ = updateIdent;
+	LOG_INFO << "got update request ident:" << updateIdent;
 	fileInfo = updatedInfo;
 	string contents = SlurpFile ( fileInfo.name.c_str() );
 	currentChunks_ = parser.parseRmdSource ( contents );
