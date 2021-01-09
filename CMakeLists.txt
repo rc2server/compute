@@ -40,7 +40,7 @@ SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 SET(Compute_Libs
 	event
 	event_pthreads
-	/usr/lib/x86_64-linux-gnu/libcrypto.so.1.0.0
+	crypto
 	uuid
 	pq
 	RInside

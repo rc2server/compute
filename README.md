@@ -35,8 +35,6 @@ On checkout of project, use `git clone --recursive <URL> <Local Directory>` to c
 
 In vendor/json-schema-validator need to run `git fetch && git fetch -tags` and then `git checkout 2.0.0`.
 
-In vendor/g3log run `git fetch && git fetch -tags` and then `git checkout 1.3.2`.
-
 When RInside is installed on a development machine, need to go to `/usr/local/lib/R/library/RInside/libs` and `ln -s /usr/local/lib/R/site-library/RInside/libs/RInside.so libRInside.so`
 `pushd /usr/local/lib/R/site-library/RInside/libs;  sudo ln -s RInside.so libRInside.so`
 
