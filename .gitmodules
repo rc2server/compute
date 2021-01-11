@@ -10,3 +10,6 @@
 [submodule "vendor/cpp-base64"]
 	path = vendor/cpp-base64
 	url = https://github.com/ReneNyffenegger/cpp-base64.git
+[submodule "vendor/uWebSockets"]
+	path = vendor/uWebSockets
+	url = https://github.com/uNetworking/uWebSockets.git

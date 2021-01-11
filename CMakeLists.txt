@@ -76,10 +76,14 @@ ExternalProject_Add(jsonschema DOWNLOAD_COMMAND ""
 	INSTALL_COMMAND ""
 	CMAKE_ARGS "-DNLOHMANN_JSON_DIR=${CMAKE_SOURCE_DIR}/vendor/"
 )
+
+SET("USOCKETS_DIR" "${CMAKE_BINARY_DIR}/vendor/src/uSockets")
+
 # FIXME: very hacky. Should have in Compute_Libs, but that was always trying to use a dynamic lib. 
 # adding this to target_link_libraries is a temporary fix
 set(VALIDATE_LIBRARY ${VALIDATE_BINARY_DIR}/libjson-schema-validator.a)
 set(ANTLR_RTIME ${CMAKE_CURRENT_SOURCE_DIR}/vendor/antlr/lib/libantlr4-runtime.a)
+set(USOCKETS_LIBRARY ${USOCKETS_DIR}/uSockets.a)
 
 #R installed from sources uses /usr/local/lib/R/library while it uses /usr/local/lib/R/site-library if installed via rpm
 include_directories (
@@ -88,6 +92,7 @@ include_directories (
 	${CMAKE_SOURCE_DIR}/vendor
 	${LOGGER_BINARY_DIR}/include
 	${VALIDATE_SOURCE_DIR}/src/
+	${CMAKE_SOURCE_DIR}/vendor/uWebSockets/uSockets/src
 	/usr/include
 	/usr/include/postgresql
 	/usr/share/R/include
@@ -143,8 +148,10 @@ add_executable(rsession src/RSession-main.cpp)
 add_dependencies(parser common)
 
 add_executable(rserver src/RServer-main.cpp)
+add_executable(wsserver src/SessionSpawnServer.cpp)
 
 target_link_libraries(rserver src common ${Compute_Libs} ${Boost_LIBRARIES})
+target_link_libraries(wsserver src common ${Compute_Libs} ${Boost_LIBRARIES} ${USOCKETS_LIBRARY} -lz)
 target_link_libraries(rsession src common parser pthread ${Compute_Libs} ${Boost_LIBRARIES} ${VALIDATE_LIBRARY} ${ANTLR_RTIME} R RInside -lm)
 
 install(CODE "execute_process(COMMAND \"${CMAKE_SOURCE_DIR}/prepareRInside.sh\" \"${CMAKE_BINARY_DIR}\")")
