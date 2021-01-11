@@ -16,8 +16,9 @@ struct PortFinder {
 };
 
 struct Spawner {
-	void 
-	startSessionSpawning() 
+	void spawnSession(uint16_t port);
+	
+	void startSessionSpawning() 
 	{
 		PortFinder pf;
 		uWS::SSLApp({
@@ -32,8 +33,10 @@ struct Spawner {
 			if (colonIdx != std::string_view::npos) {
 				redirectLocation = redirectLocation.substr(0, colonIdx);
 			}
-			redirectLocation += ":" + std::to_string(pfinder.findPort());
+			uint16_t thePort = pfinder.findPort();
+			redirectLocation += ":" + std::to_string(thePort);
 			std::cout << "rl:" << redirectLocation << std::endl;
+			spawnSession(thePort);
 	//		for (auto itr = req->begin(); itr != req->end(); ++itr) {
 	//			std::cout << (*itr).first << ":" << (*itr).second << std::endl;
 	//		}
@@ -52,6 +55,14 @@ main(int argc, char** argv)
 	Spawner spawns;
 	spawns.startSessionSpawning();
 }
+
+void 
+Spawner::spawnSession ( uint16_t port ) {
+	// ideally want to know when it is running
+	// FIXME: get path like RServer does
+//	boost::process::spawn("/rc2/rsession", "-p", std::to_string(port));
+}
+
 
 uint16_t 
 PortFinder::findPort() {
