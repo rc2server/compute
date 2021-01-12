@@ -574,6 +574,18 @@ RC2::RSession::handleCommand(JsonCommand& command)
 	}
 }
 
+bool
+RC2::RSession::isOpen() const
+{
+	return _impl->isOpen;
+}
+
+bool
+RC2::RSession::isProperlyClosed() const
+{
+	return _impl->isProperlyClosed;
+}
+}
 void
 RC2::RSession::handleJsonCommand(string json)
 {
@@ -685,7 +697,7 @@ RC2::RSession::handleOpenCommand(JsonCommand &cmd)
 }
 
 void 
-RC2::RSession::handleCloseCommand()
+RC2::RSession::handleCloseCommand(bool connectionFailed)
 {
 	if (_impl->properlyClosed) {
 		LOG_INFO << "duplicate handleCloseCommand" << std::endl;

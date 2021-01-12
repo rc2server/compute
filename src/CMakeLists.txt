@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.6)
 project (rcompute-src)
 
 add_library (src InputBufferManager.cpp 
@@ -10,6 +10,7 @@ add_library (src InputBufferManager.cpp
 					PreviewData.cpp
 					RServer.cpp 
 					RSession.cpp 
+					WSSession.cpp
 					RSessionCallbacks.cpp )
 
 #add_dependencies(src common, parser)

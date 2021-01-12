@@ -47,13 +47,13 @@ namespace RC2 {
 			 * @param argv the command line arguments
 			 * @return bool
 			 */
-			bool 	parseArguments(int argc, char *argv[]);
+			virtual bool parseArguments(int argc, char *argv[]);
 			/**
 			 * @brief sets up the libevent event loop
 			 * 
 			 * @return void
 			 */
-			void	prepareForRunLoop();
+			virtual void prepareForRunLoop();
 			
 			/**
 			 * @brief installs a signal handler in the event loop. NOT IMPLEMENTED
@@ -108,8 +108,6 @@ namespace RC2 {
 			*/
 			int getApiVersion() const;
 			
-			//unit test subclasses might override
-			
 			/**
 			 * @brief process a json command just like if it was received over the network
 			 * 
@@ -131,8 +129,11 @@ namespace RC2 {
 			virtual void sendPreviewJson(string jsonStr);
 			virtual void executePreviewCode(string code, SEXP& result, Rcpp::Environment* environment);
 			
+			bool isOpen() const;
 			
 		protected:
+			bool isProperlyClosed() const;
+			
 			RInside* getRInside() const;
 			void	consoleCallback(const string &text, bool is_error);
 			string	formatStringAsJson(const string &input, bool is_error);
@@ -143,7 +144,7 @@ namespace RC2 {
 			void	handleJsonCommand(string json);
 			void	handleCommand(JsonCommand& command);
 			void	handleOpenCommand(JsonCommand& command);
-			void	handleCloseCommand();
+			void	handleCloseCommand(bool connectionFailed = false);
 			void	handleSaveEnvCommand();
 			void	handleHelpCommand(JsonCommand& command);
 			void	handleListVariablesCommand(bool delta, JsonCommand& command);

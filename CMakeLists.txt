@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.6)
 
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 #set(CMAKE_DISABLE_SOURCE_CHANGES ON)
@@ -156,7 +156,8 @@ target_link_libraries(rsession src common parser pthread ${Compute_Libs} ${Boost
 
 install(CODE "execute_process(COMMAND \"${CMAKE_SOURCE_DIR}/prepareRInside.sh\" \"${CMAKE_BINARY_DIR}\")")
 
-install(TARGETS rserver rsession  RUNTIME DESTINATION .)
+install(TARGETS rserver rsession wsserver RUNTIME DESTINATION .)
+install(TARGETS rsession RUNTIME DESTINATION . RENAME wssession)
 install(DIRECTORY ${CMAKE_BINARY_DIR}/RInside DESTINATION . ${INSTALL_PATH})
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/R/rc2 DESTINATION . ${INSTALL_PATH})
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/rsrc DESTINATION . ${INSTALL_PATH})

@@ -5,6 +5,7 @@
 #include "common/RC2Utils.hpp"
 #include "RSessionCallbacks.hpp"
 #include "RSession.hpp"
+#include "WSSession.hpp"
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 
@@ -39,7 +40,11 @@ main(int argc, char** argv)
 		setenv("R_HOME", "/usr/local/lib/R", 0);
 	
 	callbacks = new RC2::RSessionCallbacks();
-	session = new RC2::RSession(callbacks);
+	if (strncmp(argv[0], "wssession", 10) == 0) {
+		session = new RC2::WSSession(callbacks);
+	} else {
+		session = new RC2::RSession(callbacks);
+	}
 	session->parseArguments(argc, argv);
 	session->prepareForRunLoop();
 	session->installExitHandler(signalHandler);
