@@ -583,9 +583,9 @@ RC2::RSession::isOpen() const
 bool
 RC2::RSession::isProperlyClosed() const
 {
-	return _impl->isProperlyClosed;
+	return _impl->properlyClosed;
 }
-}
+
 void
 RC2::RSession::handleJsonCommand(string json)
 {
