@@ -44,6 +44,7 @@ SET(Compute_Libs
 	uuid
 	pq
 	RInside
+	z
 )
 
 include(ExternalProject)
@@ -134,6 +135,8 @@ set_target_properties(boost_log PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-lin
 set_target_properties(uuid PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libuuid.a)
 set_target_properties(RInside PROPERTIES IMPORTED_LOCATION /usr/local/lib/R/site-library/RInside/libs/RInside.so)
 
+set(Session_Libs ${VALIDATE_LIBRARY} ${USOCKETS_LIBRARY} ${ANTLR_RTIME} R RInside m)
+
 set(sc_path ${CMAKE_BINARY_DIR}/src)
 set(tests_path ${CMAKE_BINARY_DIR}/tests)
 file(COPY ${INCOMING_SCHEMA_PATH}/${INCOMING_SCHEMA_NAME} DESTINATION ${sc_path} FILE_PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
@@ -151,8 +154,8 @@ add_executable(rserver src/RServer-main.cpp)
 add_executable(wsserver src/SessionSpawnServer.cpp)
 
 target_link_libraries(rserver src common ${Compute_Libs} ${Boost_LIBRARIES})
-target_link_libraries(wsserver src common ${Compute_Libs} ${Boost_LIBRARIES} ${USOCKETS_LIBRARY} -lz)
-target_link_libraries(rsession src common parser pthread ${Compute_Libs} ${Boost_LIBRARIES} ${VALIDATE_LIBRARY} ${ANTLR_RTIME} R RInside -lm)
+target_link_libraries(wsserver src common ${Compute_Libs} ${Boost_LIBRARIES} ${USOCKETS_LIBRARY})
+target_link_libraries(rsession src common parser pthread ${Compute_Libs} ${Boost_LIBRARIES} ${Session_Libs})
 
 install(CODE "execute_process(COMMAND \"${CMAKE_SOURCE_DIR}/prepareRInside.sh\" \"${CMAKE_BINARY_DIR}\")")
 
