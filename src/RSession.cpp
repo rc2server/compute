@@ -23,6 +23,7 @@
 #include <event2/buffer.h>
 #include <event2/event.h>
 #include <event2/bufferevent.h>
+#include <event2/thread.h>
 #include "common/RC2Utils.hpp"
 #include "common/PGDBConnection.hpp"
 #include "RSession.hpp"
@@ -455,6 +456,7 @@ RC2::RSession::prepareForRunLoop()
 {
 
 //	event_set_log_callback(rc2_log_callback);
+	evthread_use_pthreads();
 	struct event_config *config = event_config_new();
 	event_config_require_features(config, EV_FEATURE_FDS);
 	_impl->eventBase = event_base_new_with_config(config);
