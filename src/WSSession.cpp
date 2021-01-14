@@ -1,7 +1,11 @@
 #include "WSSession.hpp"
 #include <tclap/CmdLine.h>
+#include <event2/event.h>
 #include "RC2Logging.h"
 #include "uWebSockets/src/App.h"
+#include <event2/event.h>
+#include <event2/event.h>
+#include <event2/event.h>
 
 struct WSData {
 	std::function<bool(std::string)> sendMessage;
@@ -38,12 +42,21 @@ void RC2::WSSession::sendJsonToClientSource ( std::__cxx11::string json ) {
 	wsData->sendMessage(json);
 }
 
+static void dummy_signal_handler(int something, short unknown, void *arg) {
+	LOG_INFO << "got usr2 signal";
+}
 
 void
 RC2::WSSession::prepareForRunLoop() {
 	RSession::prepareForRunLoop();
 	std::thread wsThread([this]{ startListening(); });
 	wsThread.detach();
+	// listen for signal on main thread. need active event or loop ends immediately. 
+	// normal version listens for socket. we need to listen for something else
+	struct event *sigEvent;
+	struct event_base *eb = getEventBase();
+	sigEvent = evsignal_new(eb, SIGUSR2, dummy_signal_handler, NULL);
+	event_add(sigEvent, NULL);
 }
 
 void
@@ -52,8 +65,9 @@ RC2::WSSession::startListening() {
 	using uWS::OpCode;
 	// api uses some kinda struct
 	wsData = std::make_unique<WSData>();
+	auto thePort = listenPort;
 
-	LOG_INFO << "attempting to listen";
+//	LOG_INFO << "attempting to listen";
 	// the websocket handler below supposidly can skip unused handlers (drain, ping, pong) 
 	// but we get compile errors without them
 	uWS::SSLApp({
@@ -68,14 +82,16 @@ RC2::WSSession::startListening() {
 		.upgrade = [this](auto *res, auto *req, auto *context) {
 			LOG_INFO << "ws upgrade";
 			if (wsData->connected) {
+				res->writeStatus("418 Teapot Already in Use");
+				res->end();
+				return;
 			}
-			res->upgrade(wsData.get(), //{
-// 				.coonnected = 
-//			}, 
+			res->upgrade(wsData.get(), 
 			req->getHeader("sec-websocket-key"),
 			req->getHeader("sec-websocket-protocol"),
 			req->getHeader("sec-websocket-extensions"),
 			context);
+			wsData->connected = true;
 		},
 		.open = [this](auto *ws) {
 			LOG_INFO << "ws open";
@@ -108,8 +124,9 @@ RC2::WSSession::startListening() {
 			LOG_INFO << "ws close";
 			handleCloseCommand(true);
 		}
-	}).listen(listenPort, [](auto *token) {
+	}).listen(listenPort, [thePort](auto *token) {
 		if (token) {
+			LOG_INFO << "listening on port " << thePort;
 		}
 	}).run();
 }

@@ -148,6 +148,7 @@ file(COPY ${INCOMING_SCHEMA_PATH}/${INCOMING_SCHEMA_NAME} DESTINATION ${tests_pa
 #file(RENAME ${CMAKE_BINARY_DIR}/src/${INCOMING_SCRC_NAME} ${CMAKE_BINARY_DIR}/src/${INCOMING_SCHEMA_NAME})
 
 add_executable(rsession src/RSession-main.cpp)
+add_executable(wssession src/RSession-main.cpp)
 add_dependencies(parser common)
 
 add_executable(rserver src/RServer-main.cpp)
@@ -156,10 +157,11 @@ add_executable(wsserver src/SessionSpawnServer.cpp)
 target_link_libraries(rserver src common ${Compute_Libs} ${Boost_LIBRARIES})
 target_link_libraries(wsserver src common ${Compute_Libs} ${Boost_LIBRARIES} ${USOCKETS_LIBRARY})
 target_link_libraries(rsession src common parser pthread ${Compute_Libs} ${Boost_LIBRARIES} ${Session_Libs})
+target_link_libraries(wssession src common parser pthread ${Compute_Libs} ${Boost_LIBRARIES} ${Session_Libs})
 
 install(CODE "execute_process(COMMAND \"${CMAKE_SOURCE_DIR}/prepareRInside.sh\" \"${CMAKE_BINARY_DIR}\")")
 
-install(TARGETS rserver rsession wsserver RUNTIME DESTINATION .)
+install(TARGETS rserver rsession wsserver wssession DESTINATION .)
 install(TARGETS rsession RUNTIME DESTINATION . RENAME wssession)
 install(DIRECTORY ${CMAKE_BINARY_DIR}/RInside DESTINATION . ${INSTALL_PATH})
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/R/rc2 DESTINATION . ${INSTALL_PATH})

@@ -8,6 +8,7 @@
 #include "WSSession.hpp"
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
+#include <boost/algorithm/string.hpp>
 
 using namespace std;
 namespace fs = boost::filesystem;
@@ -40,7 +41,9 @@ main(int argc, char** argv)
 		setenv("R_HOME", "/usr/local/lib/R", 0);
 	
 	callbacks = new RC2::RSessionCallbacks();
-	if (strncmp(argv[0], "wssession", 10) == 0) {
+	std::string appPath(argv[0]);
+	if (boost::algorithm::ends_with(appPath, "wssession")) {
+//	if (strncmp(argv[0], "wssession", 10) == 0) {
 		session = new RC2::WSSession(callbacks);
 	} else {
 		session = new RC2::RSession(callbacks);
