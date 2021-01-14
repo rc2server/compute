@@ -3,6 +3,11 @@
 #include "RC2Logging.h"
 #include "uWebSockets/src/App.h"
 
+struct WSData {
+	std::function<bool(std::string)> sendMessage;
+	bool connected = false;
+};
+
 RC2::WSSession::WSSession(RSessionCallbacks *callbacks)
 	: RSession(callbacks)
 {
@@ -29,6 +34,11 @@ RC2::WSSession::parseArguments(int argc, char *argv[]) {
 	return true;
 }
 
+void RC2::WSSession::sendJsonToClientSource ( std::__cxx11::string json ) {
+	wsData->sendMessage(json);
+}
+
+
 void
 RC2::WSSession::prepareForRunLoop() {
 	RSession::prepareForRunLoop();
@@ -38,22 +48,50 @@ RC2::WSSession::prepareForRunLoop() {
 
 void
 RC2::WSSession::startListening() {
+	using std::string_view;
+	using uWS::OpCode;
 	// api uses some kinda struct
-	struct PerSocketData { };
-	
+	wsData = std::make_unique<WSData>();
+
+	LOG_INFO << "attempting to listen";
+	// the websocket handler below supposidly can skip unused handlers (drain, ping, pong) 
+	// but we get compile errors without them
 	uWS::SSLApp({
 		.key_file_name = "",
 		.cert_file_name = "",
 		.passphrase = ""
-	}).ws<PerSocketData>("/*", {
+	}).ws<WSData>("/*", {
 		.compression = uWS::SHARED_COMPRESSOR,
 		.maxPayloadLength = 16 * 1024,
 		.idleTimeout = 3600,
-		.maxBackpressure = 1 * 1024 * 1024,
-		.open = [](auto *ws) {
+		.maxBackpressure = 1024 * 1024,
+		.upgrade = [this](auto *res, auto *req, auto *context) {
+			LOG_INFO << "ws upgrade";
+			if (wsData->connected) {
+			}
+			res->upgrade(wsData.get(), //{
+// 				.coonnected = 
+//			}, 
+			req->getHeader("sec-websocket-key"),
+			req->getHeader("sec-websocket-protocol"),
+			req->getHeader("sec-websocket-extensions"),
+			context);
 		},
-		.message = [this](auto *ws, std::string_view message, uWS::OpCode opCode) {
-			if (opCode != uWS::TEXT) {
+		.open = [this](auto *ws) {
+			LOG_INFO << "ws open";
+			wsData->sendMessage = [ws](std::string message) -> bool {
+				// TODO: check return value
+				if (ws->send(message, OpCode::TEXT) == false) {
+					LOG_ERROR << "failed to send message via ws";
+					return false;
+				}
+				return true;
+			};
+			wsData->connected = true;
+		},
+		.message = [this](auto *ws, string_view message, OpCode opCode) {
+			LOG_INFO << "ws message";
+			if (opCode != OpCode::TEXT) {
 				LOG_ERROR << "ws received binary data, not supported";
 				return;
 			}
@@ -61,22 +99,17 @@ RC2::WSSession::startListening() {
 			handleJsonCommand(jsonStr);
 		},
 		.drain = [](auto *ws) {
-			/* Check ws->getBufferedAmount() here */
 		},
 		.ping = [](auto *ws) {
-			/* Not implemented yet */
 		},
 		.pong = [](auto *ws) {
-			/* Not implemented yet */
 		},
-		.close = [this](auto *ws, int code, std::string_view message) {
+		.close = [this](auto *ws, int code, string_view message) {
+			LOG_INFO << "ws close";
 			handleCloseCommand(true);
-			// TODO: exit this thread
 		}
 	}).listen(listenPort, [](auto *token) {
 		if (token) {
-			std::cout << "Listening on port " << 9001 << std::endl;
 		}
 	}).run();
 }
-

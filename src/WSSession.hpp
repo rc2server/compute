@@ -3,6 +3,8 @@
 #include "RSession.hpp"
 #include "uWebSockets/src/App.h"
 
+struct WSData;
+
 namespace RC2 {
 
 	class WSSession: public RSession {
@@ -17,6 +19,7 @@ namespace RC2 {
 		virtual void sendJsonToClientSource(string json) override;
 	
 	protected:
+		std::unique_ptr<WSData> wsData;
 		uint16_t listenPort;
 		
 		void startListening();
