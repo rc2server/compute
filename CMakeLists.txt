@@ -78,7 +78,7 @@ ExternalProject_Add(jsonschema DOWNLOAD_COMMAND ""
 	CMAKE_ARGS "-DNLOHMANN_JSON_DIR=${CMAKE_SOURCE_DIR}/vendor/"
 )
 
-SET("USOCKETS_DIR" "${CMAKE_BINARY_DIR}/vendor/src/uSockets")
+SET("USOCKETS_DIR" "${CMAKE_SOURCE_DIR}/vendor/uWebSockets/uSockets")
 
 # FIXME: very hacky. Should have in Compute_Libs, but that was always trying to use a dynamic lib. 
 # adding this to target_link_libraries is a temporary fix
@@ -94,6 +94,7 @@ include_directories (
 	${LOGGER_BINARY_DIR}/include
 	${VALIDATE_SOURCE_DIR}/src/
 	${CMAKE_SOURCE_DIR}/vendor/uWebSockets/uSockets/src
+	${CMAKE_SOURCE_DIR}/vendor/uWebSockets/src
 	/usr/include
 	/usr/include/postgresql
 	/usr/share/R/include
