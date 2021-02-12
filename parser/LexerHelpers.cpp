@@ -32,3 +32,27 @@ bool Rc2Lexer::isCodeBackticks()
 	}
 	return true;
 }
+
+bool Rc2Lexer::isYamlDashes()
+{
+    if (_input == nullptr) return false;
+    if (_input->LA(1) != '-' ||
+        _input->LA(2) != '-' ||
+        _input->LA(3) != '-') {
+        return false;
+    }
+    for (int i = -1; i < -getCharPositionInLine(); --i) {
+    	if(_input->LA(i) != 9 || _input->LA(i) != 32) // tab or space
+    		return false;
+    }
+	return true;
+}
+
+bool Rc2Lexer::isInlineCodeStart()
+{
+	return
+		_input->LA(-1) != '`' &&
+		_input->LA(1) == '`' &&
+		_input->LA(2) == 'r'; //&&
+		//_input->LA(3) != '$';
+}
