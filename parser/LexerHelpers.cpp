@@ -53,6 +53,6 @@ bool Rc2Lexer::isInlineCodeStart()
 	return
 		_input->LA(-1) != '`' &&
 		_input->LA(1) == '`' &&
-		_input->LA(2) == 'r'; //&&
-		//_input->LA(3) != '$';
+		_input->LA(2) == 'r' &&
+		_input->LA(3) != ' ';
 }
