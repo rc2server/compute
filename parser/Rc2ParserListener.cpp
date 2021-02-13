@@ -71,6 +71,7 @@ Rc2ParserListener::enterChunk(Rc2RawParser::ChunkContext* ctx)
 			chunks_.push_back(std::move(ck));
 			curMarkdownChunk_ = nullptr;
 			break;
+		// Add YAML case
 		}
 		default:
 			std::cerr << "invalic chunk type: " << start->getType() - 1 << std::endl;
