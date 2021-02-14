@@ -30,11 +30,13 @@ RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys B97B0AFCAA
 		libpng-dev libjpeg-dev libjbig-dev default-jdk default-jre \
     && apt-get install -y --no-install-recommends texlive texinfo texlive-fonts-extra texlive-lang-english \
     && apt-get install -y r-base-dev \
+    && mkdir /compute \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 ADD tools/RInside_0.2.13.tar.gz /tmp/
-
+##COPY . /compute
+## Added above copy line to build inside the container without mounting volumes.
 RUN mkdir -p /rc2compute/userlib \
 	&& echo 'R_LIBS_USER=/rc2compute/userlib' >> /etc/R/Renviron.site \
 	&& echo 'options(repos = c(CRAN = "https://cran.rstudio.com/"), download.file.method = "libcurl")' >> /usr/lib/R/etc/Rprofile.site \
