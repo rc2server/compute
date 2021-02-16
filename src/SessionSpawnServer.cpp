@@ -41,8 +41,8 @@ struct Spawner {
 	//			std::cout << (*itr).first << ":" << (*itr).second << std::endl;
 	//		}
 			res->writeStatus("302 Found ")->writeHeader("Location", redirectLocation)->end();
-		}).listen(9001, [](auto *listen_socket) {
-			printf("listening on 9001\n");
+		}).listen(7714, [](auto *listen_socket) {
+			printf("listening on 7714\n");
 		}).run();
 	}
 private:
@@ -60,7 +60,7 @@ void
 Spawner::spawnSession ( uint16_t port ) {
 	// ideally want to know when it is running
 	// FIXME: get path like RServer does
-//	boost::process::spawn("/rc2/rsession", "-p", std::to_string(port));
+	boost::process::spawn("/rc2compute/wssession", "-p", std::to_string(port));
 }
 
 
