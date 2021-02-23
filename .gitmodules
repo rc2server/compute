@@ -13,3 +13,5 @@
 [submodule "vendor/uWebSockets"]
 	path = vendor/uWebSockets
 	url = https://github.com/uNetworking/uWebSockets.git
+	ignore = dirty
+
