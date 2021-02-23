@@ -107,10 +107,10 @@ RC2::WSSession::startListening() {
 		},
 		.message = [this](auto *ws, string_view message, OpCode opCode) {
 			LOG_INFO << "ws message";
-			if (opCode != OpCode::TEXT) {
-				LOG_ERROR << "ws received binary data, not supported";
-				return;
-			}
+//			if (opCode != OpCode::TEXT) {
+//				LOG_ERROR << "ws received binary data, not supported";
+//				return;
+//			}
 			string jsonStr(message);
 			handleJsonCommand(jsonStr);
 		},
