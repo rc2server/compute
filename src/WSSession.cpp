@@ -39,6 +39,8 @@ RC2::WSSession::parseArguments(int argc, char *argv[]) {
 }
 
 void RC2::WSSession::sendJsonToClientSource ( std::__cxx11::string json ) {
+	if (_logOutgoingJson)
+		LOG_INFO << "sending: " << json;
 	wsData->sendMessage(json);
 }
 

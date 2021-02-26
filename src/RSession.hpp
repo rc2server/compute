@@ -184,6 +184,7 @@ namespace RC2 {
 			struct Impl;
 			std::unique_ptr<Impl>			_impl;
 			RSessionCallbacks*		 		_callbacks;
+			bool							_logOutgoingJson;
 
 	};
 };

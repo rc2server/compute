@@ -48,6 +48,7 @@ extern Rboolean R_Visible;
 static string escape_quotes(const string before);
 static string formatErrorAsJson(int errorCode, string details, int queryId=0);
 
+static const char* kLogOutgoingJson = "RC2_LOG_JSON_OUT";
 
 struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	struct event_base*				eventBase;
@@ -79,6 +80,7 @@ struct RC2::RSession::Impl : public ZeroInitializedStruct {
 	bool							sourceInProgress;
 	bool							watchVariables;
 	bool 							properlyClosed;
+	bool							logOutgoingJson;
 
 				Impl();
 				Impl(const Impl &copy) = delete;
@@ -157,6 +159,8 @@ RC2::RSession::Impl::Impl()
 		string::size_type parentDirIndex = installLoc.rfind('/');
 		rc2home = installLoc.substr(0, parentDirIndex);
 	}
+	if (getenv(kLogOutgoingJson) != NULL)
+		logOutgoingJson = true;
 }
 
 RC2::ExecuteCallback RC2::RSession::Impl::getExecuteCallback()
@@ -357,6 +361,7 @@ RC2::RSession::RSession(RSessionCallbacks *callbacks)
 	string incomingSchemaString = SlurpFile(incomingPath.c_str());
 	auto schema = json::parse(incomingSchemaString, nullptr, false);
 	_impl->incomingJsonSchema = schema;
+	_logOutgoingJson = getenv(kLogOutgoingJson) != NULL;
 }
 
 RC2::RSession::~RSession()
@@ -1180,7 +1185,8 @@ RC2::RSession::sendJsonToClientSource(string json)
 	if (json.length() < 1)
 		return;
 	if (_impl->socket > 0) { //only send if we have a valid socket
-		LOG_INFO << "sending:" << json << "(" << json.length() << " bytes)";
+		if (_logOutgoingJson)
+			LOG_INFO << "sending:" << json << "(" << json.length() << " bytes)";
 		int32_t header[2] = {0,0};
 		header[0] = kRSessionMagicNumber;
 		header[1] = json.length();
