@@ -114,7 +114,7 @@ RC2::WSSession::startListening() {
 //				return;
 //			}
 			string jsonStr(message);
-			handleJsonCommand(jsonStr);
+			scheduleDelayedCommand(jsonStr);
 		},
 		.drain = [](auto *ws) {
 		},
