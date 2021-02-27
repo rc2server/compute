@@ -53,26 +53,30 @@ RC2::PreviewData::update ( FileInfo& updatedInfo, string& updateIdent, int targe
 	currentUpdateIdentifier_ = updateIdent;
 	LOG_INFO << "got update request ident:" << updateIdent;
 	fileInfo = updatedInfo;
-	string contents = SlurpFile ( fileInfo.name.c_str() );
-	currentChunks_ = parser.parseRmdSource ( contents );
 	bool usePrevious = includePrevious;
 	int targetId = targetChunkId;
-	// if target is less than zero, execute all chunks
-	if ( targetId < 0) {
-		targetId = currentChunks_.size() - 1;
-		usePrevious = true;
+	try {
+		string contents = SlurpFile ( fileInfo.name.c_str() );
+		currentChunks_ = parser.parseRmdSource ( contents );
+		// if target is less than zero, execute all chunks
+		if ( targetId < 0) {
+			targetId = currentChunks_.size() - 1;
+			usePrevious = true;
+		}
+		auto chunks2Update = whichChunksNeedUpdate ( targetId, usePrevious );
+		// send update started message
+		nlohmann::json results;
+		results["msg"] = "previewUpdateStarted";
+		results["updateIdentifier"] = currentUpdateIdentifier_;
+		results["activeChunks"] = chunks2Update;
+		results["previewId"] = previewId;
+		delegate_->sendPreviewJson(results.dump());
+		// start execution
+		executeChunks ( chunks2Update );
+		currentUpdateIdentifier_ = "";
+	} catch (std::exception &error) {
+		LOG_INFO << "error parsing for update: " << error.what();
 	}
-	auto chunks2Update = whichChunksNeedUpdate ( targetId, usePrevious );
-	// send update started message
-	nlohmann::json results;
-	results["msg"] = "previewUpdateStarted";
-	results["updateIdentifier"] = currentUpdateIdentifier_;
-	results["activeChunks"] = chunks2Update;
-	results["previewId"] = previewId;
-	delegate_->sendPreviewJson(results.dump());
-	// start execution
-	executeChunks ( chunks2Update );
-	currentUpdateIdentifier_ = "";
 }
 
 void
