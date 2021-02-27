@@ -28,7 +28,7 @@ string testStr = R"(
 	\end{aligned}
 	$$
 	
-	* point 4 $\frac{1}{n} \sum_{i=i}^{n} x_{i}$
+	* point `r 2+2` $\frac{1}{n} \sum_{i=i}^{n} x_{i}$
 	
 
 	```{r rplot}
