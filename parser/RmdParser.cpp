@@ -41,6 +41,7 @@ RC2::CalculateSHA256Hash(string& input)
 namespace RC2 {
 
 	struct ParserData: ZeroInitializedStruct {
+		virtual ~ParserData() {}
 		// necessary to preserve Chunks in listener
 		unique_ptr<Rc2ParserListener>		listener;
 		ErrorReporter						errorReporter;
