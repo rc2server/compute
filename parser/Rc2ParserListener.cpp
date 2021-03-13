@@ -57,7 +57,6 @@ Rc2ParserListener::enterChunk(Rc2RawParser::ChunkContext* ctx)
 		case Rc2Lexer::IEQ_START: {
 			auto iec = make_unique<InlineEquationChunk>(ctx);
 			aChunk = iec.get();
-			std::cerr << "Inline Equation output:  " << (aChunk==nullptr) << std::endl;
 			curMarkdownChunk_->append(iec.get());
 			break;
 		}
