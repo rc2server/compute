@@ -45,5 +45,6 @@ protected:
 	Rc2RawParser::ChunkContext* curContext_;
 	Chunk *curChunk_;
 	MarkdownChunkImpl *curMarkdownChunk_;
+	bool skippedWhiteSpaceContent;
 };
 

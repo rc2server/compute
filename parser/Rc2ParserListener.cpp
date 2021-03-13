@@ -31,8 +31,10 @@ Rc2ParserListener::enterChunk(Rc2RawParser::ChunkContext* ctx)
 	auto contents = ctx->getText();
 	ctx->getText();
 	if (std::all_of(contents.begin(), contents.end(), isspace)) {
+		skippedWhiteSpaceContent = true;
 		return;
 	}
+	std::cerr << "start chunk " << start->getType() << std::endl;
 	switch (start->getType()) {
 		case Rc2Lexer::MDOWN:
 			if (curMarkdownChunk_ == nullptr) {
@@ -55,6 +57,7 @@ Rc2ParserListener::enterChunk(Rc2RawParser::ChunkContext* ctx)
 		case Rc2Lexer::IEQ_START: {
 			auto iec = make_unique<InlineEquationChunk>(ctx);
 			aChunk = iec.get();
+			std::cerr << "Inline Equation output:  " << (aChunk==nullptr) << std::endl;
 			curMarkdownChunk_->append(iec.get());
 			break;
 		}
@@ -87,6 +90,11 @@ Rc2ParserListener::enterChunk(Rc2RawParser::ChunkContext* ctx)
 void 
 Rc2ParserListener::exitChunk(Rc2RawParser::ChunkContext* ctx)
 {
+	if (skippedWhiteSpaceContent) {
+		skippedWhiteSpaceContent = false;
+		return;
+	}
+	std::cerr << "stop chunk " << ctx->start->getType() << std::endl;
 	if (curChunk_ == nullptr) {
 		curContext_ = nullptr;
 		return;
