@@ -34,7 +34,6 @@ Rc2ParserListener::enterChunk(Rc2RawParser::ChunkContext* ctx)
 		skippedWhiteSpaceContent = true;
 		return;
 	}
-	std::cerr << "start chunk " << start->getType() << std::endl;
 	switch (start->getType()) {
 		case Rc2Lexer::MDOWN:
 			if (curMarkdownChunk_ == nullptr) {
@@ -93,7 +92,6 @@ Rc2ParserListener::exitChunk(Rc2RawParser::ChunkContext* ctx)
 		skippedWhiteSpaceContent = false;
 		return;
 	}
-	std::cerr << "stop chunk " << ctx->start->getType() << std::endl;
 	if (curChunk_ == nullptr) {
 		curContext_ = nullptr;
 		return;
