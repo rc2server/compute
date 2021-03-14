@@ -1,3 +1,4 @@
     bool isEQStart();
     bool isInlineEqStart();
-	bool isCodeBackticks();
+	bool isCodeStartBackticks();
+    bool isCodeEndBackticks();
