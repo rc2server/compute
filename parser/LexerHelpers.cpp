@@ -30,7 +30,7 @@ bool Rc2Lexer::isCodeStartBackticks()
 	}
 	if (getCharPositionInLine() > 0) {
         for (int i = -getCharPositionInLine();  i <=-1 ; ++i) {
-            if(input.LA(backIdx) != 9) {
+            if(input.LA(backIdx) != 32) {
             return false;
         }
         }
@@ -48,7 +48,7 @@ bool Rc2Lexer::isCodeEndBackticks()
 	}
 	if (getCharPositionInLine() > 0){
         for (int i = -getCharPositionInLine();  i <=-1 ; ++i) {
-            if(input.LA(backIdx) != 9) {
+            if(input.LA(backIdx) != 32) {
                 return false;
             }
         }
