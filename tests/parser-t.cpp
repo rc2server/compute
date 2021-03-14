@@ -70,6 +70,7 @@ string testStr = R"(
 		using std::unique_ptr;
 		using std::vector;
 		struct MT {
+			virtual ~MT() {};
 			virtual string contents() const { return str; }
 			string str;
 			int i;
