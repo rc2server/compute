@@ -29,11 +29,11 @@ bool Rc2Lexer::isCodeStartBackticks()
 		return false;
 	}
 	if (getCharPositionInLine() > 0) {
-        for (int i = -getCharPositionInLine();  i <=-1 ; ++i) {
-            if(input.LA(backIdx) != 32) {
-            return false;
-        }
-        }
+		for (int i = -getCharPositionInLine();  i <=-1 ; ++i) {
+			if(_input->LA(i) != 32) {
+				return false;
+			}
+		}
 	}
 	return true;
 }
@@ -46,12 +46,12 @@ bool Rc2Lexer::isCodeEndBackticks()
 		_input->LA(3) != '`') {
 		return false;
 	}
-	if (getCharPositionInLine() > 0){
-        for (int i = -getCharPositionInLine();  i <=-1 ; ++i) {
-            if(input.LA(backIdx) != 32) {
-                return false;
-            }
-        }
+	if (getCharPositionInLine() > 0) {
+		for (int i = -getCharPositionInLine();  i <=-1 ; ++i) {
+			if(_input->LA(i) != 32) {
+				return false;
+			}
+		}
 	}
 	return true;
 }
