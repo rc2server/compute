@@ -9,13 +9,14 @@ public:
 
 class ParserException: public std::exception {
 public:
-	ParserException(int eCode)
-		: code(eCode)
-		{}
+	ParserException(const std::string& msg, size_t line, size_t charPositionInLine)
+		{
+			std::ostringstream details;
+			details << "Parser error at line " << line << ":" << charPositionInLine << ": " << msg;
+			message = details.str();
+		}
 		
-	int getCode() const { return code; }
+	const char* what() const noexcept { return message.c_str(); }
 protected:
-	int code;
+	std::string message;
 };
-
-#define kParserError_SyntaxError 701
