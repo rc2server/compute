@@ -76,6 +76,7 @@ EquationChunkImpl::EquationChunkImpl(Rc2RawParser::ChunkContext* context)
 	auto start = ctx->EQ_START()->getSymbol();
 	auto eqcode = ctx->EQ_CODE()->getSymbol();
 	
+	type_ = ChunkType::equation;
 	content_ = ctx->getText();
 	startLine_ = start->getLine();
 	startCharIndex_ = start->getStartIndex();
