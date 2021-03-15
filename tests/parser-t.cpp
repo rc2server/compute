@@ -18,24 +18,24 @@ namespace testing {
 	{
 
 string testStr = R"(
-	* point 1
+* point 1
+
+$$
+\begin{aligned}
+\dot{x} & = \sigma(y-x) \\
+\dot{y} & = \rho x - y -xz \\
+\dot{z} & = -\beta z + xy
+\end{aligned}
+$$
 	
-	$$
-	\begin{aligned}
-	\dot{x} & = \sigma(y-x) \\
-	\dot{y} & = \rho x - y -xz \\
-	\dot{z} & = -\beta z + xy
-	\end{aligned}
-	$$
-	
-	* point `r 2+2` $\frac{1}{n} \sum_{i=i}^{n} x_{i}$
+* point `r 2+2` $\frac{1}{n} \sum_{i=i}^{n} x_{i}$
 	
 
-	```{r rplot}
-	plot(rnorm(100))
-	```
+```{r rplot}
+plot(rnorm(100))
+```
 	
-	_blah blah_
+_blah blah_
 	
 )";
 
@@ -43,12 +43,12 @@ string testStr = R"(
 		auto chunks = parser.parseRmdSource(testStr);
 		ASSERT_EQ(chunks.size(), 5);
 		MarkdownChunk* md = dynamic_cast<MarkdownChunk*>(chunks[2]);
-		ASSERT_EQ(md->inlineChunks().size(), 1);
+		ASSERT_EQ(md->inlineChunks().size(), 2);
 		Chunk* codeChunk = const_cast<Chunk*>(chunks[3]);
 		ASSERT_EQ(codeChunk->type(), code);
-		for(int i=0; i < chunks.size(); ++i)  {
-			cout << "chunk " << i << "=" << chunks[i]->content() << endl;
-		}
+// 		for(int i=0; i < chunks.size(); ++i)  {
+// 			cout << "chunk " << i << "=" << chunks[i]->content() << endl;
+// 		}
 		
 	}
 	
@@ -66,6 +66,39 @@ string testStr = R"(
 		ASSERT_NE(std::count(strings.begin(), strings.end(), "fobb"), 1);
 	}
 
+	// Test that code chunk not detected with bizzare syntax
+	TEST(ParserTest, crazyBackticks) {
+		string code = R"(
+			```{r foo}
+			plot(rnorm(3))
+			```
+			Some text.
+			This is ```stupid```.
+			More text.
+			```{{ more
+			morer
+		)";
+		RmdParser parser;
+		auto chunks = parser.parseRmdSource(code);
+		ASSERT_EQ(chunks.size(), 3);
+	}
+
+	// Test that code chunk not detected with bizzare syntax
+	TEST(ParserTest, normalBackticks) {
+		string code = R"(
+Some text.
+This is ```stupid```.
+More text.
+```{r} 
+rnorm(10)
+```
+boo
+		)";
+		RmdParser parser;
+		auto chunks = parser.parseRmdSource(code);
+		ASSERT_EQ(chunks.size(), 3);
+	}
+	
 	TEST(ParserTest, memTest) {
 		using std::unique_ptr;
 		using std::vector;
@@ -111,7 +144,6 @@ barfoo
 		// if use chunks[0].get().type() it crashes
 		auto ck = chunks[0];
 		ASSERT_TRUE(ck->type() == markdown);
-		std::cout << ck->description() << std::endl;
 		ASSERT_EQ(chunks.size(), 3);
 		ASSERT_TRUE(chunks[1]->type() == ChunkType::code);
 		ASSERT_TRUE(chunks[2]->type() == markdown);
