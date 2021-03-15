@@ -64,7 +64,10 @@ RmdParser::parseRmdSource ( std::string source ) {
 	lexer.removeErrorListeners();
 	lexer.addErrorListener(new LexerErrorHandler());
 	antlr4::CommonTokenStream tokens ( &lexer );
+	// we don't use rawTokens, but need to call getTokens() to load the tokens for the filter 
+	// and there is a compiler warning if we ignore the return value
 	auto rawTokens = tokens.getTokens();
+	// filter is necessary because Rc2RawParser uses the Rc2Lexer grammar
 	Rc2RFilter filter ( &tokens );
 	filter.stream();
 	tokens.reset();
