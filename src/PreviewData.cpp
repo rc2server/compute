@@ -56,14 +56,19 @@ RC2::PreviewData::update ( FileInfo& updatedInfo, string& updateIdent, int targe
 	bool usePrevious = includePrevious;
 	int targetId = targetChunkId;
 	try {
+		LOG_INFO << "slurping file";
 		string contents = SlurpFile ( fileInfo.name.c_str() );
+		LOG_INFO << "parsing for preview";
 		currentChunks_ = parser.parseRmdSource ( contents );
+		LOG_INFO << "preview parsed";
 		// if target is less than zero, execute all chunks
 		if ( targetId < 0) {
 			targetId = currentChunks_.size() - 1;
 			usePrevious = true;
 		}
+		LOG_INFO << "determining chunks to update";
 		auto chunks2Update = whichChunksNeedUpdate ( targetId, usePrevious );
+		LOG_INFO << "updating chunks: " << chunks2Update.size();
 		// send update started message
 		nlohmann::json results;
 		results["msg"] = "previewUpdateStarted";
@@ -199,6 +204,7 @@ RC2::PreviewData::checkCache() {
 vector<int>
 RC2::PreviewData::whichChunksNeedUpdate ( int targetChunkId, bool includePrevious ) {
 	// TODO: implement more intelligent checking
+	LOG_INFO << "evaluating chunks";
 	vector<int> toExecute;
 	int startIndex = targetChunkId;
 	// if the number of chunks changed, we'll invalidate everything for now

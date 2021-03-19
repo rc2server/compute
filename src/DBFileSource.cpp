@@ -69,7 +69,7 @@ RC2::DBFileSource::loadRData()
 			return true;
 		}
 	}
-	LOG_INFO << ".RData not loaded" << std::endl;
+	LOG_INFO << "no .RData found" << std::endl;
 	return false;
 }
 

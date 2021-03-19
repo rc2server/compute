@@ -18,6 +18,7 @@ RC2::WSSession::WSSession(RSessionCallbacks *callbacks)
 }
 
 RC2::WSSession::~WSSession() {
+	LOG_INFO << "WSSession destroyed";
 }
 
 bool

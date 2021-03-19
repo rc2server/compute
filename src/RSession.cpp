@@ -712,6 +712,7 @@ RC2::RSession::handleCloseCommand(bool connectionFailed)
 	}
 	_impl->properlyClosed = true;
 	handleSaveEnvCommand();
+	LOG_INFO << "session closed";
 	event_base_loopbreak(_impl->eventBase);
 }
 
