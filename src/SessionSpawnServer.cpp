@@ -49,9 +49,16 @@ private:
 	PortFinder pfinder;
 };
 
+void
+sig_handler(int sig) {
+	exit(0);
+}
+
 int 
 main(int argc, char** argv) 
 {
+	signal(SIGCHLD, SIG_IGN);
+	signal(SIGTERM, sig_handler);
 	Spawner spawns;
 	spawns.startSessionSpawning();
 }
