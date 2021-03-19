@@ -65,9 +65,12 @@ main(int argc, char** argv)
 
 void 
 Spawner::spawnSession ( uint16_t port ) {
-	// ideally want to know when it is running
-	// FIXME: get path like RServer does
 	boost::process::spawn("/rc2compute/wssession", "-p", std::to_string(port));
+	// delay response until process launched and listening
+	struct timespec ts;
+	ts.tv_sec = 0;
+	ts.tv_nsec = 600 * 1000 * 1000;
+	nanosleep(&ts, NULL);
 }
 
 
