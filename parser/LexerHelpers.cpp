@@ -1,4 +1,5 @@
 #include <boost/algorithm/algorithm.hpp>
+#include "LexerHelpers.hpp"
 
 bool Rc2Lexer::isInlineEqStart()
 {
@@ -11,7 +12,7 @@ bool Rc2Lexer::isInlineEqStart()
 
 bool Rc2Lexer::isEQStart()
 {
-	return 
+	return
 		_input->LA(-1) != '$' &&
 		_input->LA(1) == '$' &&
 		_input->LA(2) == '$' &&
